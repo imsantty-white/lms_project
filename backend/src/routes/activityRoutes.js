@@ -4,39 +4,180 @@ const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/authMiddleware');
 
+const { 
+  getStudentActivityForAttempt, 
+  submitStudentActivityAttempt,
+  getAssignmentSubmissions, 
+  getTeacherAssignments, 
+  gradeSubmission 
+} = require('../controllers/activityController');
 
-const { getStudentActivityForAttempt, submitStudentActivityAttempt,
-            getAssignmentSubmissions, getTeacherAssignments, gradeSubmission } = require('../controllers/activityController');
+/**
+ * @swagger
+ * tags:
+ *   name: Actividades
+ *   description: Endpoints para gestión y entrega de actividades
+ */
 
-
-// Middleware: Aplica 'protect' a todas las rutas en este router de aquí en adelante (si no lo tienes ya)
-// router.use(protect);
-
-
-// Rutas para Estudiantes (Actividades)
-// @desc    Obtener los detalles de una Actividad asignada para que un estudiante la inicie
-// @route   GET /api/activities/student/:assignmentId/start
+/**
+ * @swagger
+ * /api/activities/student/{assignmentId}/start:
+ *   get:
+ *     summary: Obtener los detalles de una actividad asignada para que un estudiante la inicie
+ *     tags: [Actividades]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: assignmentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la asignación de la actividad
+ *     responses:
+ *       200:
+ *         description: Detalles de la actividad para el estudiante
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Assignment'
+ *       401:
+ *         description: No autorizado
+ *       404:
+ *         description: Asignación no encontrada
+ */
 router.get('/student/:assignmentId/start', protect, authorize('Estudiante'), getStudentActivityForAttempt);
 
-// @desc    Registrar la entrega de respuestas de un estudiante para una asignación de actividad
-// @route   POST /api/activities/student/:assignmentId/submit-attempt
-// @access  Privado/Estudiante
+/**
+ * @swagger
+ * /api/activities/student/{assignmentId}/submit-attempt:
+ *   post:
+ *     summary: Registrar la entrega de respuestas de un estudiante para una asignación de actividad
+ *     tags: [Actividades]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: assignmentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la asignación de la actividad
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               respuestas:
+ *                 type: array
+ *                 description: Respuestas del estudiante
+ *                 items:
+ *                   type: object
+ *     responses:
+ *       200:
+ *         description: Entrega registrada correctamente
+ *       400:
+ *         description: Error en la entrega o validación
+ *       401:
+ *         description: No autorizado
+ *       404:
+ *         description: Asignación no encontrada
+ */
 router.post('/student/:assignmentId/submit-attempt', protect, authorize('Estudiante'), submitStudentActivityAttempt);
 
-// @desc    Obtener todas las entregas para una asignación (Vista Docente/Admin)
-// @route   GET /api/activities/assignments/:assignmentId/submissions
-// @access  Privado/Docente, Admin
+/**
+ * @swagger
+ * /api/activities/assignments/{assignmentId}/submissions:
+ *   get:
+ *     summary: Obtener todas las entregas para una asignación (vista Docente/Admin)
+ *     tags: [Actividades]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: assignmentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la asignación de la actividad
+ *     responses:
+ *       200:
+ *         description: Lista de entregas de estudiantes
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Submission'
+ *       401:
+ *         description: No autorizado
+ *       404:
+ *         description: Asignación no encontrada
+ */
 router.get('/assignments/:assignmentId/submissions', protect, authorize('Docente', 'Administrador'), getAssignmentSubmissions);
 
-// @desc    Obtener la lista de asignaciones de actividades para un docente/admin
-// @route   GET /api/activities/teacher/assignments
-// @access  Privado/Docente, Admin
+/**
+ * @swagger
+ * /api/activities/teacher/assignments:
+ *   get:
+ *     summary: Obtener la lista de asignaciones de actividades para un docente/admin
+ *     tags: [Actividades]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de asignaciones
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Assignment'
+ *       401:
+ *         description: No autorizado
+ */
 router.get('/teacher/assignments', protect, authorize('Docente', 'Administrador'), getTeacherAssignments);
 
-// @desc    Guardar la calificación manual para una entrega (Cuestionario/Trabajo)
-// @route   PUT /api/submissions/:submissionId/grade
-// @access  Privado/Docente, Admin
+/**
+ * @swagger
+ * /api/submissions/{submissionId}/grade:
+ *   put:
+ *     summary: Guardar la calificación manual para una entrega (Cuestionario/Trabajo)
+ *     tags: [Actividades]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: submissionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la entrega (submission)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               calificacion:
+ *                 type: number
+ *                 description: Calificación asignada
+ *               retroalimentacion:
+ *                 type: string
+ *                 description: Comentarios del docente
+ *     responses:
+ *       200:
+ *         description: Calificación guardada correctamente
+ *       400:
+ *         description: Error en la calificación
+ *       401:
+ *         description: No autorizado
+ *       404:
+ *         description: Entrega no encontrada
+ */
 router.put('/submissions/:submissionId/grade', protect, authorize('Docente', 'Administrador'), gradeSubmission);
-// ...otras rutas de actividades (para docentes o administración)...
 
 module.exports = router; // Exporta el router

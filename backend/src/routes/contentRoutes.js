@@ -3,7 +3,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { protect, authorize } = require('../middleware/authMiddleware'); // Importamos los middlewares de seguridad
+const { protect, authorize } = require('../middleware/authMiddleware');
 const {
     createResource,
     createActivity,
@@ -17,52 +17,276 @@ const {
   } = require('../controllers/contentController');
 
 // Middleware: Aplica 'protect' y 'authorize('Docente')' a todas las rutas definidas en este router
-// Esto asegura que solo los docentes autenticados puedan usar estas rutas
 router.use(protect, authorize('Docente'));
 
-// @desc    Crear un nuevo Recurso (para el banco del docente)
-// @route   POST /api/content/resources
-// (La ruta es '/resources' porque este router se montará en '/api/content' en app.js)
+/**
+ * @swagger
+ * tags:
+ *   name: Banco de Contenido
+ *   description: Endpoints para gestión de recursos y actividades del banco personal del docente
+ */
+
+/**
+ * @swagger
+ * /api/content/resources:
+ *   post:
+ *     summary: Crear un nuevo recurso en el banco del docente
+ *     tags: [Banco de Contenido]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Resource'
+ *     responses:
+ *       201:
+ *         description: Recurso creado correctamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Resource'
+ *       400:
+ *         description: Error en los datos enviados
+ *       401:
+ *         description: No autorizado
+ */
 router.post('/resources', createResource);
 
-// @desc    Crear una nueva Actividad (para el banco del docente)
-// @route   POST /api/content/activities
+/**
+ * @swagger
+ * /api/content/activities:
+ *   post:
+ *     summary: Crear una nueva actividad en el banco del docente
+ *     tags: [Banco de Contenido]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Activity'
+ *     responses:
+ *       201:
+ *         description: Actividad creada correctamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Activity'
+ *       400:
+ *         description: Error en los datos enviados
+ *       401:
+ *         description: No autorizado
+ */
 router.post('/activities', createActivity);
 
-// @desc    Obtener el Banco de Contenido (Recursos y Actividades) del Docente autenticado
-// @route   GET /api/content/my-bank
-router.get('/my-bank', getDocenteContentBank); // O '/my-bank' si usas req.user._id
+/**
+ * @swagger
+ * /api/content/my-bank:
+ *   get:
+ *     summary: Obtener el banco de contenido (recursos y actividades) del docente autenticado
+ *     tags: [Banco de Contenido]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Banco de contenido del docente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 recursos:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Resource'
+ *                 actividades:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Activity'
+ *       401:
+ *         description: No autorizado
+ */
+router.get('/my-bank', getDocenteContentBank);
 
-// @desc    Obtener un Recurso específico por ID
-// @route   GET /api/content/resources/:resourceId
+/**
+ * @swagger
+ * /api/content/resources/{resourceId}:
+ *   get:
+ *     summary: Obtener un recurso específico por ID
+ *     tags: [Banco de Contenido]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: resourceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del recurso
+ *     responses:
+ *       200:
+ *         description: Recurso encontrado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Resource'
+ *       404:
+ *         description: Recurso no encontrado
+ *       401:
+ *         description: No autorizado
+ */
 router.get('/resources/:resourceId', getResourceById);
 
-// Rutas para Actividades
-// @desc    Obtener una Actividad específica por ID
-// @route   GET /api/content/activities/:activityId
+/**
+ * @swagger
+ * /api/content/activities/{activityId}:
+ *   get:
+ *     summary: Obtener una actividad específica por ID
+ *     tags: [Banco de Contenido]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: activityId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la actividad
+ *     responses:
+ *       200:
+ *         description: Actividad encontrada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Activity'
+ *       404:
+ *         description: Actividad no encontrada
+ *       401:
+ *         description: No autorizado
+ */
 router.get('/activities/:activityId', getActivityById);
 
-// --- Nuevas Rutas de Gestión del Banco de Contenido para Docente ---
+/**
+ * @swagger
+ * /api/content/resources/{resourceId}:
+ *   put:
+ *     summary: Actualizar un recurso específico en el banco de contenido
+ *     tags: [Banco de Contenido]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: resourceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del recurso
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Resource'
+ *     responses:
+ *       200:
+ *         description: Recurso actualizado correctamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Resource'
+ *       404:
+ *         description: Recurso no encontrado
+ *       401:
+ *         description: No autorizado
+ */
+router.put('/resources/:resourceId', updateResource);
 
-// @desc    Actualizar un Recurso específico en el Banco de Contenido
-// @route   PUT /api/content/resources/:resourceId
-router.put('/resources/:resourceId', updateResource); // <-- Nueva ruta PUT para Recurso
+/**
+ * @swagger
+ * /api/content/resources/{resourceId}:
+ *   delete:
+ *     summary: Eliminar un recurso específico del banco de contenido
+ *     tags: [Banco de Contenido]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: resourceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del recurso
+ *     responses:
+ *       200:
+ *         description: Recurso eliminado correctamente
+ *       404:
+ *         description: Recurso no encontrado
+ *       401:
+ *         description: No autorizado
+ */
+router.delete('/resources/:resourceId', deleteResource);
 
-// @desc    Eliminar un Recurso específico del Banco de Contenido
-// @route   DELETE /api/content/resources/:resourceId
-router.delete('/resources/:resourceId', deleteResource); // <-- Nueva ruta DELETE para Recurso
+/**
+ * @swagger
+ * /api/content/activities/{activityId}:
+ *   put:
+ *     summary: Actualizar una actividad específica en el banco de contenido
+ *     tags: [Banco de Contenido]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: activityId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la actividad
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Activity'
+ *     responses:
+ *       200:
+ *         description: Actividad actualizada correctamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Activity'
+ *       404:
+ *         description: Actividad no encontrada
+ *       401:
+ *         description: No autorizado
+ */
+router.put('/activities/:activityId', updateActivity);
 
-// @desc    Actualizar una Actividad específica en el Banco de Contenido
-// @route   PUT /api/content/activities/:activityId
-router.put('/activities/:activityId', updateActivity); // <-- Nueva ruta PUT para Actividad
+/**
+ * @swagger
+ * /api/content/activities/{activityId}:
+ *   delete:
+ *     summary: Eliminar una actividad específica del banco de contenido
+ *     tags: [Banco de Contenido]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: activityId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la actividad
+ *     responses:
+ *       200:
+ *         description: Actividad eliminada correctamente
+ *       404:
+ *         description: Actividad no encontrada
+ *       401:
+ *         description: No autorizado
+ */
+router.delete('/activities/:activityId', deleteActivity);
 
-// @desc    Eliminar una Actividad específica del Banco de Contenido
-// @route   DELETE /api/content/activities/:activityId
-router.delete('/activities/:activityId', deleteActivity); // <-- Nueva ruta DELETE para Actividad
-
-
-// Nota: Las rutas relacionadas con la estructura de Rutas de Aprendizaje (Paths, Modules, Themes) y asignaciones específicas
-// se manejarán en un paso posterior. Estas rutas son solo para los ítems del banco.
-
-
-module.exports = router; // Exportamos el router
+module.exports = router;

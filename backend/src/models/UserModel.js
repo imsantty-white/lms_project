@@ -6,13 +6,17 @@ const bcrypt = require('bcrypt'); // Importamos bcrypt para cifrar contraseñas
 const userSchema = new mongoose.Schema({
   nombre: {
     type: String,
-    required: [true, 'El nombre es obligatorio'], // Campo obligatorio con mensaje de error
-    trim: true // Elimina espacios en blanco al inicio y final
+    required: [true, 'El nombre es obligatorio'],
+    trim: true,
+    minlength: [2, 'El nombre debe tener al menos 2 caracteres'],
+    maxlength: [50, 'El nombre no puede exceder 50 caracteres']
   },
   apellidos: {
     type: String,
     required: [true, 'Los apellidos son obligatorios'],
-    trim: true
+    trim: true,
+    minlength: [2, 'Los apellidos deben tener al menos 2 caracteres'],
+    maxlength: [50, 'Los apellidos no pueden exceder 50 caracteres']
   },
   email: {
     type: String,
@@ -24,7 +28,8 @@ const userSchema = new mongoose.Schema({
   },
   contrasena_hash: { // Almacenaremos el hash de la contraseña aquí
     type: String,
-    required: [true, 'La contraseña es obligatoria']
+    required: [true, 'La contraseña es obligatoria'],
+    minlength: [8, 'La contraseña debe tener al menos 8 caracteres']
   },
   tipo_usuario: {
     type: String,
@@ -34,20 +39,42 @@ const userSchema = new mongoose.Schema({
   },
   tipo_identificacion: { // Campos opcionales
     type: String,
-    trim: true
+    trim: true,
+    maxlength: [20, 'El tipo de identificación no puede exceder 20 caracteres']
   },
   numero_identificacion: { // Campos opcionales
     type: String,
     trim: true,
-    maxlength: 10 // Validar longitud
+    maxlength: [15, 'El número de identificación no puede exceder 15 caracteres'],
+    validate: {
+      validator: function(v) {
+        // Solo números, opcional
+        return !v || /^\d+$/.test(v);
+      },
+      message: 'El número de identificación solo puede contener números'
+    }
   },
   fecha_nacimiento: { // Campos opcionales
-    type: Date
+    type: Date,
+    validate: {
+      validator: function(value) {
+        // Debe ser una fecha pasada
+        return !value || value < new Date();
+      },
+      message: 'La fecha de nacimiento debe ser una fecha pasada'
+    }
   },
   telefono: { // Campos opcionales
     type: String,
     trim: true,
-    maxlength: 10 // Validar longitud (ajusta si necesitas más)
+    maxlength: [15, 'El teléfono no puede exceder 15 caracteres'],
+    validate: {
+      validator: function(v) {
+        // Solo números, opcional
+        return !v || /^\d+$/.test(v);
+      },
+      message: 'El teléfono solo puede contener números'
+    }
   },
   fecha_registro: {
     type: Date,

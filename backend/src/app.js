@@ -6,6 +6,9 @@ require('dotenv').config();
 // --- IMPORTAR Y CONFIGURAR CORS ---
 const cors = require('cors');
 
+// --- IMPORTAR express-mongo-sanitize ---
+const mongoSanitize = require('express-mongo-sanitize');
+
 // Middleware: Permite que Express entienda JSON en las peticiones
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -21,7 +24,39 @@ app.use(cors({
 // pero especificar el origen es mejor práctica incluso en desarrollo si conoces la URL del frontend.
 // --- FIN USAR EL MIDDLEWARE CORS ---
 
+// --- USAR EL MIDDLEWARE express-mongo-sanitize ---
+// Esto protege contra NoSQL Injection en req.body, req.query y req.params
+app.use(mongoSanitize());
 
+// --- Swagger Docs ---
+const swaggerJsDoc = require('swagger-jsdoc');
+const swaggerUi = require('swagger-ui-express');
+
+const swaggerOptions = {
+  swaggerDefinition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'API LMS',
+      version: '1.0.0',
+      description: 'Documentación de la API del Sistema de Gestión de Aprendizaje',
+    },
+    servers: [{ url: 'http://localhost:3000' }],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      },
+    },
+    security: [{ bearerAuth: [] }],
+  },
+  apis: ['./src/routes/*.js'], // Ajusta el path según donde estén tus rutas
+};
+
+const swaggerDocs = swaggerJsDoc(swaggerOptions);
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 const authRoutes = require('./routes/authRoutes'); // Importa las rutas de autenticación
 const groupRoutes = require('./routes/groupRoutes'); // Importa las rutas de grupos
@@ -38,10 +73,10 @@ app.use('/api/auth', authRoutes); // Monta las rutas de autenticación bajo el p
 // Todas las rutas en adminRoutes.js se prefijarán con /api/admin
 app.use('/api/admin', adminRoutes);
 
+// Monta las rutas de Grupos
 app.use('/api/groups', groupRoutes); // Monta las rutas de grupos bajo el prefijo /api/groups
-// Usar rutas de rutas de aprendizaje (Paths, Modules, Themes)
 
-// Todas las rutas en learningPathRoutes.js se prefijarán con /api/learning-paths
+// Todas las rutas en learningPathRoutes.js se prefijarán con /api/learning-paths (Paths, Modules, Themes)
 app.use('/api/learning-paths', learningPathRoutes);
 
 // Usar rutas de contenido (Resources, Activities Bank)
@@ -51,7 +86,6 @@ app.use('/api/content', contentRoutes);
 // Usar rutas de entregas (Submissions)
 // Todas las rutas en submissionRoutes.js se prefijarán con /api/submissions
 app.use('/api/submissions', submissionRoutes);
-
 
 // Usar rutas de progreso
 // Todas las rutas en progressRoutes.js se prefijarán con /api/progress

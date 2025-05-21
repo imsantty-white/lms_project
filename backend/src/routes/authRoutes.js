@@ -1,22 +1,70 @@
-//authRoutes
+// src/routes/authRoutes.js
 const express = require('express');
-const router = express.Router(); // Creamos un router de Express
+const router = express.Router();
 
 const { protect } = require('../middleware/authMiddleware');
+const { registerUser, loginUser, getMe } = require('../controllers/authController');
 
-const { registerUser, loginUser, getMe } = require('../controllers/authController'); // Importamos la función del controlador
-
-// Definimos la ruta POST para el registro de usuarios
-// La URL completa será /api/auth/register (veremos en app.js cómo se define /api/auth)
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Registrar un nuevo usuario
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Usuario registrado correctamente
+ */
 router.post('/register', registerUser);
 
-// Nueva ruta POST para el login de usuarios
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Iniciar sesión de usuario
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Usuario autenticado correctamente
+ */
 router.post('/login', loginUser);
 
-// @desc    Get current authenticated user data
-// @route   GET /api/auth/me
-// Acceso:  Privado (Requiere Token JWT)
+/**
+ * @swagger
+ * /api/auth/me:
+ *   get:
+ *     summary: Obtener datos del usuario autenticado
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Datos del usuario actual
+ */
 router.get('/me', protect, getMe);
 
-
-module.exports = router; // Exportamos el router
+module.exports = router;
