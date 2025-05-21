@@ -25,8 +25,13 @@ app.use(cors({
 // --- FIN USAR EL MIDDLEWARE CORS ---
 
 // --- USAR EL MIDDLEWARE express-mongo-sanitize ---
-// Esto protege contra NoSQL Injection en req.body, req.query y req.params
-app.use(mongoSanitize());
+// Solo sanitiza body y params, NO query (para evitar el error)
+app.use((req, res, next) => {
+  mongoSanitize.sanitize(req.body, { replaceWith: '_removed_' });
+  mongoSanitize.sanitize(req.params, { replaceWith: '_removed_' });
+  // NO sanitices req.query aquí
+  next();
+});
 
 // --- Swagger Docs ---
 const swaggerJsDoc = require('swagger-jsdoc');
