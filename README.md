@@ -8,7 +8,7 @@ Este repositorio contiene el backend de un Sistema de Gestión de Aprendizaje (L
 
 ## Características principales
 
-- **Autenticación y autorización JWT** con roles (Estudiante, Docente, Administrador)
+- **Autenticación y autorización JWT** con roles (Estudiante, Docente, Administrador) "Hay que implementar auth firebase"
 - **Gestión de usuarios**: registro, login, aprobación de docentes, activación/desactivación de cuentas
 - **Gestión de grupos** y membresías
 - **Rutas de aprendizaje**: módulos y temas jerárquicos

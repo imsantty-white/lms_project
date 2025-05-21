@@ -3,199 +3,115 @@
 const express = require('express');
 const router = express.Router();
 
-const { protect, authorize } = require('../middleware/authMiddleware');
-const {
-  createLearningPath, createModule, updateContentAssignmentStatus,
-  createTheme, assignContentToTheme, getGroupLearningPathsForDocente,
-  getGroupLearningPathsForStudent, getLearningPathStructure, updateLearningPath,
-  deleteLearningPath, updateModule, deleteModule, updateTheme, deleteTheme,
-  updateContentAssignment, deleteContentAssignment, getMyAssignedLearningPaths,
-  getMyCreatedLearningPaths, getContentAssignmentById
-} = require('../controllers/learningPathController');
+const { protect, authorize } = require('../middleware/authMiddleware'); // Importamos los middlewares de seguridad
+const { createLearningPath, createModule, updateContentAssignmentStatus,
+            createTheme, assignContentToTheme, getGroupLearningPathsForDocente,
+                getGroupLearningPathsForStudent, getLearningPathStructure, updateLearningPath, 
+                    deleteLearningPath, updateModule, deleteModule, updateTheme, deleteTheme, updateContentAssignment,
+                        deleteContentAssignment, getMyAssignedLearningPaths, getMyCreatedLearningPaths, getContentAssignmentById} = require('../controllers/learningPathController'); // Importamos los controladores de rutas de aprendizaje
 
-// Middleware global de protección
+// Middleware: Aplica 'protect' a todas las rutas en este router de aquí en adelante
+// La autorización por rol ('Docente') o la verificación de membresía se harán en los controladores
 router.use(protect);
 
-/**
- * @swagger
- * /api/learning-paths:
- *   post:
- *     summary: Crear una nueva ruta de aprendizaje
- *     tags: [LearningPaths]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       201:
- *         description: Ruta creada correctamente
- */
-router.post('/', authorize('Docente'), createLearningPath);
+// @desc    Crear una nueva Ruta de Aprendizaje
+// @route   POST /api/learning-paths
+// @access  Privado/Docente
+router.post('/', authorize('Docente'), createLearningPath); // Aseguramos que la creación es solo para docentes
 
-/**
- * @swagger
- * /api/learning-paths/{learningPathId}/modules:
- *   post:
- *     summary: Crear un módulo dentro de una ruta de aprendizaje
- *     tags: [LearningPaths]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: learningPathId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       201:
- *         description: Módulo creado correctamente
- */
+// @desc    Crear un nuevo Módulo
+// @route   POST /api/learning-paths/:learningPathId/modules
+// @access  Privado/Docente
 router.post('/:learningPathId/modules', authorize('Docente'), createModule);
 
-/**
- * @swagger
- * /api/learning-paths/modules/{moduleId}/themes:
- *   post:
- *     summary: Crear un tema dentro de un módulo
- *     tags: [LearningPaths]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: moduleId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       201:
- *         description: Tema creado correctamente
- */
+// @desc    Crear un nuevo Tema
+// @route   POST /api/learning-paths/modules/:moduleId/themes
+// @access  Privado/Docente
 router.post('/modules/:moduleId/themes', authorize('Docente'), createTheme);
 
-/**
- * @swagger
- * /api/learning-paths/themes/{themeId}/assign-content:
- *   post:
- *     summary: Asignar contenido a un tema
- *     tags: [LearningPaths]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: themeId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Contenido asignado correctamente
- */
+// @desc    Asignar Contenido a un Tema
+// @route   POST /api/learning-paths/themes/:themeId/assign-content
+// @access  Privado/Docente
 router.post('/themes/:themeId/assign-content', authorize('Docente'), assignContentToTheme);
 
-/**
- * @swagger
- * /api/learning-paths/assignments/{assignmentId}/status:
- *   put:
- *     summary: Actualizar el estado de una asignación de contenido
- *     tags: [LearningPaths]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: assignmentId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Estado actualizado
- */
-router.put('/assignments/:assignmentId/status', authorize('Docente', 'Administrador'), updateContentAssignmentStatus);
+// @desc    Update Content Assignment Status
+// @route   PUT /api/learning-paths/assignments/:assignmentId/status
+// @access  Privado/Docente, Admin
+router.put('/assignments/:assignmentId/status', protect, authorize('Docente', 'Administrador'), updateContentAssignmentStatus);
 
-/**
- * @swagger
- * /api/learning-paths/my-creations:
- *   get:
- *     summary: Obtener rutas creadas por el docente
- *     tags: [LearningPaths]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Lista de rutas creadas
- */
+// @desc    Obtener Rutas de Aprendizaje creadas por el docente autenticado
+// @route   GET /api/learning-paths/my-creations
+// Acceso:  Privado/Docente
 router.get('/my-creations', authorize('Docente'), getMyCreatedLearningPaths);
 
-/**
- * @swagger
- * /api/learning-paths/groups/{groupId}/docente:
- *   get:
- *     summary: Obtener rutas de un grupo (vista docente)
- *     tags: [LearningPaths]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: groupId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Rutas obtenidas
- */
+// @desc    Obtener Rutas de Aprendizaje para un grupo (Vista Docente)
+// @route   GET /api/learning-paths/groups/:groupId/docente
+// Acceso: Protegida, solo Docente dueño del grupo
 router.get('/groups/:groupId/docente', authorize('Docente'), getGroupLearningPathsForDocente);
 
-/**
- * @swagger
- * /api/learning-paths/groups/{groupId}/student:
- *   get:
- *     summary: Obtener rutas de un grupo (vista estudiante)
- *     tags: [LearningPaths]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: groupId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Rutas obtenidas
- */
-router.get('/groups/:groupId/student', getGroupLearningPathsForStudent);
+// @desc    Obtener Rutas de Aprendizaje para un grupo (Vista Estudiante)
+// @route   GET /api/learning-paths/groups/:groupId/student
+// Acceso: Protegida, solo Estudiante miembro aprobado del grupo
+router.get('/groups/:groupId/student', getGroupLearningPathsForStudent); // Verificación de membresía en el controlador
 
-/**
- * @swagger
- * /api/learning-paths/{pathId}/structure:
- *   get:
- *     summary: Obtener estructura completa de una ruta
- *     tags: [LearningPaths]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: pathId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Estructura obtenida
- */
-router.get('/:pathId/structure', getLearningPathStructure);
+// @desc    Obtener la estructura completa de una Ruta de Aprendizaje específica
+// @route   GET /api/learning-paths/:pathId/structure
+// Acceso: Protegida, Docente dueño del grupo O Estudiante miembro aprobado del grupo
+router.get('/:pathId/structure', getLearningPathStructure); // Verificación de propiedad/membresía en el controlador
 
-/**
- * @swagger
- * /api/learning-paths/my-assigned:
- *   get:
- *     summary: Obtener rutas asignadas al usuario
- *     tags: [LearningPaths]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Rutas asignadas obtenidas
- */
-router.get('/my-assigned', getMyAssignedLearningPaths);
+// @desc    Obtener todas las Rutas de Aprendizaje asignadas al usuario autenticado (a través de membresías de grupo aprobadas)
+// @route   GET /api/learning-paths/my-assigned
+// Acceso:  Privado (ya cubierto por router.use(protect)), para cualquier usuario miembro de grupos
+router.get('/my-assigned', getMyAssignedLearningPaths); // <-- AÑADE ESTA NUEVA LÍNEA DE RUTA
+// No necesita authorize('Estudiante') aquí, ya que la membresía se verifica en el controlador.
+// Podría ser útil si un docente también fuera miembro de un grupo y quisiera ver sus rutas asignadas como estudiante.
 
-module.exports = router;
+// @desc    Actualizar detalles de una Ruta de Aprendizaje
+// @route   PUT /api/learning-paths/:learningPathId
+// Acceso: Privado/Docente (solo el dueño de la ruta - se verifica por el grupo)
+// El ID de la ruta a actualizar va en los parámetros de la URL
+router.put('/:learningPathId', authorize('Docente'), updateLearningPath); 
+
+// @desc    Eliminar una Ruta de Aprendizaje
+// @route   DELETE /api/learning-paths/:learningPathId
+// Acceso: Privado/Docente (solo el dueño de la ruta - se verifica por el grupo)
+// El ID de la ruta a eliminar va en los parámetros de la URL
+router.delete('/:learningPathId', authorize('Docente'), deleteLearningPath); 
+
+// @desc    Actualizar un Módulo específico
+// @route   PUT /api/learning-paths/modules/:moduleId
+// Acceso: Privado/Docente (solo el dueño del módulo - se verifica por la ruta/grupo)
+router.put('/modules/:moduleId', authorize('Docente'), updateModule); 
+// @desc    Eliminar un Módulo específico
+// @route   DELETE /api/learning-paths/modules/:moduleId
+// Acceso: Privado/Docente (solo el dueño del módulo - se verifica por la ruta/grupo)
+router.delete('/modules/:moduleId', authorize('Docente'), deleteModule); 
+
+// @desc    Actualizar un Tema específico
+// @route   PUT /api/learning-paths/themes/:themeId
+// Acceso: Privado/Docente (solo el dueño del tema - se verifica por módulo/ruta/grupo)
+router.put('/themes/:themeId', authorize('Docente'), updateTheme);
+// @desc    Eliminar un Tema específico
+// @route   PUT /api/learning-paths/assignments/:assignmentId
+// Acceso: Privado/Docente (solo el dueño del tema - se verifica por módulo/ruta/grupo)
+router.delete('/themes/:themeId', authorize('Docente'), deleteTheme);
+
+// Rutas para Asignaciones de Contenido (ContentAssignment)
+// @desc    Obtener una asignación de contenido específica por ID
+// @route   GET /api/learning-paths/assignments/:assignmentId
+router.get('/assignments/:assignmentId', protect, authorize('Docente'), getContentAssignmentById);
+
+// @desc    Actualizar una Asignación de Contenido específica
+// @route   PUT /api/content-assignments/:assignmentId
+// @access  Privado/Docente
+router.put('/assignments/:assignmentId', authorize('Docente'), updateContentAssignment);
+
+// @desc    Eliminar una Asignación de Contenido específica
+// @route   DELETE /api/learning-paths/assignments/:assignmentId
+// Acceso: Privado/Docente (solo el dueño de la asignación - se verifica por tema/módulo/ruta/grupo)
+// El ID de la asignación a eliminar va en los parámetros de la URL
+router.delete('/assignments/:assignmentId', authorize('Docente'), deleteContentAssignment);
+
+// Aquí agregaremos otras rutas que se necesiten si es el caso
+
+module.exports = router; // Exportamos el router

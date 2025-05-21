@@ -11,6 +11,8 @@ const Membership = require('../models/MembershipModel');
 const Progress = require('../models/ProgressModel');
 const User = require('../models/UserModel');
 const Submission = require('../models/SubmissionModel');
+const mongoose = require('mongoose');
+
 
 // @desc    Obtener Rutas de Aprendizaje creadas por el docente autenticado
 // @route   GET /api/learning-paths/my-creations
@@ -652,56 +654,42 @@ const getMyAssignedLearningPaths = async (req, res) => {
 // @route   PUT /api/learning-paths/:learningPathId
 // @access  Privado/Docente
 const updateLearningPath = async (req, res) => {
-    const { learningPathId } = req.params; // ID de la Ruta de Aprendizaje de la URL
-    // Campos permitidos para actualizar (título, descripción)
-    const { title, description } = req.body;
-    const docenteId = req.user._id; // ID del docente autenticado
+    const { learningPathId } = req.params;
+    const { nombre, descripcion } = req.body; // <-- Cambia aquí
+    const docenteId = req.user._id;
 
-     // Validación básica del ID de la Ruta
-     if (!mongoose.Types.ObjectId.isValid(learningPathId)) {
-         return res.status(400).json({ message: 'ID de ruta de aprendizaje inválido' });
+    if (!mongoose.Types.ObjectId.isValid(learningPathId)) {
+        return res.status(400).json({ message: 'ID de ruta de aprendizaje inválido' });
     }
 
     // Validación de los campos a actualizar si se proporcionaron
-    if (title !== undefined && (typeof title !== 'string' || title.trim() === '')) {
-         return res.status(400).json({ message: 'El título debe ser un texto no vacío si se proporciona' });
+    if (nombre !== undefined && (typeof nombre !== 'string' || nombre.trim() === '')) {
+        return res.status(400).json({ message: 'El nombre debe ser un texto no vacío si se proporciona' });
     }
-     if (description !== undefined && typeof description !== 'string') {
-         return res.status(400).json({ message: 'La descripción debe ser texto si se proporciona' });
-     }
-     // Si no se proporcionó ni título ni descripción
-     if (title === undefined && description === undefined) {
-          return res.status(400).json({ message: 'Se debe proporcionar título o descripción para actualizar la ruta' });
-     }
-
+    if (descripcion !== undefined && typeof descripcion !== 'string') {
+        return res.status(400).json({ message: 'La descripción debe ser texto si se proporciona' });
+    }
+    if (nombre === undefined && descripcion === undefined) {
+        return res.status(400).json({ message: 'Se debe proporcionar nombre o descripción para actualizar la ruta' });
+    }
 
     try {
-        // Buscar la ruta de aprendizaje por ID y verificar que pertenece al docente autenticado VÍA su grupo
-        // Poblamos el grupo para obtener el ID del docente dueño
         const learningPath = await LearningPath.findById(learningPathId).populate('group_id');
-
-        // Si la ruta no existe, o si tiene grupo pero ese grupo no pertenece al docente autenticado
         if (!learningPath || !learningPath.group_id || !learningPath.group_id.docente_id.equals(docenteId)) {
-             // Se usa 404 para no revelar si la ruta existe pero pertenece a otro docente/grupo
             return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada o no te pertenece' });
         }
 
-        // Actualizar los campos permitidos solo si se proporcionaron en el cuerpo
-        if (title !== undefined) {
-            learningPath.title = title.trim(); // Limpiar espacios
+        if (nombre !== undefined) {
+            learningPath.nombre = nombre.trim();
         }
-         if (description !== undefined) {
-             learningPath.description = description.trim(); // Limpiar espacios
-         }
+        if (descripcion !== undefined) {
+            learningPath.descripcion = descripcion.trim();
+        }
 
-        // Guardar los cambios en la base de datos
         await learningPath.save();
-
-        // Responder con la ruta actualizada
         res.status(200).json(learningPath);
 
     } catch (error) {
-        // Manejo de errores de validación de Mongoose u otros errores
         if (error.name === 'ValidationError') {
             const messages = Object.values(error.errors).map(val => val.message);
             return res.status(400).json({ message: 'Error de validación al actualizar ruta de aprendizaje', errors: messages });
@@ -712,72 +700,50 @@ const updateLearningPath = async (req, res) => {
 };
 
 
-// @desc    Eliminar una Ruta de Aprendizaje
+// @desc    Eliminar una Ruta de Aprendizaje (requiere confirmación de nombre)
 // @route   DELETE /api/learning-paths/:learningPathId
 // @access  Privado/Docente
 const deleteLearningPath = async (req, res) => {
-    const { learningPathId } = req.params; // ID de la Ruta de Aprendizaje de la URL
-    const docenteId = req.user._id; // ID del docente autenticado
+    const { learningPathId } = req.params;
+    const { nombreConfirmacion } = req.body; // El nombre que el usuario debe enviar para confirmar
+    const docenteId = req.user._id;
 
-     // Validación básica del ID de la Ruta
-     if (!mongoose.Types.ObjectId.isValid(learningPathId)) {
-         return res.status(400).json({ message: 'ID de ruta de aprendizaje inválido' });
+    // Validación básica del ID de la Ruta
+    if (!mongoose.Types.ObjectId.isValid(learningPathId)) {
+        return res.status(400).json({ message: 'ID de ruta de aprendizaje inválido' });
     }
 
     try {
         // Buscar la ruta de aprendizaje por ID y verificar que pertenece al docente autenticado VÍA su grupo
-         const learningPath = await LearningPath.findById(learningPathId).populate('group_id');
+        const learningPath = await LearningPath.findById(learningPathId).populate('group_id');
 
-        // Si la ruta no existe, o si tiene grupo pero ese grupo no pertenece al docente autenticado
         if (!learningPath || !learningPath.group_id || !learningPath.group_id.docente_id.equals(docenteId)) {
-             // Se usa 404 para no revelar si existe pero pertenece a otro docente/grupo
             return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada o no te pertenece' });
         }
 
-        // --- Verificación para EVITAR eliminar si hay datos relacionados ---
-        // Implementamos verificaciones para prevenir la eliminación si la ruta tiene ítems dependientes:
+        // Verificar que el nombre proporcionado coincida exactamente
+        if (!nombreConfirmacion || nombreConfirmacion.trim() !== learningPath.nombre) {
+            return res.status(400).json({ message: 'El nombre de la ruta de aprendizaje no coincide. Debes escribir el nombre exacto para confirmar la eliminación.' });
+        }
 
-        // 1. Verificar si la ruta tiene Módulos asociados
+        // Verificaciones de dependencias (módulos, progreso, etc.) aquí...
         const relatedModulesCount = await Module.countDocuments({ learning_path_id: learningPathId });
         if (relatedModulesCount > 0) {
-             // Si se encuentran módulos, no se permite eliminar la ruta.
-             // Se usa 409 Conflict.
-             return res.status(409).json({ message: 'No se puede eliminar la ruta de aprendizaje porque tiene módulos asociados. Elimina primero todos los módulos.' });
+            return res.status(409).json({ message: 'No se puede eliminar la ruta de aprendizaje porque tiene módulos asociados. Elimina primero todos los módulos.' });
         }
-
-        // 2. Verificar si hay progreso de estudiantes asociado a esta ruta
         const relatedProgressCount = await Progress.countDocuments({ learning_path_id: learningPathId });
         if (relatedProgressCount > 0) {
-             // Si se encuentra progreso de estudiantes, no se permite eliminar la ruta.
-             // Se usa 409 Conflict.
-             // Nota: Borrar el progreso de estudiantes es una tarea compleja que podría requerir permisos de Administrador o un proceso específico.
-             return res.status(409).json({ message: 'No se puede eliminar la ruta de aprendizaje porque tiene progreso de estudiantes asociado. Considera archivarla o eliminar el progreso manualmente.' });
+            return res.status(409).json({ message: 'No se puede eliminar la ruta de aprendizaje porque tiene progreso de estudiantes asociado. Considera archivarla o eliminar el progreso manualmente.' });
         }
 
-        // NOTA: Si no hay módulos, tampoco habrá Temas ni Asignaciones asociadas a esta ruta (ya que dependen de los módulos y temas).
-        // Verificar Módulos y Progreso es suficiente para esta primera capa de restricción.
-
-        // --- Fin Verificación ---
-
-
-        // Si no hay módulos ni progreso de estudiantes asociados, procedemos con la eliminación
-        // Esto elimina el documento LearningPath itself
+        // Si pasa todas las validaciones, elimina la ruta
         await LearningPath.findByIdAndDelete(learningPathId);
 
-        // NOTA: En un escenario con "eliminación en cascada", aquí también tendrías que borrar:
-        // - Todos los Módulos donde learning_path_id = learningPathId
-        // - Todos los Temas donde module_id esté entre los módulos borrados
-        // - Todas las ContentAssignment donde theme_id esté entre los temas borrados
-        // - Todos los Progress donde learning_path_id = learningPathId
-        // Esto es complejo y no se implementa aquí. La restricción de eliminación previene la creación de datos huérfanos.
-
-
-        // Respuesta de éxito
         res.status(200).json({ message: 'Ruta de aprendizaje eliminada exitosamente' });
 
     } catch (error) {
-         console.error('Error eliminando ruta de aprendizaje:', error);
-         res.status(500).json({ message: 'Error interno del servidor al eliminar la ruta de aprendizaje', error: error.message });
+        console.error('Error eliminando ruta de aprendizaje:', error);
+        res.status(500).json({ message: 'Error interno del servidor al eliminar la ruta de aprendizaje', error: error.message });
     }
 };
 
