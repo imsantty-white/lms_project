@@ -2,61 +2,28 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Box,
-  Typography,
   TextField,
-  Button,
   Stack,
   CircularProgress,
   Alert,
-  FormHelperText
+  // FormHelperText // Might not be needed if errors are displayed directly in TextField helperText
 } from '@mui/material';
-
-// *** Importar axiosInstance desde AuthContext ***
 import { axiosInstance } from '../../context/AuthContext'; // Ajusta la ruta si es necesario
-
-// *** Eliminar la importación de 'axios' si ya no la usas directamente ***
-// import axios from 'axios';
-
-// *** Eliminar la importación de API_BASE_URL si axiosInstance ya la tiene configurada ***
-// import { API_BASE_URL } from '../../utils/constants';
-
 import { toast } from 'react-toastify';
+import GenericFormModal from '../../../components/GenericFormModal'; // Ajusta la ruta
 
-
-// Componente para editar un Recurso existente
-// Props:
-// - open: booleano para controlar si el modal está abierto
-// - onClose: función para cerrar el modal
-// - resourceId: el ID del recurso a editar (CRUCIAL)
-// - onUpdateSuccess: función a llamar después de una actualización exitosa
 function EditResourceModal({ open, onClose, resourceId, onUpdateSuccess }) {
-
-  // Estado para el tipo original del recurso ( fetched )
-  const [originalResourceType, setOriginalResourceType] = useState(''); // Guardamos el tipo original
-
-  // Estados del formulario (para editar los campos del recurso) - Alineados con la página original
+  const [originalResourceType, setOriginalResourceType] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [contentBody, setContentBody] = useState(''); // Para tipo 'Contenido'
-  const [url, setUrl] = useState(''); // Un estado para ambas URLs ('Enlace', 'Video-Enlace')
-
-  // Estados de carga y error
-  const [isLoading, setIsLoading] = useState(true); // Para cargar datos iniciales del recurso
-  const [fetchError, setFetchError] = useState(null); // Para errores al cargar
-
-  // Estado para el proceso de guardado/actualización
-  const [isSaving, setIsSaving] = useState(false); // Estado para deshabilitar durante el guardado
-
-  // Estado para errores de validación frontend
+  const [contentBody, setContentBody] = useState('');
+  const [url, setUrl] = useState('');
+  const [isLoading, setIsLoading] = useState(true); // For initial data load
+  const [fetchError, setFetchError] = useState(null);
+  const [isSaving, setIsSaving] = useState(false); // For submission
   const [errors, setErrors] = useState({});
 
-
-  // --- Efecto para cargar los datos del recurso al abrir el modal o cambiar resourceId ---
   useEffect(() => {
       if (open && resourceId) { // Cargar solo si el modal está abierto y tenemos un ID
           const fetchResource = async () => {
@@ -144,9 +111,7 @@ function EditResourceModal({ open, onClose, resourceId, onUpdateSuccess }) {
   };
 
   // --- Maneja el envío del formulario para actualizar el recurso ---
-  const handleUpdateResource = async (event) => {
-      event.preventDefault();
-
+  const handleInternalSubmit = async () => { // Renamed
       // Ejecutar validación frontend antes de enviar
       if (!validateForm()) {
           toast.warning('Por favor, corrige los errores en el formulario.');
@@ -203,109 +168,95 @@ function EditResourceModal({ open, onClose, resourceId, onUpdateSuccess }) {
 
   // --- Renderizado del Modal ---
   return (
-      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-        <DialogTitle>Editar Recurso ({originalResourceType})</DialogTitle> {/* Mostrar el tipo en el título */}
-        <DialogContent dividers>
-          {/* Mostrar spinner de carga o error al cargar los datos iniciales */}
-          {isLoading && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
-              <CircularProgress />
-            </Box>
+    <GenericFormModal
+      open={open}
+      onClose={onClose}
+      title={`Editar Recurso (${originalResourceType || 'Cargando...'})`}
+      onSubmit={handleInternalSubmit}
+      isSubmitting={isSaving}
+      submitText="Guardar Cambios"
+      // The submit button in GenericFormModal will be disabled if isSaving (isSubmitting) is true.
+      // We also need to disable it if the form is invalid (isFormValid is false).
+      // GenericFormModal needs a prop like `isSubmitDisabled` for this.
+      // For now, handleInternalSubmit checks validation.
+    >
+      {isLoading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
+          <CircularProgress />
+        </Box>
+      )}
+      {fetchError && !isLoading && (
+        <Alert severity="error" sx={{ my: 2 }}>Error al cargar recurso: {fetchError}</Alert>
+      )}
+      {!isLoading && !fetchError && originalResourceType && (
+        <Stack spacing={2} sx={{ pt: 1 }}> {/* pt:1 for padding top */}
+          <TextField
+            label="Título del Recurso"
+            fullWidth
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            error={!!errors.title}
+            helperText={errors.title}
+            disabled={isSaving}
+            required
+            autoFocus
+          />
+          <TextField
+            label="Descripción (Opcional)"
+            fullWidth
+            multiline
+            rows={2}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={isSaving}
+          />
+          <TextField // Display original type, not editable
+            label="Tipo de Recurso"
+            fullWidth
+            value={originalResourceType}
+            InputProps={{ readOnly: true }}
+            disabled={isSaving} // Should still be disabled if saving
+          />
+          {originalResourceType === 'Contenido' && (
+            <TextField
+              label="Cuerpo del Contenido"
+              fullWidth
+              multiline
+              rows={6}
+              value={contentBody}
+              onChange={(e) => setContentBody(e.target.value)}
+              error={!!errors.contentBody}
+              helperText={errors.contentBody}
+              disabled={isSaving}
+              required
+            />
           )}
-
-          {fetchError && !isLoading && (
-            <Alert severity="error" sx={{ my: 2 }}>Error al cargar recurso: {fetchError}</Alert>
+          {(originalResourceType === 'Enlace' || originalResourceType === 'Video-Enlace') && (
+            <TextField
+              label={originalResourceType === 'Enlace' ? 'URL del Enlace' : 'URL del Video'}
+              fullWidth
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              error={!!errors.url}
+              helperText={errors.url}
+              disabled={isSaving}
+              required
+              type="url"
+            />
           )}
-
-          {/* Mostrar el formulario SÓLO si no está cargando y no hay error al cargar */}
-          {!isLoading && !fetchError && originalResourceType && (
-            <Stack spacing={2} component="form" onSubmit={handleUpdateResource}>
-
-              {/* Campo Título */}
-              <TextField
-                label="Título del Recurso"
-                fullWidth
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                error={!!errors.title}
-                helperText={errors.title}
-                disabled={isSaving}
-                required // Título es obligatorio
-              />
-
-              {/* Campo Descripción */}
-              <TextField
-                label="Descripción (Opcional)"
-                fullWidth
-                multiline
-                rows={2} // Reducido a 2 filas por defecto, similar a la página
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                disabled={isSaving}
-              />
-
-              {/* Campo Tipo (No editable) */}
-              <TextField
-                label="Tipo de Recurso"
-                fullWidth
-                value={originalResourceType} // Usar el estado original para mostrar el tipo
-                InputProps={{ readOnly: true }} // Hacer el campo de tipo NO editable
-                disabled={isSaving}
-              />
-
-              {/* Campo específico según el tipo original - AHORA EDITABLE */}
-              {originalResourceType === 'Contenido' && (
-                <TextField
-                  label="Cuerpo del Contenido"
-                  fullWidth
-                  multiline
-                  rows={6}
-                  value={contentBody}
-                  onChange={(e) => setContentBody(e.target.value)}
-                  error={!!errors.contentBody}
-                  helperText={errors.contentBody}
-                  disabled={isSaving}
-                  required // Cuerpo de contenido es obligatorio
-                />
-              )}
-              {(originalResourceType === 'Enlace' || originalResourceType === 'Video-Enlace') && (
-                <TextField
-                  label={originalResourceType === 'Enlace' ? 'URL del Enlace' : 'URL del Video'}
-                  fullWidth
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  error={!!errors.url}
-                  helperText={errors.url}
-                  disabled={isSaving}
-                  required // URL es obligatoria
-                />
-              )}
-
-
-              {/* Botón de Guardar (Submit) */}
-              {/* La condición de disabled ahora se basa en isSaving y si hay errores */}
-              <Button
-                type="submit"
-                variant="contained"
-                color="primary"
-                fullWidth
-                disabled={isSaving || !isFormValid}
-                startIcon={isSaving ? <CircularProgress size={20} color="inherit" /> : null}
-              >
-                {isSaving ? 'Guardando Cambios...' : 'Guardar Cambios'}
-              </Button>
-
-            </Stack>
-          )}
-
-        </DialogContent>
-        {/* Botón de Cancelar fuera del formulario pero en las acciones */}
-        <DialogActions>
-          <Button onClick={onClose} color="secondary" disabled={isSaving}> {/* Deshabilitar cancelar durante guardado */}
-            Cancelar
-          </Button>
-        </DialogActions>
-      </Dialog>
+          {/* Submit button is handled by GenericFormModal */}
+        </Stack>
+      )}
+      {/* If form is not ready (e.g. no originalResourceType loaded yet, and not loading/error)
+          you might want a placeholder or different message here.
+          Currently, if originalResourceType is empty, the form fields won't show.
+      */}
+      {!isLoading && !fetchError && !originalResourceType && (
+        <Alert severity="info" sx={{ my: 2 }}>
+          No se pudo determinar el tipo de recurso para editar.
+        </Alert>
+      )}
+    </GenericFormModal>
   );
 }
 

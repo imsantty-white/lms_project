@@ -23,33 +23,39 @@ const submissionSchema = new mongoose.Schema({
     assignment_id: { // La asignación de contenido específica a la que corresponde esta entrega
         type: mongoose.Schema.Types.ObjectId,
         ref: 'ContentAssignment', // Referencia al modelo ContentAssignment
-        required: [true, 'La entrega debe estar asociada a una asignación de contenido']
+        required: [true, 'La entrega debe estar asociada a una asignación de contenido'],
+        index: true
     },
     student_id: { // El estudiante que realiza la entrega
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User', // Referencia al modelo User
-        required: [true, 'La entrega debe estar asociada a un estudiante']
+        required: [true, 'La entrega debe estar asociada a un estudiante'],
+        index: true
     },
     // Referencias redundantes para facilitar consultas y validación de propiedad (desde la asignación)
     group_id: { // El grupo al que pertenece la asignación
          type: mongoose.Schema.Types.ObjectId,
          ref: 'Group',
-         required: [true, 'La entrega debe estar asociada a un grupo']
+         required: [true, 'La entrega debe estar asociada a un grupo'],
+         index: true
     },
     docente_id: { // El docente propietario de la asignación/grupo
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: [true, 'La entrega debe estar asociada a un docente']
+        required: [true, 'La entrega debe estar asociada a un docente'],
+        index: true
     },
     fecha_envio: { // Fecha y hora en que el estudiante envió la entrega
-        type: Date
+        type: Date,
         // Este campo se llenará en el controlador cuando el estudiante envíe la entrega
+        index: true
     },
     estado_envio: { // Estado actual de la entrega
         type: String,
         required: [true, 'El estado de la entrega es obligatorio'],
         enum: ['Pendiente', 'Enviado', 'Calificado'], // Estados posibles: Pendiente de envío, Ya enviado, Calificado
-        default: 'Pendiente' // Estado inicial antes de que el estudiante envíe
+        default: 'Pendiente', // Estado inicial antes de que el estudiante envíe
+        index: true
     },
      is_late: { // Indica si la entrega fue realizada después de la fecha límite
         type: Boolean,

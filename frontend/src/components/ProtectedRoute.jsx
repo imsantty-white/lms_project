@@ -10,7 +10,7 @@ import { Box, CircularProgress } from '@mui/material'; // Importa componentes de
 // Componente para proteger rutas
 // Recibe el componente a renderizar como 'element' prop
 // Recibe la lista de roles permitidos como 'allowedRoles' prop (un array de strings)
-function ProtectedRoute({ element, allowedRoles }) {
+const ProtectedRoute = React.memo(({ element, allowedRoles }) => {
   // *** Hooks llamados SIEMPRE al nivel superior ***
   const { isAuthenticated, user, isAuthInitialized } = useAuth(); // <-- useAuth
   const hasShownLoginToast = useRef(false); // <-- useRef
@@ -75,6 +75,6 @@ function ProtectedRoute({ element, allowedRoles }) {
 
   // Si todas las comprobaciones pasan (inicializado, autenticado y con rol permitido), renderiza el elemento pasado
   return element;
-}
+});
 
 export default ProtectedRoute;

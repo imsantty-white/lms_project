@@ -17,7 +17,7 @@ import {
 // - onClose: función para cerrar el modal
 // - title: Título del video
 // - videoUrl: La URL del video (preferiblemente URL incrustable, ej. de YouTube Embed)
-function VideoModal({ open, onClose, title, videoUrl }) {
+const VideoModal = React.memo(({ open, onClose, title, videoUrl }) => {
   // Función simple para intentar obtener una URL incrustable básica
   // Esto puede necesitar ser más robusto dependiendo de tus fuentes de video
   const getEmbedUrl = (url) => {
@@ -85,6 +85,6 @@ function VideoModal({ open, onClose, title, videoUrl }) {
           </DialogActions>
         </Dialog>
   );
-}
+});
 
 export default VideoModal;

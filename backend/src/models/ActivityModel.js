@@ -20,7 +20,8 @@ const activitySchema = new mongoose.Schema({
     type: { // Tipo de actividad (Cuestionario, Trabajo, Quiz)
         type: String,
         required: [true, 'El tipo de actividad es obligatorio'],
-        enum: ['Cuestionario', 'Trabajo', 'Quiz'] // Validar con los tipos definidos
+        enum: ['Cuestionario', 'Trabajo', 'Quiz'], // Validar con los tipos definidos
+        index: true
     },
     title: { // Título de la actividad
         type: String,
@@ -34,7 +35,8 @@ const activitySchema = new mongoose.Schema({
     docente_id: { // El docente que creó esta actividad (para su banco)
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: [true, 'El docente creador es obligatorio']
+        required: [true, 'El docente creador es obligatorio'],
+        index: true
     },
     // Campos específicos según el tipo de actividad
     cuestionario_questions: [cuestionarioQuestionSchema], // <-- Nuevo: Array de preguntas para 'Cuestionario'

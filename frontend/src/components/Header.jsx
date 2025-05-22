@@ -7,7 +7,7 @@ import Brightness7Icon from '@mui/icons-material/Brightness7';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 
-function Header({ onToggleSidebar, sidebarOpen, mode, onToggleMode }) {
+const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode }) => {
   const { isAuthenticated, user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -104,6 +104,6 @@ function Header({ onToggleSidebar, sidebarOpen, mode, onToggleMode }) {
       </Toolbar>
     </AppBar>
   );
-}
+});
 
 export default Header;

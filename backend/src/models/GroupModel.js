@@ -16,12 +16,14 @@ const groupSchema = new mongoose.Schema({
     trim: true,
     uppercase: true, // Convertir a mayúsculas
     minlength: [6, 'El código de acceso debe tener al menos 6 caracteres'], // Puedes ajustar la longitud
-    maxlength: [10, 'El código de acceso no puede exceder los 10 caracteres'] // Puedes ajustar la longitud
+    maxlength: [10, 'El código de acceso no puede exceder los 10 caracteres'], // Puedes ajustar la longitud
+    index: true
   },
   docente_id: {
     type: mongoose.Schema.Types.ObjectId, // Tipo especial para IDs de MongoDB
     ref: 'User', // Referencia al modelo 'User' (el docente que creó el grupo)
-    required: [true, 'El docente creador es obligatorio']
+    required: [true, 'El docente creador es obligatorio'],
+    index: true
   },
   fecha_creacion: {
     type: Date,
