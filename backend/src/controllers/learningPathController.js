@@ -12,6 +12,9 @@ const Progress = require('../models/ProgressModel');
 const User = require('../models/UserModel');
 const Submission = require('../models/SubmissionModel');
 const mongoose = require('mongoose');
+const NotificationService = require('../../services/NotificationService'); // Adjust path if necessary
+// Membership is already imported
+// ContentAssignment is already imported
 
 
 // @desc    Obtener Rutas de Aprendizaje creadas por el docente autenticado
@@ -1338,10 +1341,71 @@ const updateContentAssignmentStatus = async (req, res, next) => {
             return res.status(200).json({ message: `La asignación ya se encuentra en estado "${status}".`, assignment });
         }
 
+        const oldStatus = assignment.status; // Store old status
 
         // Actualizar el estado de la asignación
         assignment.status = status;
         await assignment.save();
+
+        if (status === 'Open' && oldStatus !== 'Open') {
+            try {
+                // Populate necessary details for the notification message and link
+                const detailedAssignment = await ContentAssignment.findById(assignment._id)
+                    .populate('activity_id', 'title') // Populate activity title
+                    .populate('resource_id', 'title') // Populate resource title
+                    .populate({
+                        path: 'theme_id',
+                        select: 'nombre module_id',
+                        populate: {
+                            path: 'module_id',
+                            select: 'nombre learning_path_id',
+                            populate: {
+                                path: 'learning_path_id',
+                                select: 'nombre group_id', // Need group_id
+                            }
+                        }
+                    });
+
+                if (detailedAssignment && 
+                    detailedAssignment.theme_id &&
+                    detailedAssignment.theme_id.module_id &&
+                    detailedAssignment.theme_id.module_id.learning_path_id &&
+                    detailedAssignment.theme_id.module_id.learning_path_id.group_id) {
+
+                    const groupId = detailedAssignment.theme_id.module_id.learning_path_id.group_id;
+                    const assignmentTitle = detailedAssignment.activity_id?.title || detailedAssignment.resource_id?.title || 'Unnamed Assignment';
+                    const learningPathName = detailedAssignment.theme_id.module_id.learning_path_id.nombre;
+                    
+                    // Find approved members of the group
+                    const approvedMembers = await Membership.find({
+                        grupo_id: groupId,
+                        estado_solicitud: 'Aprobado'
+                    }).populate('usuario_id', 'tipo_usuario'); // Populate to check if user is Estudiante
+
+                    for (const member of approvedMembers) {
+                        // Ensure the member is a student
+                        if (member.usuario_id && member.usuario_id.tipo_usuario === 'Estudiante') {
+                            const message = `New assignment '${assignmentTitle}' in '${learningPathName}' is now open.`;
+                            // TODO: Confirm actual frontend URL structure for student assignment view
+                            const link = `/student/learning-paths/${detailedAssignment.theme_id.module_id.learning_path_id._id}/themes/${detailedAssignment.theme_id._id}/assignments/${detailedAssignment._id}`;
+
+                            await NotificationService.createNotification({
+                                recipient: member.usuario_id._id, // Send to the student's User ID
+                                sender: req.user._id, // The teacher who triggered the update
+                                type: 'NEW_ASSIGNMENT',
+                                message: message,
+                                link: link
+                            });
+                        }
+                    }
+                } else {
+                    console.error(`Could not populate details for assignment ${assignment._id} to send notifications.`);
+                }
+            } catch (notificationError) {
+                console.error('Failed to send new assignment notifications:', notificationError);
+                // Do not let notification errors break the main response
+            }
+        }
 
         res.status(200).json({ message: `Estado de la asignación actualizado a "${status}"`, assignment });
 

@@ -71,6 +71,7 @@ const submissionRoutes = require('./routes/submissionRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const progressRoutes = require('./routes/progressRoutes');
 const activityRoutes = require('./routes/activityRoutes');
+const notificationRoutes = require('./routes/notificationRoutes'); // Import notification routes
 
 app.use('/api/auth', authRoutes); // Monta las rutas de autenticación bajo el prefijo /api/auth
 
@@ -99,6 +100,10 @@ app.use('/api/progress', progressRoutes);
 // Usar rutas de actividades (Interacción Estudiante)
 // Todas las rutas en activityRoutes.js se prefijarán con /api/activities
 app.use('/api/activities', activityRoutes);
+
+// Mount notification routes
+// All routes in notificationRoutes.js will be prefixed with /api/notifications
+app.use('/api/notifications', notificationRoutes);
 
 // Ruta de prueba simple
 app.get('/', (req, res) => {
