@@ -1,4 +1,6 @@
 // backend/src/server.js
+const http = require('http'); // Import the http module
+const { Server } = require('socket.io'); // Import Server from socket.io
 const app = require('./app'); // Importa la aplicación Express configurada
 const connectDB = require('./config/db.config'); // Importa la función de conexión a BD
 
@@ -14,7 +16,27 @@ const startServer = async () => {
     await connectDB();
 
     // Si la conexión a BD es exitosa, inicia el servidor Express
-    app.listen(PORT, () => {
+    const httpServer = http.createServer(app); // Create HTTP server
+
+    const io = new Server(httpServer, {
+      cors: {
+        origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+        methods: ['GET', 'POST'],
+      },
+    });
+
+    global.io = io; // Make io globally accessible
+
+    io.on('connection', (socket) => {
+      console.log('A user connected:', socket.id);
+      // Placeholder for joining user-specific rooms if needed later
+      // socket.join(socket.handshake.query.userId); 
+      socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
+      });
+    });
+
+    httpServer.listen(PORT, () => {
       console.log(`Servidor corriendo en el puerto ${PORT}`);
       console.log(`Visita http://localhost:${PORT}/`);
     });

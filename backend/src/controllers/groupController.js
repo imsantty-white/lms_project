@@ -8,6 +8,7 @@ const { generateUniqueCode } = require('../utils/codeGenerator'); // Importamos 
 const Membership = require('../models/MembershipModel'); // Importamos el modelo de Membresía
 const User = require('../models/UserModel');
 const { isTeacherOfGroup } = require('../utils/permissionUtils');
+const NotificationService = require('../../services/NotificationService'); // Adjust path if necessary
 
 const MAX_GROUPS_PER_DOCENTE = parseInt(process.env.MAX_GROUPS_PER_DOCENTE, 3) || 3; // Límite por defecto: 3
 
@@ -157,6 +158,34 @@ const requestJoinGroup = async (req, res) => {
       });
       // --- Fin Crear solicitud ---
 
+      try {
+          // 'group' is already fetched and available.
+          // 'req.user' (student) is available.
+          if (group && group.docente_id && req.user) {
+              const student = req.user; // student making the request
+              const teacherId = group.docente_id; // Recipient of the notification
+              const groupName = group.nombre || 'the group';
+              const studentName = `${student.nombre} ${student.apellidos || ''}`.trim();
+
+              const message = `${studentName} has requested to join your group '${groupName}'.`;
+              // TODO: Confirm teacher's link to manage join requests for this specific group.
+              // Assuming a route like /teacher/groups/:groupId/manage or similar where requests are listed.
+              const link = `/teacher/groups/${group._id}/members`; // Link to member management page
+
+              await NotificationService.createNotification({
+                  recipient: teacherId,
+                  sender: student._id, // Student who sent the request
+                  type: 'JOIN_REQUEST',
+                  message: message,
+                  link: link
+              });
+          } else {
+              console.error('Could not send join request notification: Missing group details, teacher ID, or student details.');
+          }
+      } catch (notificationError) {
+          console.error('Failed to send join request notification:', notificationError);
+          // Do not let notification errors break the main response
+      }
 
       // --- Respuesta exitosa ---
       res.status(201).json({
@@ -278,6 +307,49 @@ const respondJoinRequest = async (req, res) => {
           });
           // --- Fin Respuesta ---
 
+          try {
+              // 'updatedPopulatedMembership' contains the student (usuario_id) and group (grupo_id) details.
+              // 'req.user' is the teacher responding.
+              // 'responseStatus' holds 'Aprobado' or 'Rechazado'. (currentStatus from membership is more reliable)
+
+              if (updatedPopulatedMembership && updatedPopulatedMembership.usuario_id && updatedPopulatedMembership.grupo_id) {
+                  const studentId = updatedPopulatedMembership.usuario_id._id; // Student is the recipient
+                  const teacherId = req.user._id; // Teacher is the sender
+                  const groupName = updatedPopulatedMembership.grupo_id.nombre || 'the group';
+                  const currentStatus = updatedPopulatedMembership.estado_solicitud; // This is the new status ('Aprobado' or 'Rechazado')
+
+                  let notifType = '';
+                  let message = '';
+                  let link = '';
+
+                  if (currentStatus === 'Aprobado') {
+                      notifType = 'GROUP_INVITE_ACCEPTED'; // Using existing type, fits the context
+                      message = `Your request to join group '${groupName}' has been approved.`;
+                      // TODO: Confirm student's link to the specific group page
+                      link = `/student/learning-paths/group/${updatedPopulatedMembership.grupo_id._id}`; 
+                  } else if (currentStatus === 'Rechazado') {
+                      notifType = 'GROUP_INVITE_DECLINED'; // Using existing type, fits the context
+                      message = `Your request to join group '${groupName}' has been rejected.`;
+                      // TODO: Confirm student's link to their list of groups or join group page
+                      link = '/student/groups/my-groups'; 
+                  }
+
+                  if (notifType && message) {
+                      await NotificationService.createNotification({
+                          recipient: studentId,
+                          sender: teacherId,
+                          type: notifType,
+                          message: message,
+                          link: link
+                      });
+                  }
+              } else {
+                  console.error('Could not send join request response notification: Missing details from populated membership.');
+              }
+          } catch (notificationError) {
+              console.error('Failed to send join request response notification:', notificationError);
+              // Do not let notification errors break the main response
+          }
 
   } catch (error) {
       console.error('Error al responder solicitud de membresía:', error);

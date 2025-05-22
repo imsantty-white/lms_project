@@ -13,6 +13,7 @@ const Progress = require('../models/ProgressModel');
 const User = require('../models/UserModel');
 const mongoose = require('mongoose');
 const { isApprovedGroupMember, isTeacherOfContentAssignment, isTeacherOfSubmission } = require('../utils/permissionUtils');
+const NotificationService = require('../../services/NotificationService'); // Adjust path if necessary
 
 
 // @desc    Obtener los detalles de una Actividad asignada para que un estudiante la inicie
@@ -180,7 +181,7 @@ const submitStudentActivityAttempt = async (req, res, next) => {
                         select: 'nombre', // Select only name for learning path
                         populate: {
                             path: 'group_id',
-                            select: '_id docente_id' // Select _id and docente_id for group
+                            select: '_id docente_id nombre' // Select _id, docente_id, and nombre for group
                         }
                     }
                 }
@@ -370,6 +371,47 @@ const submitStudentActivityAttempt = async (req, res, next) => {
         const savedSubmission = await newSubmission.save();
 
         console.log(`Entrega #${savedSubmission.attempt_number} guardada para la asignación ${assignmentId} por el estudiante ${studentId}. Tipo: ${activity.type}. Estado: ${savedSubmission.estado_envio}. Tarde: ${savedSubmission.is_late}`);
+
+        try {
+            // The 'assignment' variable is populated at the beginning of the function.
+            // req.user contains the student details.
+            const student = req.user; // Student who is making the submission
+
+            if (assignment && 
+                assignment.activity_id && 
+                assignment.theme_id?.module_id?.learning_path_id?.group_id &&
+                assignment.theme_id.module_id.learning_path_id.group_id.docente_id) {
+
+                const activityTitle = assignment.activity_id.title || 'the assignment';
+                const groupFromAssignment = assignment.theme_id.module_id.learning_path_id.group_id;
+                const teacherId = groupFromAssignment.docente_id; // This is the recipient
+                
+                // groupName should be available as 'nombre' was added to select for group_id population
+                const groupName = groupFromAssignment.nombre || 'the group'; 
+
+                const studentName = `${student.nombre} ${student.apellidos || ''}`.trim();
+                
+                const message = `${studentName} submitted work for '${activityTitle}' in group '${groupName}'.`;
+                
+                // Link for the teacher to view this specific submission.
+                // assignment._id is ContentAssignment ID.
+                const link = `/teacher/assignments/${assignment._id}/submissions/student/${student._id}`; 
+
+                await NotificationService.createNotification({
+                    recipient: teacherId,
+                    sender: student._id, // Student who submitted
+                    type: 'NEW_SUBMISSION',
+                    message: message,
+                    link: link
+                });
+
+            } else {
+                console.error(`Could not gather necessary details (teacherId, activityTitle, studentName, groupName) for assignment ${savedSubmission.assignment_id} to send new submission notification.`);
+            }
+        } catch (notificationError) {
+            console.error('Failed to send new submission notification:', notificationError);
+            // Do not let notification errors break the main response
+        }
 
         // 7. Opcional: Actualizar el progreso general (modelo Progress)
         // ...
@@ -798,6 +840,50 @@ const gradeSubmission = async (req, res, next) => {
 
         // 7. Guardar la entrega actualizada
         const updatedSubmission = await submission.save();
+
+        try {
+            // Populate necessary details from the updated submission for the notification message and link
+            const populatedSubmission = await Submission.findById(updatedSubmission._id)
+                .populate({
+                    path: 'assignment_id', // From Submission, populate the ContentAssignment
+                    select: 'activity_id puntos_maximos', // Select activity_id and puntos_maximos from ContentAssignment
+                    populate: {
+                        path: 'activity_id', // From ContentAssignment, populate the base Activity
+                        model: 'Activity',   // Explicitly state model name if not automatically inferred
+                        select: 'title'      // Select title from Activity
+                    }
+                });
+
+            if (populatedSubmission && populatedSubmission.assignment_id && populatedSubmission.student_id) {
+                const activityTitle = populatedSubmission.assignment_id.activity_id?.title || 'your assignment';
+                const studentId = populatedSubmission.student_id; // This is already on the submission, no need to populate user
+                const score = populatedSubmission.calificacion;
+                const maxPoints = populatedSubmission.assignment_id.puntos_maximos;
+                
+                let message = `Your submission for '${activityTitle}' has been graded. Score: ${score}`;
+                if (maxPoints !== undefined && maxPoints !== null) {
+                    message += `/${maxPoints}`;
+                }
+                message += '.';
+
+                // TODO: Confirm actual frontend URL structure for student's graded work view.
+                // Using a generic link to a submissions page or specific submission.
+                const link = `/student/assignments/${populatedSubmission.assignment_id._id}/submissions/${populatedSubmission._id}`;
+
+                await NotificationService.createNotification({
+                    recipient: studentId,
+                    sender: req.user._id, // Teacher who graded
+                    type: 'GRADED_WORK',
+                    message: message,
+                    link: link
+                });
+            } else {
+                console.error(`Could not gather details for submission ${updatedSubmission._id} to send grade notification. Missing student_id, assignment_id, or activity title.`);
+            }
+        } catch (notificationError) {
+            console.error('Failed to send graded work notification:', notificationError);
+            // Do not let notification errors break the main response
+        }
 
         // 8. Responder con la entrega actualizada
         res.status(200).json({
