@@ -36,7 +36,7 @@ function Sidebar({ width = drawerWidth, open = true, onClose }) {
       { text: 'Mis Grupos', icon: <GroupsIcon />, path: '/my-student-groups' },
       { text: 'Mis Rutas de Aprendizaje', icon: <RouteIcon />, path: '/student/my-learning-paths' },
       { text: 'Unirse a un Grupo', icon: <GroupAddIcon />, path: '/join-group' },
-      { text: 'Mi Progreso', icon: <DonutLargeIcon />, path: '/mi-progreso-estudiante' },
+      { text: 'Mi Progreso', icon: <DonutLargeIcon />, path: '/student/progress' },
     ],
     Docente: [
       { text: 'Dashboard Docente', icon: <DashboardIcon />, path: '/dashboard-docente' },

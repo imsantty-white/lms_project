@@ -77,6 +77,17 @@ const getContentIcon = (assignment) => {
   return <AssignmentIcon />;
 };
 
+// Traducción de estados de asignación
+const translateAssignmentStatus = (status) => {
+  if (!status) return 'Desconocido';
+  switch (status.toLowerCase()) {
+    case 'open': return 'Abierto';
+    case 'closed': return 'Cerrado';
+    case 'draft': return 'Borrador';
+    default: return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+};
+
 
 function StudentViewLearningPathPage() {
   const { pathId } = useParams();
@@ -377,7 +388,7 @@ function StudentViewLearningPathPage() {
                                                   {/* Mostrar estado de la asignación */}
                                                   {assignment.status && (
                                                     <Chip
-                                                      label={`Estado: ${assignment.status}`}
+                                                      label={`Estado: ${translateAssignmentStatus(assignment.status)}`}
                                                       size="small"
                                                       variant="filled"
                                                       color={assignment.status === 'Open' ? 'success' : assignment.status === 'Closed' ? 'error' : 'default'}

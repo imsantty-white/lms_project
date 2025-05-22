@@ -299,6 +299,7 @@ function StudentTakeActivityPage() {
 
       // *** Manejo de éxito: guardar detalles y abrir modal de éxito ***
       setHasSubmitted(true); // Marca que se ha enviado con éxito
+      setAttemptsUsed(prev => prev + 1); // <--- Añade esta línea
       setSubmissionDetails(response.data.submission); // Guarda los detalles de la entrega
       //toast.success(response.data.message || 'Entrega registrada con éxito.'); // Eliminamos el toast
       setIsSuccessModalOpen(true); // Abre el modal de éxito
@@ -667,7 +668,7 @@ return (
           </Alert>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseSuccessModalAndRedirect} color="primary"> Volver a la Ruta </Button>
+          <Button onClick={handleCloseSuccessModalAndRedirect} color="secondary"> Volver a la Ruta </Button>
         </DialogActions>
       </Dialog>
 

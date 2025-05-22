@@ -113,7 +113,7 @@ const LocationHierarchy = ({ assignment }) => {
   );
 };
 
-// Componente para una tarjeta de asignación (vista móvil)
+// Componente para una tarjeta de asignación
 const AssignmentCard = ({ assignment }) => {
   const assignmentTitle = assignment.activity_id?.title || assignment.title || 'Título desconocido';
   const assignmentType = assignment.activity_id?.type || assignment.type || 'Desconocido';
@@ -350,7 +350,7 @@ function TeacherAssignmentsListPage() {
             <TableContainer>
               <Table sx={{ minWidth: 650 }}>
                 <TableHead>
-                  <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
+                  <TableRow sx={{ backgroundColor: theme.palette.background.paper }}>
                     <TableCell sx={{ fontWeight: 'bold' }}>Asignación</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Tipo</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Ubicación</TableCell>
@@ -365,7 +365,7 @@ function TeacherAssignmentsListPage() {
                       key={assignment._id}
                       sx={{ 
                         '&:hover': { 
-                          backgroundColor: theme.palette.grey[50],
+                          backgroundColor: theme.palette.background.paper,
                         },
                       }}
                     >

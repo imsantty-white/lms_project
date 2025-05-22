@@ -68,9 +68,9 @@ const getContentIcon = (content) => {
 function AddContentAssignmentDialog({ open, onClose, onSubmitAssignment, onRequestCreateNewContent, themeName, isAssigning }) {
   // Estados (mantener)
   const [selectedContent, setSelectedContent] = useState(null);
-  // Inicializar fechas a null o a new Date() si quieres que por defecto sea la actual
-  const [fechaInicio, setFechaInicio] = useState(null); // Cambiado a null inicialmente
-  const [fechaFin, setFechaFin] = useState(null);  // Cambiado a null inicialmente
+  // Inicializar fechaInicio con la fecha/hora actual
+  const [fechaInicio, setFechaInicio] = useState(new Date()); // <-- CAMBIO AQUÍ
+  const [fechaFin, setFechaFin] = useState(null);
   const [puntosMaximos, setPuntosMaximos] = useState('');
   const [intentosPermitidos, setIntentosPermitidos] = useState('');
   const [tiempoLimite, setTiempoLimite] = useState('');
@@ -112,8 +112,8 @@ function AddContentAssignmentDialog({ open, onClose, onSubmitAssignment, onReque
     } else {
       // Limpiar estados si el modal se cierra (ya lo tenías)
       setSelectedContent(null);
-      setFechaInicio(null); // Reset a null
-      setFechaFin(null);  // Reset a null
+      setFechaInicio(new Date()); // <-- CAMBIO AQUÍ: al cerrar, también reinicia a la fecha/hora actual
+      setFechaFin(null);
       setPuntosMaximos('');
       setIntentosPermitidos('');
       setTiempoLimite('');
@@ -447,8 +447,8 @@ function AddContentAssignmentDialog({ open, onClose, onSubmitAssignment, onReque
             type="submit"
             form="assignment-form"
             variant="contained"
-            // Deshabilitar si está asignando O no se ha seleccionado contenido O hay errores de validación
-            disabled={isAssigning || !selectedContent || Object.keys(errors).length > 0}
+            // Solo deshabilitar si está asignando o no hay contenido seleccionado
+            disabled={isAssigning || !selectedContent}
             endIcon={isAssigning ? <CircularProgress size={20} color="inherit" /> : null}
           >
             Asignar Contenido

@@ -1355,6 +1355,50 @@ const updateContentAssignmentStatus = async (req, res, next) => {
     }
 };
 
+// Obtener todas las actividades asignadas a un estudiante en una ruta de aprendizaje
+const getStudentActivitiesForLearningPath = async (req, res) => {
+  try {
+    const { learningPathId } = req.params;
+    const studentId = req.user._id;
+
+    // 1. Buscar todos los temas de la ruta
+    const modules = await Module.find({ learning_path_id: learningPathId });
+    const moduleIds = modules.map(m => m._id);
+    const themes = await Theme.find({ module_id: { $in: moduleIds } });
+    const themeIds = themes.map(t => t._id);
+
+    // 2. Buscar todas las asignaciones de actividades en esos temas
+    const assignments = await ContentAssignment.find({ theme_id: { $in: themeIds }, type: 'Activity' })
+      .populate('activity_id');
+
+    // 3. Para cada asignación, buscar la última entrega del estudiante
+    const results = await Promise.all(assignments.map(async (assignment) => {
+      const lastSubmission = await Submission.findOne({
+        assignment_id: assignment._id,
+        student_id: studentId
+      }).sort({ fecha_envio: -1 });
+
+      return {
+        _id: assignment._id,
+        title: assignment.activity_id?.title || 'Sin título',
+        type: assignment.activity_id?.type || 'N/A',
+        fecha_inicio: assignment.fecha_inicio,
+        fecha_fin: assignment.fecha_fin,
+        status: assignment.status,
+        lastSubmission: lastSubmission ? {
+          calificacion: lastSubmission.calificacion,
+          estado_envio: lastSubmission.estado_envio,
+          fecha_envio: lastSubmission.fecha_envio
+        } : null
+      };
+    }));
+
+    res.json({ activities: results });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener actividades del estudiante', error: error.message });
+  }
+};
+
 module.exports = {
     createLearningPath,
     createModule,
@@ -1374,5 +1418,6 @@ module.exports = {
     deleteContentAssignment,
     getContentAssignmentById,
     getMyAssignedLearningPaths,
-    getMyCreatedLearningPaths
+    getMyCreatedLearningPaths,
+    getStudentActivitiesForLearningPath,
 };

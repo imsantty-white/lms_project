@@ -8,7 +8,7 @@ const { createLearningPath, createModule, updateContentAssignmentStatus,
             createTheme, assignContentToTheme, getGroupLearningPathsForDocente,
                 getGroupLearningPathsForStudent, getLearningPathStructure, updateLearningPath, 
                     deleteLearningPath, updateModule, deleteModule, updateTheme, deleteTheme, updateContentAssignment,
-                        deleteContentAssignment, getMyAssignedLearningPaths, getMyCreatedLearningPaths, getContentAssignmentById} = require('../controllers/learningPathController'); // Importamos los controladores de rutas de aprendizaje
+                        deleteContentAssignment, getMyAssignedLearningPaths, getMyCreatedLearningPaths, getContentAssignmentById, getStudentActivitiesForLearningPath} = require('../controllers/learningPathController'); // Importamos los controladores de rutas de aprendizaje
 
 // Middleware: Aplica 'protect' a todas las rutas en este router de aquí en adelante
 // La autorización por rol ('Docente') o la verificación de membresía se harán en los controladores
@@ -111,6 +111,10 @@ router.put('/assignments/:assignmentId', authorize('Docente'), updateContentAssi
 // Acceso: Privado/Docente (solo el dueño de la asignación - se verifica por tema/módulo/ruta/grupo)
 // El ID de la asignación a eliminar va en los parámetros de la URL
 router.delete('/assignments/:assignmentId', authorize('Docente'), deleteContentAssignment);
+
+// GET /api/learning-paths/:learningPathId/activities/student
+// Nueva ruta para actividades del estudiante en una ruta
+router.get('/:learningPathId/activities/student', authorize('Estudiante'), getStudentActivitiesForLearningPath);
 
 // Aquí agregaremos otras rutas que se necesiten si es el caso
 

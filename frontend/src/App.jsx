@@ -25,6 +25,7 @@ import TeacherAssignmentSubmissionsPage from './pages/TeacherAssignmentSubmissio
 import StudentLearningPathsPage from './pages/StudentLearningPathsPage';
 import StudentViewLearningPathPage from './pages/StudentViewLearningPathPage';
 import StudentTakeActivityPage from './pages/StudentTakeActivityPage';
+import StudentProgressPage from './pages/StudentProgressPage'; 
 
 import { getTheme } from './theme';
 
@@ -168,6 +169,10 @@ function App() {
                   <Route 
                     path="/teacher/assignments/:assignmentId/submissions" 
                     element={<ProtectedRoute element={<TeacherAssignmentSubmissionsPage />} allowedRoles={['Docente', 'Administrador']} />}
+                  />
+                  <Route
+                    path="/student/progress"
+                    element={<ProtectedRoute element={<StudentProgressPage />} allowedRoles={['Estudiante', 'Administrador']} />}
                   />
 
                   {/* Puedes añadir una ruta para manejar 404 - Página no encontrada */}
