@@ -11,7 +11,7 @@ import {
 } from '@mui/material';
 import { axiosInstance } from '../../context/AuthContext'; // Ajusta la ruta si es necesario
 import { toast } from 'react-toastify';
-import GenericFormModal from '../../../components/GenericFormModal'; // Ajusta la ruta
+import GenericFormModal from '../../components/GenericFormModal'; // Ajusta la ruta
 
 function EditResourceModal({ open, onClose, resourceId, onUpdateSuccess }) {
   const [originalResourceType, setOriginalResourceType] = useState('');

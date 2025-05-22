@@ -29,8 +29,8 @@ import { useAuth, axiosInstance } from '../context/AuthContext'; // <-- MODIFICA
 import { toast } from 'react-toastify';
 
 // Import reusable components
-import PageHeader from '../../components/PageHeader';
-import EmptyState from '../../components/EmptyState';
+import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
 import GroupIcon from '@mui/icons-material/Group'; // Example icon for EmptyState
 
 

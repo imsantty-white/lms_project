@@ -51,10 +51,10 @@ import CreateActivityModal from '../pages/components/CreateActivityModal';
 import EditActivityModal from './components/EditActivityModal';
 
 // Reusable Components
-import PageHeader from '../../components/PageHeader';
-import EmptyState from '../../components/EmptyState';
-import ContentCard from '../../components/ContentCard';
-import ConfirmationModal from '../../components/ConfirmationModal'; // For delete and create confirmations
+import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
+import ContentCard from '../components/ContentCard';
+import ConfirmationModal from '../components/ConfirmationModal'; // For delete and create confirmations
 
 // Componente de animación para las tarjetas (no longer needed if ContentCard handles it)
 // const MotionCard = motion(Card); 

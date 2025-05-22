@@ -19,8 +19,8 @@ import { useAuth, axiosInstance } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 
 // Reusable Components
-import PageHeader from '../../components/PageHeader';
-import EmptyState from '../../components/EmptyState';
+import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
 
 function StudentGroupsPage() {
   const { user, isAuthenticated, isAuthInitialized } = useAuth();
@@ -147,7 +147,6 @@ function StudentGroupsPage() {
           </List>
         )}
         </Box>
-      </Box>
     </Container>
   );
 }

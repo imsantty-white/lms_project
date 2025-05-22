@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { TextField, Stack } from '@mui/material';
 import { toast } from 'react-toastify';
-import GenericFormModal from '../../../components/GenericFormModal'; // Ajusta la ruta según tu estructura
+import GenericFormModal from '../../components/GenericFormModal'; // Ajusta la ruta según tu estructura
 
 function CreateModuleModal({ open, onClose, onSubmit, isCreating }) {
   const [nombre, setNombre] = useState('');

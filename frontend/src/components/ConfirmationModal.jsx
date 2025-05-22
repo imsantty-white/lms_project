@@ -18,7 +18,7 @@ const ConfirmationModal = React.memo(({
   message,
   cancelText = 'No', // <-- Texto por defecto "No"
   confirmText = 'Sí'  // <-- Texto por defecto "Sí"
-}) {
+}) => {
   return (
     <Dialog
       open={open}
@@ -35,13 +35,9 @@ const ConfirmationModal = React.memo(({
         </DialogContentText>
       </DialogContent>
       <DialogActions>
-        {/* El botón de cancelar sigue usando onClose */}
-        {/* Opcional: Si no necesitas un botón de cancelar, puedes añadir una condición */}
-         {/* {cancelText && <Button onClick={onClose} color="secondary">{cancelText}</Button>} */}
         <Button onClick={onClose} color="secondary">
           {cancelText}
         </Button>
-        {/* El botón de confirmar usa onConfirm */}
         <Button onClick={onConfirm} color="primary" autoFocus>
           {confirmText}
         </Button>

@@ -9,7 +9,7 @@ import {
   Select,
 } from '@mui/material';
 import { toast } from 'react-toastify';
-import GenericFormModal from '../../../components/GenericFormModal'; // Ajusta la ruta
+import GenericFormModal from '../../components/GenericFormModal'; // Ajusta la ruta
 
 function CreateResourceModal({ open, onClose, onSubmit, isCreating }) {
   const [type, setType] = useState('');

@@ -7,7 +7,7 @@ import {
   // Button, // No longer needed for submit/cancel if handled by GenericFormModal
   // CircularProgress // No longer needed if handled by GenericFormModal
 } from '@mui/material';
-import GenericFormModal from '../../../components/GenericFormModal'; // Ajusta la ruta
+import GenericFormModal from '../../components/GenericFormModal'; // Ajusta la ruta
 import { toast } from 'react-toastify'; // For potential validation messages
 
 function EditModuleModal({ open, onClose, onSubmit, initialData, isSaving }) {

@@ -21,7 +21,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import { axiosInstance } from '../../context/AuthContext'; // Ajusta la ruta si es necesario
 import { toast } from 'react-toastify';
-import GenericFormModal from '../../../components/GenericFormModal'; // Ajusta la ruta
+import GenericFormModal from '../../components/GenericFormModal'; // Ajusta la ruta
 
 const generateTempId = () => `temp-${Math.random().toString(36).substring(2, 15)}`;
 

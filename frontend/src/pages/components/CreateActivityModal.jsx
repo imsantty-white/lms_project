@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { toast } from 'react-toastify';
-import GenericFormModal from '../../../components/GenericFormModal'; // Ajusta la ruta
+import GenericFormModal from '../../components/GenericFormModal'; // Ajusta la ruta
 
 function CreateActivityModal({ open, onClose, onSubmit, isCreating }) {
   const [type, setType] = useState('');

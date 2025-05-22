@@ -5,7 +5,7 @@ import {
   TextField,
   Stack,
 } from '@mui/material';
-import GenericFormModal from '../../../components/GenericFormModal'; // Ajusta la ruta
+import GenericFormModal from '../../components/GenericFormModal'; // Ajusta la ruta
 import { toast } from 'react-toastify';
 
 function EditThemeModal({ open, onClose, onSubmit, initialData, isSaving }) {
