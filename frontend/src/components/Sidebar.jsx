@@ -1,7 +1,8 @@
 import React from 'react';
-import { Box, Drawer, Toolbar, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography, Divider } from '@mui/material';
+import { Box, Drawer, Toolbar, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography, Divider, IconButton } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 
 // Importa algunos iconos de ejemplo (puedes añadir más según necesites)
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -19,7 +20,7 @@ import RouteIcon from '@mui/icons-material/Route';
 // Define el ancho del sidebar (debe coincidir con el usado en App.jsx)
 const drawerWidth = 240;
 
-function Sidebar() {
+function Sidebar({ width = drawerWidth, open = true, onClose }) {
   // Obtiene el estado de autenticación y la información del usuario
   const { isAuthenticated, user } = useAuth();
 
@@ -75,20 +76,28 @@ function Sidebar() {
   return (
     // Drawer es un buen componente para sidebars. Aquí usamos variant="permanent" para un sidebar fijo.
     <Drawer
-      variant="permanent"
+      variant="persistent"
+      open={open}
       sx={{
-        width: drawerWidth,
+        width,
         flexShrink: 0, // Previene que el contenido principal se encoja para dejar espacio
         [`& .MuiDrawer-paper`]: { // Estilos para el papel (el fondo) del drawer
-          width: drawerWidth,
+          width,
           boxSizing: 'border-box', // Incluye padding y borde en el ancho total
           // position: 'relative', // Para un sidebar que no se superponga, sino que empuje el contenido (si el layout principal es flex)
           // Asegúrate de que el sidebar no tape el Header si el Header tiene una altura fija
            marginTop: '64px', // Ajusta según la altura de tu AppBar (por defecto 64px)
            height: 'calc(100% - 64px)', // Ajusta la altura para que no se superponga con el Header
+           transition: 'width 0.3s',
         },
       }}
     >
+      {/* Botón para cerrar el sidebar */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 1 }}>
+        <IconButton onClick={onClose}>
+          <ChevronLeftIcon />
+        </IconButton>
+      </Box>
       {/* Toolbar es útil para crear un espacio en la parte superior que coincida con la altura del AppBar */}
       {/* <Toolbar /> */} {/* Ya ajustamos el margen superior directamente */}
       <Box sx={{ overflow: 'auto' }}> {/* Permite scroll si la lista de enlaces es muy larga */}

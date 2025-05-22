@@ -8,46 +8,95 @@ import '@fontsource/inter';
 import '@fontsource-variable/nunito';
 import '@fontsource/blinker';
 
-// --- Define tu color primario personalizado ---
-// Puedes usar un código hexadecimal, nombres de colores CSS, rgb(), etc.
+// Paletas de colores personalizadas
 const customPrimaryColor = {
-  main: '#5d4aab', // <-- ¡Cambia este color al que desees! (Este es un verde, por ejemplo)
-  // Opcional: Puedes definir tonos claros y oscuros si quieres más control
-  // light: '#80e27e',
-  // dark: '#087f23',
-  // Opcional: Define el color del texto que va bien sobre este color de fondo
-  // contrastText: '#fff',
+  main: '#5d4aab',
+  light: '#7c6fd1',
+  dark: '#3d2e6b',
+  contrastText: '#fff',
+};
+const customSecondaryColor = {
+  main: '#ffb300',
+  light: '#ffe066',
+  dark: '#c68400',
+  contrastText: '#222',
 };
 
-// --- Crea tu tema personalizado ---
-const theme = createTheme({
-  palette: { // Paleta de colores
-    primary: customPrimaryColor, // Sobrescribe el color primario por defecto
-    // Opcional: Puedes definir otros colores como secondary, error, warning, info, success
-    // secondary: {
-    //   main: '#f50057', // Ejemplo de color secundario
-    // },
-    // error: {
-    //   main: '#f44336',
-    // },
-    // ... otros colores ...
+// Paleta para modo claro
+const lightPalette = {
+  mode: 'light',
+  primary: customPrimaryColor,
+  secondary: customSecondaryColor,
+  background: {
+    default: '#f5f6fa',
+    paper: '#fff',
   },
-  // Opcional: Puedes personalizar la tipografía, espaciado, o componentes específicos aquí
-  typography: {
-    fontFamily: '"Cal sans", "Poppins", "Arial", Lato',
-    h1: {
-      fontSize: '2.5rem',
+  text: {
+    primary: '#222',
+    secondary: '#736f8c',
+  },
+};
+
+// Paleta para modo oscuro
+const darkPalette = {
+  mode: 'dark',
+  primary: customPrimaryColor,
+  secondary: customSecondaryColor,
+  background: {
+    default: '#181a20',
+    paper: '#23263a',
+  },
+  text: {
+    primary: '#fff',
+    secondary: '#bdbdbd',
+  },
+};
+
+// Función para crear el theme según el modo
+export const getTheme = (mode = 'light') =>
+  createTheme({
+    palette: mode === 'dark' ? darkPalette : lightPalette,
+    typography: {
+      fontFamily: '"Cal sans", "Poppins", "Arial", Lato',
+      h1: { fontSize: '2.5rem', fontWeight: 700 },
+      h2: { fontWeight: 600 },
+      h3: { fontWeight: 600 },
+      h4: { fontWeight: 600 },
+      h5: { fontWeight: 500 },
+      h6: { fontWeight: 500 },
+      button: { textTransform: 'none', fontWeight: 600 },
     },
-  },
-  components: { // Personalizar componentes específicos
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          borderRadius: 4, // Botones con esquinas más redondeadas
+    components: {
+      MuiButton: {
+        styleOverrides: {
+          root: {
+            borderRadius: 8,
+            fontWeight: 600,
+            letterSpacing: 0.5,
+          },
         },
       },
+      MuiPaper: {
+        styleOverrides: {
+          root: {
+            borderRadius: 16,
+          },
+        },
+      },
+      MuiAppBar: {
+        styleOverrides: {
+          root: {
+            backgroundImage: 'none',
+          },
+        },
+      },
+      MuiDialog: {
+        styleOverrides: {
+          paper: {
+            borderRadius: 16,
+          },
+        },
+      },
+      // Puedes agregar más overrides aquí para otros componentes
     },
-  },
-});
-
-export default theme; // Exporta el tema para usarlo en tu aplicación
+  });
