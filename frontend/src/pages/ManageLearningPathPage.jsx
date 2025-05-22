@@ -35,18 +35,9 @@ import {
 
 // Iconos de Material UI
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
-import DescriptionIcon from '@mui/icons-material/Description';
-import LinkIcon from '@mui/icons-material/Link';
-import PlayCircleOutlinedIcon from '@mui/icons-material/PlayCircleOutlined';
-import AssignmentIcon from '@mui/icons-material/Assignment';
-import QuizIcon from '@mui/icons-material/Quiz';
-import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
-import WorkIcon from '@mui/icons-material/Work';
+// EditIcon, DeleteIcon, CheckCircleOutlineIcon, DescriptionIcon, LinkIcon, PlayCircleOutlinedIcon, AssignmentIcon, QuizIcon, QuestionAnswerIcon, WorkIcon are now primarily used in sub-components
 import AddCircleOutlinedIcon from '@mui/icons-material/AddCircleOutlined';
-import { format } from 'date-fns';
+// format is now primarily used in AssignmentItem
 
 // *** Importar useAuth Y axiosInstance ***
 import { useAuth, axiosInstance } from '../context/AuthContext';
@@ -60,29 +51,12 @@ import CreateModuleModal from '../pages/components/CreateModuleModal';
 import CreateThemeModal from '../pages/components/CreateThemeModal';
 import EditModuleModal from '../pages/components/EditModuleModal';
 import EditThemeModal from '../pages/components/EditThemeModal';
-
-
 import AddContentAssignmentModal from '../pages/components/AddContentAssignmentModal';
 import EditContentAssignmentModal from '../pages/components/EditContentAssignmentModal';
 
-
-// Función auxiliar para obtener el icono de la asignación (se mantiene igual)
-const getAssignmentIcon = (assignment) => {
-  const type = assignment.type;
-  if (type === 'Resource') {
-    if (assignment.resource_id?.type === 'Contenido') return <DescriptionIcon />;
-    if (assignment.resource_id?.type === 'Enlace') return <LinkIcon />;
-    if (assignment.resource_id?.type === 'Video-Enlace') return <PlayCircleOutlinedIcon />;
-    return <CheckCircleOutlineIcon />;
-  }
-  if (type === 'Activity') {
-    if (assignment.activity_id?.type === 'Quiz') return <QuizIcon />;
-    if (assignment.activity_id?.type === 'Cuestionario') return <QuestionAnswerIcon />;
-    if (assignment.activity_id?.type === 'Trabajo') return <WorkIcon />;
-    return <AssignmentIcon />;
-  }
-  return null;
-};
+// Import new sub-components
+import ModuleItem from '../pages/components/ModuleItem';
+// ThemeItem and AssignmentItem will be used by ModuleItem
 
 
 function ManageLearningPathPage() {
@@ -632,322 +606,28 @@ function ManageLearningPathPage() {
         {learningPath.modules && learningPath.modules.length > 0 ? (
           <List sx={{ width: '100%', p: 0 }}>
             {learningPath.modules.map((module, moduleIndex) => (
-              <Paper key={module._id} sx={{ mb: 2 }}>
-                <Accordion expanded={expandedModule === `module-${module._id}`} onChange={handleModuleAccordionChange(`module-${module._id}`)}>
-                  <AccordionSummary
-                    expandIcon={<ExpandMoreIcon />}
-                    aria-controls={`panel${module._id}-content`}
-                    id={`panel${module._id}-header`}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                      <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                        {`Módulo ${module.orden || moduleIndex + 1}: ${module.nombre}`}
-                      </Typography>
-                      {/* Botón de Edición */}
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditModuleModal(module);
-                        }}
-                        disabled={isAnyOperationInProgress}
-                        sx={{ mr: 2 }}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenDeleteModuleConfirm(module._id);
-                        }}
-                        disabled={isAnyOperationInProgress}
-                        sx={{ mr: 3.5 }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      {module.descripcion}
-                    </Typography>
-
-                    {/* Botón Añadir Tema */}
-                    <Stack direction="row" spacing={1} sx={{ mb: 2 }} alignItems="center">
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<AddCircleOutlinedIcon />}
-                        onClick={() => handleOpenCreateThemeModal(module._id)}
-                        disabled={isAnyOperationInProgress}
-                      >
-                        Añadir Tema
-                      </Button>
-                    </Stack>
-
-                    {/* Divider para separar la sección de temas */}
-                    <Divider sx={{ borderStyle: 'dashed', my: 2 }} />
-
-                    {/* --- Renderizar Temas dentro del Módulo --- */}
-                    <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Temas:</Typography>
-                    {module.themes && module.themes.length > 0 ? (
-                      <List dense disablePadding>
-                        {module.themes.map((theme, themeIndex) => (
-                          <Paper key={theme._id} sx={{ mb: 1, ml: 2, border: '1px solid #eee' }}>
-                            <Accordion expanded={expandedTheme[`theme-${theme._id}`] || false} onChange={handleThemeAccordionChange(`theme-${theme._id}`)}>
-                              <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls={`panel${theme._id}-content`} id={`panel${theme._id}-header`}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                                  <Typography variant="subtitle1" sx={{ flexGrow: 1 }}>
-                                    {`Tema ${theme.orden || themeIndex + 1}: ${theme.nombre}`}
-                                  </Typography>
-                                  {/* Botón de Edición */}
-                                  <IconButton
-                                    size="small"
-                                    onClick={(e) => {
-                                      e.stopPropagation(); // <-- Esto evita que el Accordion se cierre/abra
-                                      handleOpenEditThemeModal(theme);
-                                    }}
-                                    disabled={isAnyOperationInProgress}
-                                    sx={{ mr: 1 }}
-                                  >
-                                    <EditIcon fontSize="small" />
-                                  </IconButton>
-                                  <IconButton
-                                    size="small"
-                                    color="error"
-                                    onClick={(e) => {
-                                      e.stopPropagation(); // <-- Esto evita que el Accordion se cierre/abra
-                                      handleOpenDeleteThemeConfirm(theme._id);
-                                    }}
-                                    disabled={isAnyOperationInProgress}
-                                  >
-                                    <DeleteIcon fontSize="small" />
-                                  </IconButton>
-                                </Box>
-                              </AccordionSummary>
-                              <AccordionDetails>
-                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{theme.descripcion}</Typography>
-
-                                {/* Botones de Acción para Tema (Editar, Eliminar, Añadir Contenido) */}
-                                <Stack direction="row" spacing={1} sx={{ mb: 2 }} alignItems="center"> {/* Alinear verticalmente */}
-                                    {/* Botón Añadir Contenido a Tema */}
-                                    <Button
-                                      variant="outlined"
-                                      size="small"
-                                      startIcon={<AddCircleOutlinedIcon />}
-                                      onClick={() => handleOpenAddContentAssignmentModal(theme._id, theme.nombre)}
-                                      disabled={isAnyOperationInProgress} // Usa el estado global
-                                    >
-                                      Añadir Contenido
-                                    </Button>
-                                </Stack>
-
-                                <Divider sx={{ borderStyle: 'dashed', my: 2 }} />
-
-
-                                {/* --- Renderizar Asignaciones de Contenido dentro del Tema --- */}
-                                <Typography variant="subtitle1" sx={{ mt: 2, mb: 1 }}>
-                                  Contenido:
-                                </Typography>
-                                {theme.assignments && theme.assignments.length > 0 ? (
-                                  <List dense disablePadding>
-                                    {theme.assignments.map((assignment) => {
-                                      // Determinar si esta asignación está actualmente en proceso de actualización
-                                      const isThisAssignmentUpdating =
-                                        updatingAssignmentStatus === assignment._id;
-                                      const contentItem = assignment.resource_id || assignment.activity_id;
-
-                                      // *** Lógica para obtener el nombre legible del estado ***
-                                      const statusOption = ASSIGNMENT_STATUS_OPTIONS.find(option => option.value === assignment.status);
-                                      const statusLabel = statusOption ? statusOption.label : assignment.status; // Usar el valor si no se encuentra (salvaguarda)
-                                      // *** Fin Lógica ***
-
-                                      return (
-                                        <ListItem
-                                          key={assignment._id}
-                                          sx={{ pl: 4, borderBottom: '1px dashed #eee' }}
-                                        >
-                                          {/* Usamos un Box para organizar el contenido, selector de estado y acciones */}
-                                          <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                                            {/* Parte izquierda: Icono y texto principal/secundario */}
-                                            <Box
-                                              sx={{
-                                                flexGrow: 1,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                pr: 2,
-                                              }}
-                                            >
-                                              <ListItemIcon sx={{ minWidth: 40 }}>
-                                                {getAssignmentIcon(assignment)}
-                                              </ListItemIcon>
-                                              <ListItemText
-                                                primary={
-                                                  <Typography variant="body1">
-                                                    {contentItem?.title || 'Contenido sin título'}
-                                                  </Typography>
-                                                }
-                                                secondary={
-                                                  <Box component="span" sx={{ display: 'block' }}>
-                                                    {/* Usar display: block para que los chips se muestren en la siguiente línea */}
-                                                    <Typography variant="body2" color="text.secondary">
-                                                      Tipo:{' '}
-                                                      {assignment.type === 'Resource' ? 'Recurso' : 'Actividad'} (
-                                                      {assignment.type === 'Resource'
-                                                        ? assignment.resource_id?.type || 'Desconocido'
-                                                        : assignment.activity_id?.type || 'Desconocido'}
-                                                      )
-                                                    </Typography>
-                                                    {/* Chips con detalles (fechas, puntos, etc.) */}
-                                                    <Stack
-                                                      direction="row"
-                                                      spacing={1}
-                                                      alignItems="center"
-                                                      sx={{ mt: 0.5, flexWrap: 'wrap' }}
-                                                    >
-                                                      {assignment.fecha_inicio && (
-                                                        <Chip
-                                                          label={`Inicio: ${format(
-                                                            new Date(assignment.fecha_inicio),
-                                                            'dd/MM/yyyy HH:mm'
-                                                          )}`}
-                                                          size="small"
-                                                          variant="outlined"
-                                                        />
-                                                      )}
-                                                      {assignment.fecha_fin && (
-                                                        <Chip
-                                                          label={`Fin: ${format(
-                                                            new Date(assignment.fecha_fin),
-                                                            'dd/MM/yyyy HH:mm'
-                                                          )}`}
-                                                          size="small"
-                                                          variant="outlined"
-                                                        />
-                                                      )}
-                                                      {assignment.puntos_maximos !== undefined && (
-                                                        <Chip
-                                                          label={`Pts: ${assignment.puntos_maximos}`}
-                                                          size="small"
-                                                          variant="outlined"
-                                                        />
-                                                      )}
-                                                      {assignment.intentos_permitidos !== undefined && (
-                                                        <Chip
-                                                          label={`Intentos: ${assignment.intentos_permitidos}`}
-                                                          size="small"
-                                                          variant="outlined"
-                                                        />
-                                                      )}
-                                                      {assignment.tiempo_limite !== undefined && (
-                                                        <Chip
-                                                          label={`Tiempo: ${assignment.tiempo_limite} min`}
-                                                          size="small"
-                                                          variant="outlined"
-                                                        />
-                                                      )}
-                                                      {/* Mostrar estado actual */}
-                                                      {assignment.status && (
-                                                        <Chip
-                                                          label={`Estado: ${statusLabel}`}
-                                                          size="small"
-                                                          variant="filled"
-                                                          color={
-                                                            assignment.status === 'Open'
-                                                              ? 'success'
-                                                              : assignment.status === 'Closed'
-                                                              ? 'error'
-                                                              : 'default'
-                                                          }
-                                                          sx={{ mr: 1 }}
-                                                        />
-                                                      )}
-                                                    </Stack>
-                                                  </Box>
-                                                }
-                                              />
-                                            </Box>
-
-                                            {/* Parte derecha: Selector de estado y acciones (Editar/Eliminar) */}
-                                            <Box sx={{ display: 'flex', alignItems: 'center', ml: 'auto' }}>
-                                              {/* Selector de Estado o Spinner */}
-                                              {isThisAssignmentUpdating ? (
-                                                <CircularProgress size={24} sx={{ mr: 1 }} />
-                                              ) : (
-                                                <FormControl
-                                                  variant="outlined"
-                                                  size="small"
-                                                  sx={{ minWidth: 120, mr: 1 }}
-                                                >
-                                                  <InputLabel id={`status-select-label-${assignment._id}`}>
-                                                    Estado
-                                                  </InputLabel>
-                                                  <Select
-                                                    labelId={`status-select-label-${assignment._id}`}
-                                                    id={`status-select-${assignment._id}`}
-                                                    value={assignment.status || ''}
-                                                    label="Estado"
-                                                    onChange={(e) =>
-                                                      handleStatusChange(
-                                                          assignment._id,
-                                                          e.target.value,
-                                                          contentItem?.title || 'Contenido sin título', // Pasa el nombre de la asignación
-                                                          theme.nombre                                  // Pasa el nombre del tema
-                                                      )
-                                                    }
-                                                    disabled={isThisAssignmentUpdating || isAnyOperationInProgress}
-                                                  >
-                                                    {ASSIGNMENT_STATUS_OPTIONS.map((option) => (
-                                                      <MenuItem key={option.value} value={option.value}>
-                                                        {option.label}
-                                                      </MenuItem>
-                                                    ))}
-                                                  </Select>
-                                                </FormControl>
-                                              )}
-
-                                              {/* Iconos de acción (Editar, Eliminar) */}
-                                              <Stack direction="row" spacing={0.5}>
-                                                <IconButton
-                                                  size="small"
-                                                  onClick={() => handleOpenEditAssignmentModal(assignment._id, theme.nombre)}
-                                                  disabled={isAnyOperationInProgress || isThisAssignmentUpdating}
-                                                >
-                                                  <EditIcon fontSize="small" />
-                                                </IconButton>
-                                                <IconButton
-                                                  size="small"
-                                                  color="error"
-                                                  onClick={() =>
-                                                    handleOpenDeleteAssignmentConfirm(assignment._id)
-                                                  }
-                                                  disabled={isAnyOperationInProgress || isThisAssignmentUpdating}
-                                                >
-                                                  <DeleteIcon fontSize="small" />
-                                                </IconButton>
-                                              </Stack>
-                                            </Box>
-                                          </Box>
-                                        </ListItem>
-                                      );
-                                    })}
-                                  </List>
-                                ) : (
-                                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', pl: 4 }}> No hay contenido asignado a este tema. </Typography>
-                                )}
-                              </AccordionDetails>
-                            </Accordion>
-                          </Paper>
-                        ))}
-                      </List>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', ml: 2 }}> No hay temas en este módulo. </Typography>
-                    )}
-                  </AccordionDetails>
-                </Accordion>
-              </Paper>
+              <ModuleItem
+                key={module._id}
+                module={module}
+                moduleIndex={moduleIndex}
+                expanded={expandedModule === `module-${module._id}`}
+                onAccordionChange={handleModuleAccordionChange(`module-${module._id}`)}
+                onEditModule={handleOpenEditModuleModal}
+                onDeleteModule={handleOpenDeleteModuleConfirm}
+                onCreateTheme={handleOpenCreateThemeModal}
+                // Props for ThemeItem and AssignmentItem
+                expandedTheme={expandedTheme}
+                handleThemeAccordionChange={handleThemeAccordionChange}
+                onEditTheme={handleOpenEditThemeModal}
+                onDeleteTheme={handleOpenDeleteThemeConfirm}
+                onAddContentAssignment={handleOpenAddContentAssignmentModal}
+                onEditAssignment={handleOpenEditAssignmentModal}
+                onDeleteAssignment={handleOpenDeleteAssignmentConfirm}
+                onStatusChange={handleStatusChange}
+                ASSIGNMENT_STATUS_OPTIONS={ASSIGNMENT_STATUS_OPTIONS}
+                updatingAssignmentStatus={updatingAssignmentStatus}
+                isAnyOperationInProgress={isAnyOperationInProgress}
+              />
             ))}
           </List>
         ) : (

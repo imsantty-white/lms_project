@@ -8,10 +8,11 @@ const LearningPath = require('../models/LearningPathModel');
 const Module = require('../models/ModuleModel');
 const Theme = require('../models/ThemeModel');
 const Group = require('../models/GroupModel');
-const Submission = require('../models/SubmissionModel'); 
-const Progress = require('../models/ProgressModel'); 
-const User = require('../models/UserModel'); 
+const Submission = require('../models/SubmissionModel');
+const Progress = require('../models/ProgressModel');
+const User = require('../models/UserModel');
 const mongoose = require('mongoose');
+const { isApprovedGroupMember, isTeacherOfContentAssignment, isTeacherOfSubmission } = require('../utils/permissionUtils');
 
 
 // @desc    Obtener los detalles de una Actividad asignada para que un estudiante la inicie
@@ -30,15 +31,22 @@ const getStudentActivityForAttempt = async (req, res, next) => {
 
         // Encontrar la asignación y popular los detalles necesarios (mantener)
         const assignmentDetails = await ContentAssignment.findById(assignmentId)
-            .populate('activity_id') // Necesitamos la Actividad base
+            .populate({
+                path: 'activity_id', // Necesitamos la Actividad base
+                select: 'type title description quiz_questions cuestionario_questions' // Fields needed for student attempt
+            })
             .populate({ // Necesitamos la jerarquía para permisos/grupo
                 path: 'theme_id',
+                select: 'nombre', // Select only name for theme
                 populate: {
                     path: 'module_id',
+                    select: 'nombre', // Select only name for module
                     populate: {
                         path: 'learning_path_id',
+                        select: 'nombre', // Select only name for learning path
                         populate: {
-                            path: 'group_id'
+                            path: 'group_id',
+                            select: '_id' // Select only _id for group membership check
                         }
                     }
                 }
@@ -66,12 +74,9 @@ const getStudentActivityForAttempt = async (req, res, next) => {
         let group = null;
         if (assignmentDetails.theme_id?.module_id?.learning_path_id?.group_id) {
             group = assignmentDetails.theme_id.module_id.learning_path_id.group_id;
-            const approvedMembership = await Membership.findOne({
-                usuario_id: studentId,
-                grupo_id: group._id,
-                estado_solicitud: 'Aprobado'
-            });
-            if (!approvedMembership) {
+            // Refactor: Use isApprovedGroupMember
+            const isMember = await isApprovedGroupMember(studentId, group._id);
+            if (!isMember) {
                 return res.status(403).json({ message: 'No tienes permiso para acceder a esta actividad. No eres miembro aprobado del grupo.' });
             }
         } else {
@@ -160,15 +165,22 @@ const submitStudentActivityAttempt = async (req, res, next) => {
 
         //  Ahora poblar los detalles necesarios (Activity y jerarquía)
         const assignment = await ContentAssignment.findById(assignmentId)
-            .populate('activity_id')
+            .populate({
+                path: 'activity_id',
+                select: 'type quiz_questions cuestionario_questions' // Select necessary fields for activity
+            })
             .populate({
                 path: 'theme_id',
+                select: 'nombre', // Select only name for theme
                 populate: {
                     path: 'module_id',
+                    select: 'nombre', // Select only name for module
                     populate: {
                         path: 'learning_path_id',
+                        select: 'nombre', // Select only name for learning path
                         populate: {
-                            path: 'group_id'
+                            path: 'group_id',
+                            select: '_id docente_id' // Select _id and docente_id for group
                         }
                     }
                 }
@@ -206,15 +218,9 @@ const submitStudentActivityAttempt = async (req, res, next) => {
 
             // Solo buscar membresía si tenemos un groupId válido (mantienes esta lógica)
             if (groupId) {
-                // No necesitamos la variable isStudentMember antes de este check,
-                // podemos devolver el error 403 directamente si no se encuentra la membresía aprobada.
-                const approvedMembership = await Membership.findOne({
-                    usuario_id: studentId,
-                    grupo_id: groupId,
-                    estado_solicitud: 'Aprobado'
-                });
-
-                if (!approvedMembership) { // Si NO es miembro aprobado
+                // Refactor: Use isApprovedGroupMember
+                const isMember = await isApprovedGroupMember(studentId, groupId);
+                if (!isMember) { // Si NO es miembro aprobado
                     console.error(`Student ${studentId} is not an approved member of group ${groupId} for assignment ${assignmentId}.`);
                     return res.status(403).json({ message: 'No tienes permiso para enviar esta entrega. No eres miembro aprobado del grupo.' });
                 }
@@ -343,16 +349,8 @@ const submitStudentActivityAttempt = async (req, res, next) => {
 
         // 6. Crear y guardar el documento de Submission
         // Contar intentos *justo antes* de crear la submission para el número de intento
-        // *** CORRECCIÓN: Esta declaración de currentAttempts está duplicada y causa el error. Ya la contamos arriba. ***
-        // const currentAttempts = await Submission.countDocuments({...}); // <-- ELIMINAR O COMENTAR ESTA LÍNEA
         // Re-verificar límite de intentos por si acaso algo cambió entre la carga de la página y el envío
-        // *** La verificación del límite ya se hizo arriba, pero se puede dejar esta por seguridad si se desea,
-        // pero usando la variable currentAttempts contada al principio. ***
-        // if (assignment.intentos_permitidos !== undefined && assignment.intentos_permitidos !== null && currentAttempts >= assignment.intentos_permitidos) {
-        //     console.warn(...);
-        //     return res.status(400).json({ message: ... });
-        // }
-        // ***********************************************************************************
+        // (Verificación del límite ya se hizo arriba)
 
         const newSubmission = new Submission({
             assignment_id: assignmentId,
@@ -364,9 +362,7 @@ const submitStudentActivityAttempt = async (req, res, next) => {
             fecha_envio: new Date(),
             estado_envio: estado_envio,
             is_late: assignment.fecha_fin && new Date() > new Date(assignment.fecha_fin),
-            // *** CORRECCIÓN: Usar la variable currentAttempts contada al principio ***
             attempt_number: currentAttempts + 1, // Este es el siguiente intento disponible
-            // ***********************************************************************
             calificacion: calificacion,
             respuesta: submissionData // Asignar el objeto de datos de respuesta construido
         });
@@ -410,28 +406,12 @@ const getAssignmentSubmissions = async (req, res, next) => {
         // Opcional (pero recomendado por seguridad): Verificar que el Docente está relacionado con la asignación/grupo
         // (Mantenemos esta lógica si es Docente)
          if (userType === 'Docente') {
-             const assignmentCheck = await ContentAssignment.findById(assignmentId)
-                .populate({ // Poblar hasta el grupo para verificar el docente_id
-                    path: 'theme_id',
-                    populate: {
-                        path: 'module_id',
-                        populate: {
-                            path: 'learning_path_id',
-                            populate: {
-                                path: 'group_id'
-                            }
-                        }
-                    }
-                });
-
-            if (!assignmentCheck) {
-                 return res.status(404).json({ message: 'Asignación no encontrada para verificación de docente.' });
-            }
-
-            const assignmentTeacherId = assignmentCheck.theme_id?.module_id?.learning_path_id?.group_id?.docente_id;
-
-            if (!assignmentTeacherId || assignmentTeacherId.toString() !== userId.toString()) {
-                 return res.status(403).json({ message: 'Acceso denegado. No eres el docente de esta asignación.' });
+            // Refactor: Use isTeacherOfContentAssignment
+            // Note: This helper assumes `docente_id` is directly on ContentAssignment or can be populated.
+            // The current ContentAssignmentModel has `docente_id` directly.
+            const isTeacher = await isTeacherOfContentAssignment(userId, assignmentId);
+            if (!isTeacher) {
+                return res.status(403).json({ message: 'Acceso denegado. No eres el docente de esta asignación.' });
             }
             // Si es Administrador, no necesita esta verificación específica del docente
         }
@@ -510,32 +490,33 @@ const getAssignmentSubmissions = async (req, res, next) => {
             },
             {
                 $unwind: "$assignment_id.activity_id" // Desestructurar la actividad populada
+            },
+            // Proyectar para seleccionar y renombrar campos necesarios
+            {
+                $project: {
+                    _id: 1, // ID de la Submission
+                    student_id: { _id: "$student_id._id", nombre: "$student_id.nombre", apellidos: "$student_id.apellidos", email: "$student_id.email" },
+                    assignment_id: { // Campos de la asignación y su actividad
+                        _id: "$assignment_id._id",
+                        puntos_maximos: "$assignment_id.puntos_maximos",
+                        activity_id: {
+                            _id: "$assignment_id.activity_id._id",
+                            type: "$assignment_id.activity_id.type",
+                            title: "$assignment_id.activity_id.title",
+                            // Incluir preguntas solo si son realmente necesarias para la vista de entregas del docente
+                            // A menudo, solo el tipo y título son suficientes aquí, y las preguntas se ven al calificar/ver detalle.
+                            // quiz_questions: "$assignment_id.activity_id.quiz_questions", 
+                            // cuestionario_questions: "$assignment_id.activity_id.cuestionario_questions"
+                        }
+                    },
+                    fecha_envio: 1,
+                    estado_envio: 1,
+                    is_late: 1,
+                    attempt_number: 1,
+                    calificacion: 1,
+                    respuesta: 1 // Incluir las respuestas del estudiante
+                }
             }
-            // Opcional: $project para seleccionar y renombrar campos si es necesario
-            // {
-            //     $project: {
-            //         _id: 1,
-            //         student_id: { _id: 1, nombre: 1, apellido: 1, email: 1 }, // Seleccionar solo campos del estudiante
-            //         assignment_id: { // Seleccionar campos de la asignación y su actividad
-            //             _id: 1,
-            //             puntos_maximos: 1,
-            //             activity_id: {
-            //                 _id: 1,
-            //                 type: 1,
-            //                 title: 1,
-            //                 description: 1,
-            //                 quiz_questions: 1, // Incluir preguntas si las necesitas en el frontend (Quiz/Cuestionario)
-            //                 cuestionario_questions: 1
-            //             }
-            //         },
-            //         fecha_envio: 1,
-            //         estado_envio: 1,
-            //         is_late: 1,
-            //         attempt_number: 1,
-            //         calificacion: 1,
-            //         respuesta: 1 // Incluir las respuestas del estudiante
-            //     }
-            // }
         ]);
         // *** FIN AGREGACIÓN ***
 
@@ -608,7 +589,7 @@ const getTeacherAssignments = async (req, res, next) => {
                 theme_id: { $in: themeIds },
                 type: 'Activity' // Asegurarnos de que solo sean asignaciones de actividades interactivas
             })
-            .populate('activity_id', 'title type') // Poblar solo el título y tipo de la actividad base
+            .populate({ path: 'activity_id', select: 'title type' }) // Poblar solo el título y tipo de la actividad base
             // Podemos poblar un poco de la jerarquía para mostrar a dónde pertenece la asignación
             .populate({
                 path: 'theme_id',
@@ -633,7 +614,7 @@ const getTeacherAssignments = async (req, res, next) => {
             // Un administrador podría ver todas las asignaciones de actividades (o filtrarlas de alguna manera)
             // Por simplicidad, el admin puede ver todas las asignaciones de tipo 'Activity'
              assignments = await ContentAssignment.find({ type: 'Activity' })
-                .populate('activity_id', 'title type')
+                .populate({ path: 'activity_id', select: 'title type' })
                 .populate({
                     path: 'theme_id',
                     select: 'nombre',
@@ -771,9 +752,13 @@ const gradeSubmission = async (req, res, next) => {
 
         // 4. Opcional (pero recomendado por seguridad): Verificar que el docente está autorizado para calificar esta entrega
         // Esto evita que un docente califique entregas de asignaciones en grupos donde no enseña.
-        // Si el campo docente_id está en el modelo Submission y se llena correctamente al crear la entrega:
-        if (userType === 'Docente' && submission.docente_id && submission.docente_id.toString() !== userId.toString()) {
-             return res.status(403).json({ message: 'Acceso denegado. No eres el docente asignado para calificar esta entrega.' });
+        if (userType === 'Docente') {
+            // Refactor: Use isTeacherOfSubmission
+            // This helper assumes `docente_id` is directly on the Submission model.
+            const isSubmissionTeacher = await isTeacherOfSubmission(userId, submissionId);
+            if (!isSubmissionTeacher) {
+                 return res.status(403).json({ message: 'Acceso denegado. No eres el docente asignado para calificar esta entrega.' });
+            }
         }
         // Si el campo docente_id no está en Submission, necesitarías poblar assignment_id.theme_id.module_id.learning_path_id.group_id.docente_id
         // como lo hicimos en getAssignmentSubmissions para verificar.
@@ -786,8 +771,15 @@ const gradeSubmission = async (req, res, next) => {
         // 5. Verificar que el tipo de actividad de la entrega es calificable manualmente (Cuestionario o Trabajo)
          // Necesitas el tipo de actividad. Si no está en Submission, necesitas poblar assignment_id.activity_id.type
          const submissionWithActivity = await Submission.findById(submissionId)
-            .populate('assignment_id', 'activity_id') // Solo poblar lo necesario
-            .populate({ path: 'assignment_id.activity_id', model: 'Activity', select: 'type' }); // Poblar el tipo de actividad base
+            .populate({
+                path: 'assignment_id',
+                select: 'activity_id', // Select only activity_id to chain populate
+                populate: {
+                    path: 'activity_id',
+                    model: 'Activity',
+                    select: 'type' // Select only type from Activity
+                }
+            });
 
         if (!submissionWithActivity || !submissionWithActivity.assignment_id?.activity_id?.type) {
              return res.status(500).json({ message: 'No se pudo determinar el tipo de actividad para esta entrega.' });

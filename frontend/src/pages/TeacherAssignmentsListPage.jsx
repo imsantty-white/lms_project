@@ -114,7 +114,7 @@ const LocationHierarchy = ({ assignment }) => {
 };
 
 // Componente para una tarjeta de asignación
-const AssignmentCard = ({ assignment }) => {
+const AssignmentCard = React.memo(({ assignment }) => {
   const assignmentTitle = assignment.activity_id?.title || assignment.title || 'Título desconocido';
   const assignmentType = assignment.activity_id?.type || assignment.type || 'Desconocido';
   
@@ -170,7 +170,7 @@ const AssignmentCard = ({ assignment }) => {
       </CardContent>
     </Card>
   );
-};
+});
 
 function TeacherAssignmentsListPage() {
   const theme = useTheme();

@@ -1,14 +1,8 @@
 // src/components/CreateActivityModal.jsx
 import React, { useState, useEffect } from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   TextField,
-  Button,
   Stack,
-  CircularProgress,
   MenuItem,
   FormControl,
   InputLabel,
@@ -18,39 +12,23 @@ import {
   Paper,
   IconButton,
   Divider,
-  FormHelperText
+  FormHelperText,
+  Button // Keep Button for specific actions like "Add Question"
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { toast } from 'react-toastify';
-
-// Nota: Este modal solo se encarga de mostrar el formulario y manejar su estado interno.
-// La lógica de envío al backend y el manejo del diálogo de confirmación previa
-// se manejarán en el componente padre (TeacherContentBankPage).
+import GenericFormModal from '../../../components/GenericFormModal'; // Ajusta la ruta
 
 function CreateActivityModal({ open, onClose, onSubmit, isCreating }) {
-  // Estados del formulario para crear una actividad
-  const [type, setType] = useState(''); // Estado para el tipo de actividad seleccionado
+  const [type, setType] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [cuestionarioQuestions, setCuestionarioQuestions] = useState([]);
+  const [quizQuestions, setQuizQuestions] = useState([]);
+  const [errors, setErrors] = useState({});
 
-  // Estados para campos específicos según el tipo de actividad (basado en tu schema)
-  const [cuestionarioQuestions, setCuestionarioQuestions] = useState([]); // Para tipo 'Cuestionario'
-  const [quizQuestions, setQuizQuestions] = useState([]); // Para tipo 'Quiz'
-  // El tipo 'Trabajo' solo usa title y description.
-
-    // *** CAMPOS DE CONFIGURACIÓN DE LA ACTIVIDAD (PUNTOS, INTENTOS, TIEMPO) - ELIMINADOS AQUÍ ***
-    // Estos campos pertenecen a la ASIGNACIÓN (ContentAssignment), no a la Actividad base.
-    // Los manejamos en AddContentAssignmentModal y EditContentAssignmentModal.
-    // ****************************************************************************************
-
-    // Estado para errores de validación frontend (ajustado para los campos restantes)
-    const [errors, setErrors] = useState({});
-
-
-  // Tipos de actividad disponibles (deben coincidir con tu enum en el modelo backend)
   const activityTypes = ['Cuestionario', 'Trabajo', 'Quiz'];
 
-  // --- Lógica para manejar estados de preguntas y opciones (Para Cuestionario y Quiz) ---
   const handleAddCuestionarioQuestion = () => {
     setCuestionarioQuestions(prev => [...prev, { text: '' }]);
   };
@@ -170,9 +148,7 @@ function CreateActivityModal({ open, onClose, onSubmit, isCreating }) {
 
 
   // Maneja la presentación del formulario (llama a onSubmit del padre)
-  const handleFormSubmit = (event) => {
-    event.preventDefault();
-
+  const handleInternalSubmit = () => { // Renamed
     // Ejecutar validación antes de enviar
     if (!validateForm()) {
         toast.warning('Por favor, corrige los errores en el formulario.');
@@ -205,28 +181,42 @@ function CreateActivityModal({ open, onClose, onSubmit, isCreating }) {
 
 
   return (
-    <Dialog open={open} onClose={onClose} aria-labelledby="create-activity-dialog-title" fullWidth maxWidth="sm" disableBackdropClick={true} disableEscapeKeyDown={true} >
-      <DialogTitle id="create-activity-dialog-title">Crear Nueva Actividad</DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={2} component="form" onSubmit={handleFormSubmit} id="create-activity-form">
-          {/* Selector de Tipo de Actividad */}
-          <FormControl fullWidth variant="outlined" required disabled={isCreating} error={!!errors.type}>
-            <InputLabel id="activity-type-label">Tipo de Actividad</InputLabel>
-            <Select
-              labelId="activity-type-label"
-              value={type}
-              onChange={handleTypeChange}
-              label="Tipo de Actividad"
-            >
-              <MenuItem value=""><em>Selecciona un tipo</em></MenuItem>
-              {activityTypes.map((activityTypeOption) => (
-                <MenuItem key={activityTypeOption} value={activityTypeOption}>{activityTypeOption}</MenuItem>
-              ))}
-            </Select>
-            {errors.type && <FormHelperText>{errors.type}</FormHelperText>}
-          </FormControl>
+    <GenericFormModal
+      open={open}
+      onClose={onClose}
+      title="Crear Nueva Actividad"
+      onSubmit={handleInternalSubmit} // Pasa la función de submit interna
+      isSubmitting={isCreating}
+      submitText="Crear"
+      maxWidth="md" // May need more width for questions
+      // The submit button in GenericFormModal will be disabled if isCreating is true.
+      // We also need to disable it if the form is invalid.
+      // This can be done by passing a prop like `isSubmitDisabled` to GenericFormModal
+      // or by ensuring handleInternalSubmit (passed as onSubmit) doesn't call the parent onSubmit if invalid.
+      // The latter is simpler for now.
+    >
+      {/* Removed DialogTitle, DialogContent, DialogActions - GenericFormModal handles these */}
+      {/* The Stack for form elements is now the direct child */}
+      <Stack spacing={2} sx={{ pt: 1 }}> {/* pt:1 for padding top */}
+        {/* Selector de Tipo de Actividad */}
+        <FormControl fullWidth variant="outlined" required disabled={isCreating} error={!!errors.type}>
+          <InputLabel id="activity-type-label">Tipo de Actividad</InputLabel>
+          <Select
+            labelId="activity-type-label"
+            value={type}
+            onChange={handleTypeChange}
+            label="Tipo de Actividad"
+            autoFocus // Autofocus on the first field
+          >
+            <MenuItem value=""><em>Selecciona un tipo</em></MenuItem>
+            {activityTypes.map((activityTypeOption) => (
+              <MenuItem key={activityTypeOption} value={activityTypeOption}>{activityTypeOption}</MenuItem>
+            ))}
+          </Select>
+          {errors.type && <FormHelperText>{errors.type}</FormHelperText>}
+        </FormControl>
 
-          {/* Campos base (Título y Descripción) */}
+        {/* Campos base (Título y Descripción) */}
           <TextField
             label="Título de la Actividad"
             variant="outlined"
@@ -391,31 +381,15 @@ function CreateActivityModal({ open, onClose, onSubmit, isCreating }) {
           )}
 
           {type === 'Trabajo' && (
-              <Box sx={{ mt: 2 }}>
-                 <Typography variant="body2" color="text.secondary">
-                     Este tipo de actividad ('Trabajo') solo requiere Título y Descripción para las instrucciones.
-                 </Typography>
-             </Box>
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                Este tipo de actividad ('Trabajo') solo requiere Título y Descripción para las instrucciones.
+              </Typography>
+            </Box>
           )}
-
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={isCreating}>Cancelar</Button>
-         <Button
-             type="submit"
-             form="create-activity-form"
-             variant="contained"
-             color="primary"
-             disabled={
-                 isCreating || !type || !title.trim() || Object.keys(errors).length > 0 // Deshabilitar si hay errores de validación
-             }
-             endIcon={isCreating ? <CircularProgress size={20} color="inherit" /> : null}
-         >
-             Crear
-         </Button>
-      </DialogActions>
-    </Dialog>
+        {/* No separate submit button here, GenericFormModal handles it */}
+      </Stack>
+    </GenericFormModal>
   );
 }
 

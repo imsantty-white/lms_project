@@ -20,7 +20,7 @@ import RouteIcon from '@mui/icons-material/Route';
 // Define el ancho del sidebar (debe coincidir con el usado en App.jsx)
 const drawerWidth = 240;
 
-function Sidebar({ width = drawerWidth, open = true, onClose }) {
+const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
   // Obtiene el estado de autenticación y la información del usuario
   const { isAuthenticated, user } = useAuth();
 
@@ -140,6 +140,6 @@ function Sidebar({ width = drawerWidth, open = true, onClose }) {
       </Box>
     </Drawer>
   );
-}
+});
 
 export default Sidebar;

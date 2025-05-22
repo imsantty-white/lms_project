@@ -13,9 +13,14 @@ import {
   Divider,
   Chip // Importamos Chip de Material UI
 } from '@mui/material';
+import GroupsIcon from '@mui/icons-material/Groups'; // For EmptyState
 
 import { useAuth, axiosInstance } from '../context/AuthContext';
 import { toast } from 'react-toastify';
+
+// Reusable Components
+import PageHeader from '../../components/PageHeader';
+import EmptyState from '../../components/EmptyState';
 
 function StudentGroupsPage() {
   const { user, isAuthenticated, isAuthInitialized } = useAuth();
@@ -82,12 +87,11 @@ function StudentGroupsPage() {
   return (
     <Container>
       <Box sx={{ mt: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Mis Grupos:
-        </Typography>
+        <PageHeader title="Mis Grupos" />
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          {isLoading && (
+        {/* Removed custom loading/error/empty rendering, will use EmptyState or direct rendering */}
+        
+        {isLoading && (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
             <CircularProgress />
             <Typography variant="body1" color="text.secondary" sx={{ ml: 2 }}>Cargando tus grupos...</Typography>
@@ -95,19 +99,22 @@ function StudentGroupsPage() {
         )}
 
         {error && !isLoading && (
-          <Alert severity="error" sx={{ mt: 3, maxWidth: '600px', width: '100%' }}>
+          <Alert severity="error" sx={{ mt: 3, width: '100%' }}> {/* Ensure Alert can take full width if needed */}
             {error}
           </Alert>
         )}
 
         {!isLoading && !error && groups.length === 0 && (
-          <Typography variant="body1" color="text.secondary" sx={{ mt: 3, textAlign: 'center', maxWidth: '600px' }}>
-            Aún no perteneces a ningún grupo. ¡Únete a uno usando el código de tu docente!
-          </Typography>
+           <EmptyState 
+            message="Aún no perteneces a ningún grupo. ¡Únete a uno usando el código de tu docente!"
+            icon={GroupsIcon} // Example icon
+            containerProps={{sx: {mt: 3}}}
+           />
         )}
 
         {!isLoading && !error && groups.length > 0 && (
-          <List sx={{ mt: 3, maxWidth: '600px', width: '100%' }}>
+          // Consider removing the alignItems: 'center' and maxWidth if the list should be wider
+          <List sx={{ mt: 3, width: '100%' }}> 
             {groups.map((group) => {
               const statusInfo = getStatusDisplay(group.student_status);
 

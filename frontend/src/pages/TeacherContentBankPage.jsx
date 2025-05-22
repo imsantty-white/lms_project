@@ -26,17 +26,17 @@ import {
   useTheme,
   useMediaQuery
 } from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
+// EditIcon and DeleteIcon are now mainly in ContentCard
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import FilePresentIcon from '@mui/icons-material/FilePresent';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
-import AssignmentIcon from '@mui/icons-material/Assignment';
+import FilePresentIcon from '@mui/icons-material/FilePresent'; // Used as default for activities
+import MenuBookIcon from '@mui/icons-material/MenuBook'; // Used as default for resources
+import AssignmentIcon from '@mui/icons-material/Assignment'; // Used for Cuestionario and Tab icon
 import LinkIcon from '@mui/icons-material/Link';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import QuizIcon from '@mui/icons-material/Quiz';
 import DescriptionIcon from '@mui/icons-material/Description';
-import { motion } from 'framer-motion';
+// motion can be removed if ContentCard handles its own animation, or kept if page-level animations are desired
+import { motion } from 'framer-motion'; 
 
 // Importar useAuth y axiosInstance
 import { useAuth, axiosInstance } from '../context/AuthContext';
@@ -50,34 +50,32 @@ import EditResourceModal from '../pages/components/EditResourceModal';
 import CreateActivityModal from '../pages/components/CreateActivityModal';
 import EditActivityModal from './components/EditActivityModal';
 
-// Componente de animación para las tarjetas
-const MotionCard = motion(Card);
+// Reusable Components
+import PageHeader from '../../components/PageHeader';
+import EmptyState from '../../components/EmptyState';
+import ContentCard from '../../components/ContentCard';
+import ConfirmationModal from '../../components/ConfirmationModal'; // For delete and create confirmations
 
-// Función para determinar el icono según el tipo de recurso
-const getResourceIcon = (type) => {
-  switch (type) {
-    case 'Contenido':
-      return <DescriptionIcon color="primary" />;
-    case 'Enlace':
-      return <LinkIcon color="secondary" />;
-    case 'Video-Enlace':
-      return <VideocamIcon color="error" />;
-    default:
-      return <MenuBookIcon color="primary" />;
-  }
+// Componente de animación para las tarjetas (no longer needed if ContentCard handles it)
+// const MotionCard = motion(Card); 
+
+// Icon mapping - can be moved to a utils file or kept here if specific to this page
+const resourceIconMap = {
+  'Contenido': <DescriptionIcon color="primary" />,
+  'Enlace': <LinkIcon color="secondary" />,
+  'Video-Enlace': <VideocamIcon color="error" />,
+  'default': <MenuBookIcon color="primary" />
 };
 
-// Función para determinar el icono según el tipo de actividad
-const getActivityIcon = (type) => {
-  switch (type) {
-    case 'Cuestionario':
-      return <AssignmentIcon color="primary" />;
-    case 'Quiz':
-      return <QuizIcon color="secondary" />;
-    default:
-      return <FilePresentIcon color="primary" />;
-  }
+const activityIconMap = {
+  'Cuestionario': <AssignmentIcon color="primary" />,
+  'Quiz': <QuizIcon color="secondary" />,
+  'Trabajo': <AssignmentIcon color="info" />, // Assuming 'Trabajo' is a type
+  'default': <FilePresentIcon color="primary" />
 };
+
+const getResourceIcon = (type) => resourceIconMap[type] || resourceIconMap['default'];
+const getActivityIcon = (type) => activityIconMap[type] || activityIconMap['default'];
 
 // Función auxiliar para renderizar detalles específicos del recurso
 const renderResourceDetails = (item) => {
@@ -413,95 +411,29 @@ function TeacherContentBankPage() {
   const renderResourceCards = () => {
     if (resources.length === 0) {
       return (
-        <Box sx={{ display: 'flex', justifyContent: 'center', width: '100%', mt: 3 }}>
-          <Alert severity="info" sx={{ width: '100%' }}>
-            No tienes recursos creados aún. Usa el botón "Crear Recurso" para añadir uno.
-          </Alert>
-        </Box>
+        <EmptyState
+          message="No tienes recursos creados aún. Usa el botón 'Crear Recurso' para añadir uno."
+          icon={MenuBookIcon}
+        />
       );
     }
-
     return (
       <Grid container spacing={2} sx={{ mt: 1 }}>
         {resources.map((item, index) => (
           <Grid item xs={12} sm={6} md={4} key={item._id}>
-            <MotionCard
-              custom={index}
-              initial="hidden"
-              animate="visible"
-              variants={cardVariants}
-              sx={{
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                borderRadius: 2,
-                boxShadow: 3,
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: 6
-                }
-              }}
-            >
-              <Box 
-                sx={{ 
-                  p: 1, 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  bgcolor: 'primary.light', 
-                  color: 'primary.contrastText',
-                  borderTopLeftRadius: 8,
-                  borderTopRightRadius: 8
-                }}
-              >
-                {getResourceIcon(item.type)}
-                <Typography variant="body2" sx={{ ml: 1, fontWeight: 'bold' }}>
-                  {item.type}
-                </Typography>
-              </Box>
-              <CardContent sx={{ flexGrow: 1, pb: 1 }}>
-                <Typography variant="h6" noWrap sx={{ mb: 1, fontSize: '1rem', fontWeight: 'bold' }}>
-                  {item.title}
-                </Typography>
-                <Box sx={{ height: 60, overflow: 'hidden' }}>
-                  {item.description && (
-                    <Typography variant="body2" color="text.secondary" sx={{
-                      display: 'block',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      mb: 0.5
-                    }}>
-                      {item.description}
-                    </Typography>
-                  )}
-                  {renderResourceDetails(item)}
-                </Box>
-                  <Chip
-                      label={item.isAssigned ? 'Asignado' : 'No Asignado'}
-                      color={item.isAssigned ? 'success' : 'default'}
-                      size="small"
-                      sx={{ mt: 1 }}
-                    />
-              </CardContent>
-              <Divider />
-              <CardActions sx={{ justifyContent: 'flex-end', p: 1 }}>
-                <IconButton 
-                  size="small" 
-                  onClick={() => handleOpenEditResourceModal(item._id)}
-                  disabled={isDeleting || isCreatingResource || isCreatingActivity}
-                >
-                  <EditIcon fontSize="small" />
-                </IconButton>
-                <IconButton 
-                  size="small" 
-                  color="error" 
-                  onClick={() => handleOpenDeleteDialog(item._id, 'resource')}
-                  disabled={isDeleting || isCreatingResource || isCreatingActivity}
-                >
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-              </CardActions>
-            </MotionCard>
+            <ContentCard
+              item={item}
+              index={index}
+              itemTypeLabel={item.type}
+              icon={getResourceIcon(item.type)}
+              title={item.title}
+              description={item.description}
+              detailsRenderer={renderResourceDetails}
+              isAssigned={item.isAssigned}
+              onEdit={() => handleOpenEditResourceModal(item._id)}
+              onDelete={() => handleOpenDeleteDialog(item._id, 'resource')}
+              isActionDisabled={isDeleting || isCreatingResource || isCreatingActivity}
+            />
           </Grid>
         ))}
       </Grid>
@@ -512,85 +444,30 @@ function TeacherContentBankPage() {
   const renderActivityCards = () => {
     if (activities.length === 0) {
       return (
-        <Box sx={{ display: 'flex', justifyContent: 'center', width: '100%', mt: 3 }}>
-          <Alert severity="info" sx={{ width: '100%' }}>
-            No tienes actividades creadas aún. Usa el botón "Crear Actividad" para añadir una.
-          </Alert>
-        </Box>
+        <EmptyState
+          message="No tienes actividades creadas aún. Usa el botón 'Crear Actividad' para añadir una."
+          icon={AssignmentIcon}
+        />
       );
     }
-
     return (
       <Grid container spacing={2} sx={{ mt: 1 }}>
         {activities.map((item, index) => (
           <Grid item xs={12} sm={6} md={4} key={item._id}>
-            <MotionCard
-              custom={index}
-              initial="hidden"
-              animate="visible"
-              variants={cardVariants}
-              sx={{
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                borderRadius: 2,
-                boxShadow: 3,
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: 6
-                }
-              }}
-            >
-              <Box 
-                sx={{ 
-                  p: 1, 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  bgcolor: 'secondary.light', 
-                  color: 'secondary.contrastText',
-                  borderTopLeftRadius: 8,
-                  borderTopRightRadius: 8
-                }}
-              >
-                {getActivityIcon(item.type)}
-                <Typography variant="body2" sx={{ ml: 1, fontWeight: 'bold' }}>
-                  {item.type}
-                </Typography>
-              </Box>
-              <CardContent sx={{ flexGrow: 1, pb: 1 }}>
-                <Typography variant="h6" noWrap sx={{ mb: 1, fontSize: '1rem', fontWeight: 'bold' }}>
-                  {item.title}
-                </Typography>
-                <Box sx={{ height: 60, overflow: 'hidden' }}>
-                  {renderActivityDetails(item)}
-                </Box>
-                  <Chip
-                      label={item.isAssigned ? 'Asignado' : 'No Asignado'}
-                      color={item.isAssigned ? 'success' : 'default'}
-                      size="small"
-                      sx={{ mt: 1 }}
-                    />
-              </CardContent>
-              <Divider />
-              <CardActions sx={{ justifyContent: 'flex-end', p: 1 }}>
-                <IconButton 
-                  size="small" 
-                  onClick={() => handleOpenEditActivityModal(item._id)}
-                  disabled={isDeleting || isCreatingResource || isCreatingActivity}
-                >
-                  <EditIcon fontSize="small" />
-                </IconButton>
-                <IconButton 
-                  size="small" 
-                  color="error" 
-                  onClick={() => handleOpenDeleteDialog(item._id, 'activity')}
-                  disabled={isDeleting || isCreatingResource || isCreatingActivity}
-                >
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-              </CardActions>
-            </MotionCard>
+            <ContentCard
+              item={item}
+              index={index}
+              itemTypeLabel={item.type}
+              icon={getActivityIcon(item.type)}
+              title={item.title}
+              description={item.description} // Activities might not have a top-level description field in the same way
+              detailsRenderer={renderActivityDetails}
+              isAssigned={item.isAssigned}
+              onEdit={() => handleOpenEditActivityModal(item._id)}
+              onDelete={() => handleOpenDeleteDialog(item._id, 'activity')}
+              isActionDisabled={isDeleting || isCreatingResource || isCreatingActivity}
+              headerStyleProps={{ bgcolor: 'secondary.light', color: 'secondary.contrastText' }}
+            />
           </Grid>
         ))}
       </Grid>
@@ -600,23 +477,12 @@ function TeacherContentBankPage() {
   return (
     <Container>
       <Box sx={{ mt: 4 }}>
-        <Typography variant="h4" component={motion.h4}
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          gutterBottom
-        >
-          Mi Banco de Contenido
-        </Typography>
+        <PageHeader
+          title="Mi Banco de Contenido"
+          subtitle="Aquí encuentras todos los recursos y actividades que has creado."
+        />
         
-        <Typography color="text.secondary" component={motion.p}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-          sx={{ mb: 3 }}
-        >
-          Aquí encuentras todos los recursos y actividades que has creado.
-        </Typography>
+        {/* motion.h4 and motion.p removed for brevity, PageHeader handles titles now */}
 
         {isLoading && (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -626,11 +492,19 @@ function TeacherContentBankPage() {
 
         {error && <Alert severity="error" sx={{ mt: 4 }}>{error}</Alert>}
 
-        {!isLoading && !error && resources.length === 0 && activities.length === 0 && (
-          <Alert severity="info" sx={{ mt: 4 }}>
-            Aún no tienes contenido (recursos o actividades) en tu banco. Usa los botones de "Crear" para añadir contenido.
-          </Alert>
+        {!isLoading && !error && resources.length === 0 && activities.length === 0 && activeTab === 0 && (
+           <EmptyState
+            message="Aún no tienes recursos en tu banco. Usa el botón 'Crear Recurso' para añadir contenido."
+            icon={MenuBookIcon}
+          />
         )}
+         {!isLoading && !error && resources.length === 0 && activities.length === 0 && activeTab === 1 && (
+           <EmptyState
+            message="Aún no tienes actividades en tu banco. Usa el botón 'Crear Actividad' para añadir contenido."
+            icon={AssignmentIcon}
+          />
+        )}
+
 
         {!isLoading && !error && (resources.length > 0 || activities.length > 0) && (
           <motion.div
@@ -708,25 +582,24 @@ function TeacherContentBankPage() {
       </Box>
 
       {/* Diálogo de Confirmación de Eliminación */}
-      <Dialog
+      <ConfirmationModal
         open={deleteItemDetails.open}
         onClose={handleCloseDeleteDialog}
-        aria-labelledby="delete-dialog-title"
-        aria-describedby="delete-dialog-description"
-      >
-        <DialogTitle id="delete-dialog-title">{"Confirmar Eliminación"}</DialogTitle>
-        <DialogContent>
-          <DialogContentText id="delete-dialog-description">
-            ¿Estás seguro de que deseas eliminar este {deleteItemDetails.type === 'resource' ? 'recurso' : 'actividad'}? Esta acción no se puede deshacer.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDeleteDialog} disabled={isDeleting || isCreatingResource || isCreatingActivity}>Cancelar</Button>
-          <Button onClick={handleConfirmDelete} color="error" disabled={isDeleting || isCreatingResource || isCreatingActivity} autoFocus>
-            {isDeleting ? 'Eliminando...' : 'Eliminar'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onConfirm={handleConfirmDelete}
+        title="Confirmar Eliminación"
+        message={`¿Estás seguro de que deseas eliminar este ${deleteItemDetails.type === 'resource' ? 'recurso' : 'actividad'}? Esta acción no se puede deshacer.`}
+        confirmText={isDeleting ? 'Eliminando...' : 'Eliminar'}
+        cancelText="Cancelar"
+        // disabledConfirm={isDeleting || isCreatingResource || isCreatingActivity} // GenericFormModal handles this via isSubmitting
+        // disabledCancel={isDeleting || isCreatingResource || isCreatingActivity}
+      />
+      {/* Note: ConfirmationModal doesn't have a direct 'isSubmitting' prop for its own buttons, 
+          but the passed onConfirm (handleConfirmDelete) sets isDeleting, which can disable buttons if needed.
+          The GenericFormModal has better isSubmitting handling for its primary action.
+          For simple confirmations, this is fine. For actions that trigger isDeleting,
+          we rely on the handlers to manage button states if ConfirmationModal itself doesn't.
+      */}
+
 
       {/* Modal para Crear Recurso */}
       <CreateResourceModal
@@ -737,25 +610,17 @@ function TeacherContentBankPage() {
       />
 
       {/* Diálogo de Confirmación PREVIA a la Creación de Recurso */}
-      <Dialog
+      <ConfirmationModal
         open={isCreateResourceConfirmOpen}
         onClose={handleCloseCreateResourceConfirm}
-        aria-labelledby="create-resource-confirm-title"
-        aria-describedby="create-resource-confirm-description"
-      >
-        <DialogTitle id="create-resource-confirm-title">{"Confirmar Creación de Recurso"}</DialogTitle>
-        <DialogContent>
-          <DialogContentText id="create-resource-confirm-description">
-            ¿Estás seguro de que deseas crear este recurso con la información proporcionada?
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseCreateResourceConfirm} disabled={isCreatingResource}>Cancelar</Button>
-          <Button onClick={handleConfirmCreateResource} color="primary" disabled={isCreatingResource} autoFocus>
-            {isCreatingResource ? 'Creando...' : 'Confirmar Creación'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onConfirm={handleConfirmCreateResource}
+        title="Confirmar Creación de Recurso"
+        message="¿Estás seguro de que deseas crear este recurso con la información proporcionada?"
+        confirmText={isCreatingResource ? 'Creando...' : 'Confirmar Creación'}
+        cancelText="Cancelar"
+        // disabledConfirm={isCreatingResource}
+      />
+
 
       {/* Modal para Crear Actividad */}
       <CreateActivityModal
@@ -767,25 +632,16 @@ function TeacherContentBankPage() {
       {/* --- FIN NUEVO: Modal para Crear Actividad --- */}
 
       {/* --- NUEVO: Diálogo de Confirmación PREVIA a la Creación de Actividad --- */}
-      <Dialog
+      <ConfirmationModal
         open={isCreateActivityConfirmOpen}
         onClose={handleCloseCreateActivityConfirm}
-        aria-labelledby="create-activity-confirm-title"
-        aria-describedby="create-activity-confirm-description"
-      >
-        <DialogTitle id="create-activity-confirm-title">{"Confirmar Creación de Actividad"}</DialogTitle> {/* Título más específico */}
-        <DialogContent>
-          <DialogContentText id="create-activity-confirm-description">
-            ¿Estás seguro de que deseas crear esta actividad con la información proporcionada?
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseCreateActivityConfirm} disabled={isCreatingActivity}>Cancelar</Button>
-          <Button onClick={handleConfirmCreateActivity} color="primary" disabled={isCreatingActivity} autoFocus>
-            {isCreatingActivity ? 'Creando...' : 'Confirmar Creación'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onConfirm={handleConfirmCreateActivity}
+        title="Confirmar Creación de Actividad"
+        message="¿Estás seguro de que deseas crear esta actividad con la información proporcionada?"
+        confirmText={isCreatingActivity ? 'Creando...' : 'Confirmar Creación'}
+        cancelText="Cancelar"
+        // disabledConfirm={isCreatingActivity}
+      />
       {/* --- FIN NUEVO: Diálogo de Confirmación PREVIA a la Creación de Actividad --- */}
 
       {/* *** Renderizar el Modal de Edición de Recurso *** */}

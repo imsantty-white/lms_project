@@ -28,6 +28,11 @@ import { useAuth, axiosInstance } from '../context/AuthContext'; // <-- MODIFICA
 
 import { toast } from 'react-toastify';
 
+// Import reusable components
+import PageHeader from '../../components/PageHeader';
+import EmptyState from '../../components/EmptyState';
+import GroupIcon from '@mui/icons-material/Group'; // Example icon for EmptyState
+
 
 function AdminUserManagementPage() {
     // *** Usar useAuth para obtener user, isAuthenticated, Y isAuthInitialized ***
@@ -226,12 +231,12 @@ function AdminUserManagementPage() {
 
     if (!isLoading && !error && users.length === 0) {
          return (
-             <Container>
-                <Box sx={{ mt: 4, textAlign: 'center' }}>
-                    <Typography variant="body1" color="text.secondary" sx={{ mt: 3 }}>
-                        No hay usuarios registrados en el sistema.
-                    </Typography>
-                </Box>
+            <Container>
+                <PageHeader title="Gestión de Usuarios" />
+                <EmptyState
+                    message="No hay usuarios registrados en el sistema."
+                    icon={GroupIcon} // Using GroupIcon as an example for users
+                />
             </Container>
         );
     }
@@ -246,9 +251,7 @@ function AdminUserManagementPage() {
     return (
         <Container>
             <Box sx={{ mt: 4 }}>
-                <Typography variant="h4" gutterBottom>
-                    Gestión de Usuarios
-                </Typography>
+                <PageHeader title="Gestión de Usuarios" />
 
                  <TableContainer component={Paper} sx={{ mt: 3 }}>
                     <Table>

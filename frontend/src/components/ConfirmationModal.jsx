@@ -10,7 +10,7 @@ import {
 
 // Componente de Modal de Confirmación reutilizable
 // Añadimos props para texto de botones personalizable
-function ConfirmationModal({
+const ConfirmationModal = React.memo(({
   open,
   onClose,
   onConfirm,
@@ -48,6 +48,6 @@ function ConfirmationModal({
       </DialogActions>
     </Dialog>
   );
-}
+});
 
 export default ConfirmationModal;

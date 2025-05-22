@@ -6,22 +6,26 @@ const contentAssignmentSchema = new mongoose.Schema({
     theme_id: { // El tema al que se asigna este contenido
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Theme', // Referencia al modelo Theme
-        required: [true, 'La asignación debe estar asociada a un tema']
+        required: [true, 'La asignación debe estar asociada a un tema'],
+        index: true
     },
     resource_id: { // Referencia al Recurso (si se asigna un Recurso)
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Resource' // Referencia al modelo Resource
+        ref: 'Resource', // Referencia al modelo Resource
         // Campo opcional, solo uno entre resource_id y activity_id debe estar presente
+        index: true
     },
     activity_id: { // Referencia a la Actividad (si se asigna una Actividad)
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Activity' // Referencia al modelo Activity
+        ref: 'Activity', // Referencia al modelo Activity
         // Campo opcional, solo uno entre resource_id y activity_id debe estar presente
+        index: true
     },
     type: { // Indica si la asignación es de un Recurso o una Actividad
         type: String,
         required: [true, 'El tipo de asignación (Resource/Activity) es obligatorio'],
-        enum: ['Resource', 'Activity'] // Validar los tipos de asignación
+        enum: ['Resource', 'Activity'], // Validar los tipos de asignación
+        index: true
     },
     orden: { // Orden en que aparece este contenido dentro del tema
         type: Number,
@@ -40,7 +44,8 @@ const contentAssignmentSchema = new mongoose.Schema({
         type: String,
         required: [true, 'El estado de la asignación es obligatorio'],
         enum: ['Draft', 'Open', 'Closed'], // Posibles estados: Borrador, Abierto, Cerrado
-        default: 'Draft' // Estado por defecto al crear una nueva asignación
+        default: 'Draft', // Estado por defecto al crear una nueva asignación
+        index: true
     },
     // --- Fin NUEVO CAMPO ---
 
@@ -48,12 +53,14 @@ const contentAssignmentSchema = new mongoose.Schema({
     group_id: { // El grupo al que pertenece la jerarquía del tema
          type: mongoose.Schema.Types.ObjectId,
          ref: 'Group',
-         required: [true, 'La asignación debe estar asociada a un grupo']
+         required: [true, 'La asignación debe estar asociada a un grupo'],
+         index: true
     },
     docente_id: { // El docente propietario del grupo y el contenido
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User', // Asumo que tu modelo de usuario docente se llama 'User'
-        required: [true, 'La asignación debe estar asociada a un docente']
+        required: [true, 'La asignación debe estar asociada a un docente'],
+        index: true
     }
     // --- Fin Referencias redundantes ---
 });

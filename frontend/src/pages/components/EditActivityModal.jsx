@@ -2,14 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Box,
   Typography,
   TextField,
-  Button,
   Stack,
   FormControl,
   InputLabel,
@@ -18,53 +13,29 @@ import {
   CircularProgress,
   Alert,
   FormHelperText,
-  Paper, // Necesario para el layout de preguntas
-  IconButton // Necesario para botones de eliminar
+  Paper,
+  IconButton,
+  Button // Keep for Add/Remove Question/Option buttons
 } from '@mui/material';
-
-import DeleteIcon from '@mui/icons-material/Delete'; // Icono de eliminar
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'; // Icono de añadir
-
-// *** Importar axiosInstance desde AuthContext ***
+import DeleteIcon from '@mui/icons-material/Delete';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import { axiosInstance } from '../../context/AuthContext'; // Ajusta la ruta si es necesario
-
 import { toast } from 'react-toastify';
+import GenericFormModal from '../../../components/GenericFormModal'; // Ajusta la ruta
 
-// Función auxiliar para generar IDs temporales para nuevas preguntas/opciones
 const generateTempId = () => `temp-${Math.random().toString(36).substring(2, 15)}`;
 
-
-// Componente para editar una Actividad existente
-// Props:
-// - open: booleano para controlar si el modal está abierto
-// - onClose: función para cerrar el modal
-// - activityId: el ID de la actividad a editar (CRUCIAL)
-// - onUpdateSuccess: función a llamar después de una actualización exitosa
 function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
-
-  // Estado para el tipo original de la actividad ( fetched )
-  const [originalActivityType, setOriginalActivityType] = useState(''); // Guardamos el tipo original
-
-  // Estados del formulario (para editar los campos de la actividad)
+  const [originalActivityType, setOriginalActivityType] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-
-  // Estados específicos para preguntas (alineados con tu render original)
   const [cuestionarioQuestions, setCuestionarioQuestions] = useState([]);
   const [quizQuestions, setQuizQuestions] = useState([]);
-
-  // Estados de carga y error
-  const [isLoading, setIsLoading] = useState(true); // Para cargar datos iniciales de la actividad
-  const [fetchError, setFetchError] = useState(null); // Para errores al cargar
-
-  // Estado para el proceso de guardado/actualización
-  const [isSaving, setIsSaving] = useState(false); // Estado para deshabilitar durante el guardado
-
-  // Estado para errores de validación frontend
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState({});
 
-
-  // --- Efecto para cargar los datos de la actividad al abrir el modal o cambiar activityId ---
   useEffect(() => {
       if (open && activityId) { // Cargar solo si el modal está abierto y tenemos un ID
           const fetchActivity = async () => {
@@ -247,9 +218,7 @@ function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
 
 
   // --- Maneja el envío del formulario para actualizar la actividad ---
-  const handleUpdateActivity = async (event) => {
-      event.preventDefault();
-
+  const handleInternalSubmit = async () => { // Renamed
       // Ejecutar validación frontend antes de enviar
       if (!validateForm()) {
           toast.warning('Por favor, corrige los errores en el formulario.');
@@ -306,142 +275,139 @@ function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
 
   // --- Renderizado del Modal ---
   return (
-      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-        <DialogTitle>Editar Actividad ({originalActivityType})</DialogTitle>
-        <DialogContent dividers>
-          {/* Mostrar spinner de carga o error al cargar los datos iniciales */}
-          {isLoading && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
-              <CircularProgress />
+    <GenericFormModal
+      open={open}
+      onClose={onClose}
+      title={`Editar Actividad (${originalActivityType || 'Cargando...'})`}
+      onSubmit={handleInternalSubmit}
+      isSubmitting={isSaving}
+      submitText="Guardar Cambios"
+      maxWidth="md" // Keep md for more space for questions
+    >
+      {isLoading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
+          <CircularProgress />
+        </Box>
+      )}
+      {fetchError && !isLoading && (
+        <Alert severity="error" sx={{ my: 2 }}>Error al cargar actividad: {fetchError}</Alert>
+      )}
+      {!isLoading && !fetchError && originalActivityType && (
+        // No <form> tag needed here, GenericFormModal's onSubmit handles it.
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <TextField
+            label="Título de la Actividad"
+            fullWidth
+            value={title}
+            onChange={(e) => { setTitle(e.target.value); /* validateForm(); */ }} // validation on submit
+            error={!!errors.title}
+            helperText={errors.title}
+            disabled={isSaving}
+            required
+            autoFocus
+          />
+          <TextField
+            label="Descripción (Opcional)"
+            fullWidth
+            multiline
+            rows={2}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={isSaving}
+          />
+          <TextField // Display original type, not editable
+            label="Tipo de Actividad"
+            fullWidth
+            value={originalActivityType}
+            InputProps={{ readOnly: true }}
+            disabled={isSaving}
+          />
+
+          {originalActivityType === 'Cuestionario' && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="h6" gutterBottom>Preguntas del Cuestionario</Typography>
+              {errors.cuestionarioQuestions && <FormHelperText error>{errors.cuestionarioQuestions}</FormHelperText>}
+              {cuestionarioQuestions.map((q, index) => (
+                <Paper key={q._id || index} sx={{ mb: 2, p: 2, border: '1px solid #ccc', borderRadius: '4px' }}>
+                  <TextField
+                    label={`Pregunta ${index + 1}`}
+                    variant="outlined"
+                    value={q.text}
+                    onChange={(e) => handleUpdateCuestionarioQuestion(index, e.target.value)}
+                    fullWidth
+                    multiline
+                    rows={2}
+                    disabled={isSaving}
+                    sx={{ mb: 1 }}
+                    required
+                  />
+                  <Box sx={{ textAlign: 'right' }}>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      size="small"
+                      onClick={() => handleRemoveCuestionarioQuestion(index)}
+                      disabled={isSaving || cuestionarioQuestions.length <= 1}
+                      startIcon={<DeleteIcon />}
+                    >
+                      Eliminar Pregunta
+                    </Button>
+                  </Box>
+                </Paper>
+              ))}
+              <Button
+                variant="outlined"
+                startIcon={<AddCircleOutlineIcon />}
+                onClick={handleAddCuestionarioQuestion}
+                disabled={isSaving}
+                sx={{ mt: 1 }}
+              >
+                Añadir Pregunta
+              </Button>
             </Box>
           )}
 
-          {fetchError && !isLoading && (
-            <Alert severity="error" sx={{ my: 2 }}>Error al cargar actividad: {fetchError}</Alert>
-          )}
-
-          {/* Mostrar el formulario SÓLO si no está cargando y no hay error al cargar */}
-          {!isLoading && !fetchError && originalActivityType && (
-            <Stack spacing={2} component="form" onSubmit={handleUpdateActivity}>
-
-              {/* Campo Título */}
-              <TextField
-                label="Título de la Actividad"
-                fullWidth
-                value={title}
-                onChange={(e) => { setTitle(e.target.value); validateForm(); }} // Validar al cambiar el título
-                error={!!errors.title}
-                helperText={errors.title}
-                disabled={isSaving}
-                required
-              />
-
-              {/* Campo Descripción */}
-              <TextField
-                label="Descripción (Opcional)"
-                fullWidth
-                multiline
-                rows={2}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                disabled={isSaving}
-              />
-
-              {/* Campo Tipo (No editable) */}
-              <TextField
-                label="Tipo de Actividad"
-                fullWidth
-                value={originalActivityType}
-                InputProps={{ readOnly: true }}
-                disabled={isSaving}
-              />
-
-              {/* --- Renderizado Condicional de Campos Específicos por Tipo de Actividad (desde tu render original) --- */}
-
-              {originalActivityType === 'Cuestionario' && (
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="h6" gutterBottom>Preguntas del Cuestionario</Typography>
-                  {errors.cuestionarioQuestions && <FormHelperText error>{errors.cuestionarioQuestions}</FormHelperText>} {/* Mostrar error si hay */}
-                  {cuestionarioQuestions.map((q, index) => (
-                    <Paper key={q._id || index} sx={{ mb: 2, p: 2, border: '1px solid #ccc', borderRadius: '4px' }}>
+          {originalActivityType === 'Quiz' && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="h6" gutterBottom>Preguntas del Quiz</Typography>
+              {errors.quizQuestions && <FormHelperText error>{errors.quizQuestions}</FormHelperText>}
+              {quizQuestions.map((q, qIndex) => (
+                <Paper key={q._id || qIndex} sx={{ mb: 3, p: 2, border: '1px solid #ccc', borderRadius: '4px' }}>
+                  <TextField
+                    label={`Pregunta ${qIndex + 1}`}
+                    variant="outlined"
+                    value={q.text}
+                    onChange={(e) => handleUpdateQuizQuestionText(qIndex, e.target.value)}
+                    fullWidth
+                    multiline
+                    rows={2}
+                    disabled={isSaving}
+                    sx={{ mb: 2 }}
+                    required
+                  />
+                  <Typography variant="subtitle2" gutterBottom>Opciones:</Typography>
+                  {q.options.map((opt, optIndex) => (
+                    <Stack key={optIndex} direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
                       <TextField
-                        label={`Pregunta ${index + 1}`}
+                        label={`Opción ${optIndex + 1}`}
                         variant="outlined"
-                        value={q.text}
-                        onChange={(e) => handleUpdateCuestionarioQuestion(index, e.target.value)}
+                        value={opt}
+                        onChange={(e) => handleUpdateQuizOptionText(qIndex, optIndex, e.target.value)}
                         fullWidth
-                        multiline
-                        rows={2}
-                        disabled={isSaving}
-                        sx={{ mb: 1 }}
-                        required
-                    />
-                    <Box sx={{ textAlign: 'right' }}>
-                      <Button
-                        variant="outlined"
-                        color="error"
                         size="small"
-                        onClick={() => handleRemoveCuestionarioQuestion(index)}
-                        disabled={isSaving || cuestionarioQuestions.length <= 1}
+                        disabled={isSaving}
+                        required
+                      />
+                      <IconButton
+                        aria-label="eliminar opción"
+                        size="small"
+                        color="error"
+                        onClick={() => handleRemoveQuizOption(qIndex, optIndex)}
+                        disabled={isSaving || q.options.length <= 2}
                       >
-                        Eliminar Pregunta
-                      </Button>
-                    </Box>
-                  </Paper>
-                ))}
-                <Button
-                  variant="outlined"
-                  startIcon={<AddCircleOutlineIcon />}
-                  onClick={handleAddCuestionarioQuestion}
-                  disabled={isSaving}
-                  sx={{ mt: 1 }}
-                >
-                  Añadir Pregunta
-                </Button>
-              </Box>
-            )}
-
-            {originalActivityType === 'Quiz' && (
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="h6" gutterBottom>Preguntas del Quiz</Typography>
-                  {errors.quizQuestions && <FormHelperText error>{errors.quizQuestions}</FormHelperText>} {/* Mostrar error si hay */}
-                {quizQuestions.map((q, qIndex) => (
-                  <Paper key={q._id || qIndex} sx={{ mb: 3, p: 2, border: '1px solid #ccc', borderRadius: '4px' }}>
-                    <TextField
-                      label={`Pregunta ${qIndex + 1}`}
-                      variant="outlined"
-                      value={q.text}
-                      onChange={(e) => handleUpdateQuizQuestionText(qIndex, e.target.value)}
-                      fullWidth
-                      multiline
-                      rows={2}
-                      disabled={isSaving}
-                      sx={{ mb: 2 }}
-                      required
-                    />
-                    <Typography variant="subtitle2" gutterBottom>Opciones:</Typography>
-                    {q.options.map((opt, optIndex) => (
-                      <Stack key={optIndex} direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-                        <TextField
-                          label={`Opción ${optIndex + 1}`}
-                          variant="outlined"
-                          value={opt}
-                          onChange={(e) => handleUpdateQuizOptionText(qIndex, optIndex, e.target.value)}
-                          fullWidth
-                          size="small"
-                          disabled={isSaving}
-                          required
-                        />
-                        <IconButton
-                          aria-label="eliminar opción"
-                          size="small"
-                          color="error"
-                          onClick={() => handleRemoveQuizOption(qIndex, optIndex)}
-                          disabled={isSaving || q.options.length <= 2}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Stack>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Stack>
                   ))}
                   <Button
                     variant="outlined"
@@ -453,21 +419,19 @@ function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
                   >
                     Añadir Opción
                   </Button>
-
-                  <FormControl fullWidth variant="outlined" disabled={isSaving} required sx={{ mb: 2 }} error={!!errors.quizQuestions && quizQuestions[qIndex] && (!quizQuestions[qIndex].correct_answer || !quizQuestions[qIndex].options.includes(quizQuestions[qIndex].correct_answer.trim()))}> {/* Mostrar error específico si aplica */}
+                  <FormControl fullWidth variant="outlined" disabled={isSaving} required sx={{ mb: 2 }} error={!!errors.quizQuestions && q && (!q.correct_answer || !q.options.includes(q.correct_answer.trim()))}>
                     <InputLabel>Respuesta Correcta</InputLabel>
                     <Select
-                      value={q.correct_answer}
+                      value={q.correct_answer || ''} // Ensure value is not undefined
                       onChange={(e) => handleUpdateQuizCorrectAnswer(qIndex, e.target.value)}
                       label="Respuesta Correcta"
                     >
                       {q.options.map((opt, optIndex) => (
-                        <MenuItem key={optIndex} value={opt}>{opt}</MenuItem>
+                        <MenuItem key={optIndex} value={opt}>{opt || `Opción ${optIndex + 1} (vacía)`}</MenuItem>
                       ))}
                     </Select>
-                    {errors.quizQuestions && quizQuestions[qIndex] && (!quizQuestions[qIndex].correct_answer || !quizQuestions[qIndex].options.includes(quizQuestions[qIndex].correct_answer.trim())) && <FormHelperText>Debes seleccionar una respuesta correcta válida.</FormHelperText>} {/* Mensaje de error específico */}
+                    {errors.quizQuestions && q && (!q.correct_answer || !q.options.includes(q.correct_answer.trim())) && <FormHelperText>Debes seleccionar una respuesta correcta válida.</FormHelperText>}
                   </FormControl>
-
                   <Box sx={{ textAlign: 'right' }}>
                     <Button
                       variant="outlined"
@@ -475,62 +439,41 @@ function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
                       size="small"
                       onClick={() => handleRemoveQuizQuestion(qIndex)}
                       disabled={isSaving || quizQuestions.length <= 1}
+                      startIcon={<DeleteIcon />}
                     >
                       Eliminar Pregunta
                     </Button>
                   </Box>
                 </Paper>
-                ))}
-                <Button
-                  variant="outlined"
-                  startIcon={<AddCircleOutlineIcon />}
-                  onClick={handleAddQuizQuestion}
-                  disabled={isSaving}
-                  sx={{ mt: 1 }}
-                >
-                  Añadir Pregunta
-                </Button>
-              </Box>
+              ))}
+              <Button
+                variant="outlined"
+                startIcon={<AddCircleOutlineIcon />}
+                onClick={handleAddQuizQuestion}
+                disabled={isSaving}
+                sx={{ mt: 1 }}
+              >
+                Añadir Pregunta
+              </Button>
+            </Box>
           )}
 
-          {originalActivityType === 'Trabajo' && ( // El tipo 'Trabajo' solo usa Título y Descripción.
-              <Box sx={{ mt: 2 }}>
-                 <Typography variant="body2" color="text.secondary">
-                     Este tipo de actividad ('Trabajo') solo requiere Título y Descripción para las instrucciones.
-                 </Typography>
-             </Box>
+          {originalActivityType === 'Trabajo' && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                Este tipo de actividad ('Trabajo') solo requiere Título y Descripción para las instrucciones.
+              </Typography>
+            </Box>
           )}
-
-
-          {/* Botón de guardar */}
-          <Button
-            variant="contained"
-            color="primary"
-            type="submit"
-            disabled={isSaving || !isFormValid}
-            endIcon={isSaving ? <CircularProgress size={20} color="inherit" /> : null}
-            sx={{ mt: 2 }}
-          >
-            {isSaving ? 'Guardando Cambios...' : 'Guardar Cambios'}
-          </Button>
+          {/* Submit button is handled by GenericFormModal */}
         </Stack>
-      )} {/* Cierre del renderizado condicional del formulario */}
-
-      {/* Mensaje si el tipo no es reconocido (fuera del formulario) */}
-      {originalActivityType && !isLoading && !fetchError && !['Cuestionario', 'Trabajo', 'Quiz'].includes(originalActivityType) && (
-             <Alert severity="warning" sx={{ mt: 2 }}>
-                 Tipo de actividad '{originalActivityType}' no reconocido en el formulario de edición. Adapta este componente para mostrar y editar sus campos.
-             </Alert>
-         )}
-
-        </DialogContent>
-        {/* Botón de Cancelar fuera del formulario pero en las acciones */}
-        <DialogActions>
-          <Button onClick={onClose} color="secondary" disabled={isSaving}>
-            Cancelar
-          </Button>
-        </DialogActions>
-      </Dialog>
+      )}
+      {!isLoading && !fetchError && !originalActivityType && (
+        <Alert severity="info" sx={{ my: 2 }}>
+          No se pudo determinar el tipo de actividad para editar.
+        </Alert>
+      )}
+    </GenericFormModal>
   );
 }
 

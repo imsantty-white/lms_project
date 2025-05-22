@@ -17,7 +17,7 @@ import {
 // - onClose: función para cerrar el modal
 // - title: Título del contenido
 // - contentBody: El cuerpo del contenido (puede ser HTML)
-function ContentModal({ open, onClose, title, contentBody }) {
+const ContentModal = React.memo(({ open, onClose, title, contentBody }) => {
    // *** MODIFICAR LA FUNCIÓN INTERNA DE CIERRE ***
       const handleDialogClose = (event, reason) => {
         // No cierres el modal si la razón es click en el fondo o Escape
@@ -48,6 +48,6 @@ function ContentModal({ open, onClose, title, contentBody }) {
           </DialogActions>
         </Dialog>
   );
-}
+});
 
 export default ContentModal;

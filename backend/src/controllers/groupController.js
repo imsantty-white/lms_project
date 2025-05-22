@@ -7,6 +7,7 @@ const Group = require('../models/GroupModel'); // Importamos el modelo de Grupo
 const { generateUniqueCode } = require('../utils/codeGenerator'); // Importamos nuestra utilidad para códigos
 const Membership = require('../models/MembershipModel'); // Importamos el modelo de Membresía
 const User = require('../models/UserModel');
+const { isTeacherOfGroup } = require('../utils/permissionUtils');
 
 const MAX_GROUPS_PER_DOCENTE = parseInt(process.env.MAX_GROUPS_PER_DOCENTE, 3) || 3; // Límite por defecto: 3
 
@@ -239,9 +240,8 @@ const respondJoinRequest = async (req, res) => {
 
 
       // --- VERIFICAR SEGURIDAD: Asegurarse de que el grupo pertenece a este docente ---
-      // Comparamos el ID del docente autenticado con el ID del docente creador del grupo asociado a la membresía
-      if (!membership.grupo_id || !membership.grupo_id.docente_id.equals(docenteId)) {
-           // Usamos .equals() para comparar ObjectIds de Mongoose
+      // Refactor: Use isTeacherOfGroup
+      if (!membership.grupo_id || !(await isTeacherOfGroup(docenteId, membership.grupo_id._id))) {
            return res.status(403).json({ message: 'No tienes permiso para responder esta solicitud. El grupo no te pertenece.' }); // 403 Forbidden
       }
        // --- Fin Verificación de Seguridad ---
@@ -292,9 +292,9 @@ const getGroupStudents = async (req, res) => {
 
   try {
     // --- VERIFICAR SEGURIDAD: Asegurarse de que el grupo existe y pertenece a este docente ---
-    const group = await Group.findOne({ _id: groupId, docente_id: docenteId });
-
-    if (!group) {
+    // Refactor: Use isTeacherOfGroup
+    const isOwner = await isTeacherOfGroup(docenteId, groupId);
+    if (!isOwner) {
       // Si el grupo no se encuentra con ese ID *y* asociado a este docente
       return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece' });
     }
@@ -423,7 +423,8 @@ const getMyMembershipsWithStatus = async (req, res) => {
         select: 'nombre codigo_acceso docente_id', // Campos del Grupo que queremos incluir
         populate: { // Anidar población: dentro del grupo, poblar el docente
           path: 'docente_id', // El campo en Grupo que referencia al Docente
-          select: 'nombre apellidos' // Campos del Docente que queremos incluir (ej: solo el nombre)
+          model: 'User', // Explicitly state the model for clarity, good practice
+          select: 'nombre apellidos' // Campos del Docente que queremos incluir
         }
       });
 
@@ -494,12 +495,16 @@ const updateGroup = async (req, res) => {
 
   try {
       // Buscar el grupo por ID y verificar que pertenece al docente autenticado
-      const group = await Group.findOne({ _id: groupId, docente_id: docenteId });
-
-      // Si el grupo no existe o no es propiedad de este docente
-      if (!group) {
+      // Refactor: Use isTeacherOfGroup
+      const isOwner = await isTeacherOfGroup(docenteId, groupId);
+      if (!isOwner) {
           // Se usa 404 para no revelar si el grupo existe pero pertenece a otro
           return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece' });
+      }
+      // Fetch the group instance separately for updates if isOwner is true
+      const group = await Group.findById(groupId);
+      if (!group) { // Should not happen if isOwner was true, but as a safeguard
+          return res.status(404).json({ message: 'Grupo no encontrado.'});
       }
 
       // Actualizar los campos permitidos solo si se proporcionaron en el cuerpo de la petición
@@ -549,13 +554,14 @@ const deleteGroup = async (req, res) => {
 
   try {
       // Buscar el grupo por ID y verificar que pertenece al docente autenticado
-      const group = await Group.findOne({ _id: groupId, docente_id: docenteId });
-
-      // Si el grupo no existe o no es propiedad de este docente
-      if (!group) {
+      // Refactor: Use isTeacherOfGroup
+      const isOwner = await isTeacherOfGroup(docenteId, groupId);
+      if (!isOwner) {
            // Se usa 404 para no revelar si el grupo existe pero pertenece a otro
           return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece' });
       }
+      // Fetch the group instance separately if needed, though for deletion, only ID might be enough if no further checks on group object.
+      // However, the relatedMembershipCount check needs groupId.
 
       // --- Verificación para EVITAR eliminar si hay datos relacionados ---
       // Para simplificar y evitar la complejidad de la "eliminación en cascada" (borrar membresías, asignaciones, entregas, progresos),
@@ -620,9 +626,9 @@ const removeStudentFromGroup = async (req, res) => {
 
   try {
       // --- Verificación de Propiedad: Verificar que el Docente es dueño del Grupo ---
-      const group = await Group.findOne({ _id: groupId, docente_id: docenteId });
-      // Si el grupo no existe o no pertenece a este docente
-      if (!group) {
+      // Refactor: Use isTeacherOfGroup
+      const isOwner = await isTeacherOfGroup(docenteId, groupId);
+      if (!isOwner) {
            // Se usa 404 para no revelar si el grupo existe pero pertenece a otro
           return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece' });
       }
@@ -674,27 +680,25 @@ const getGroupById = async (req, res, next) => {
     const groupId = req.params.groupId; // Obtiene el ID del grupo de los parámetros de la URL
     const docenteId = req.user._id; // Obtiene el ID del docente logueado del objeto req.user
 
-    // 1. Buscar el grupo por su ID
-    const group = await Group.findById(groupId);
-
-    // 2. Si el grupo no existe, enviar respuesta 404
-    if (!group) {
-      return res.status(404).json({ message: `Grupo no encontrado con ID ${groupId}` });
-      // Si usas ErrorResponse: return next(new ErrorResponse(`Grupo no encontrado con ID ${groupId}`, 404));
+    // 1. Verificar que el usuario logueado es el dueño de este grupo
+    // Refactor: Use isTeacherOfGroup
+    const isOwner = await isTeacherOfGroup(docenteId, groupId);
+    if (!isOwner) {
+      // No revelar si el grupo existe pero no pertenece, o no existe en absoluto.
+      return res.status(403).json({ message: 'No tienes permiso para acceder a este grupo o el grupo no existe.' });
     }
 
-    // 3. Verificar que el usuario logueado es el dueño de este grupo
-    // Es importante comparar los ObjectIds de forma segura, aunque .equals() es una buena práctica
-     if (!group.docente_id.equals(docenteId)) {
-       // Si no es el dueño, enviar respuesta 403 (Prohibido)
-       return res.status(403).json({ message: 'No tienes permiso para acceder a este grupo.' });
-       // Si usas ErrorResponse: return next(new ErrorResponse('No tienes permiso para acceder a este grupo.', 403));
-     }
-     // Alternativa con toString (menos Mongoose-idiomática pero funciona):
-     // if (group.docente_id.toString() !== docenteId.toString()) { ... }
+    // 2. Si es el dueño, buscar el grupo por su ID para devolverlo
+    const group = await Group.findById(groupId);
+    // Esta segunda búsqueda es necesaria porque isTeacherOfGroup solo devuelve boolean.
+    // Debería existir si isOwner es true, pero es una buena práctica verificar.
+    if (!group) {
+        // Esto podría indicar un problema de consistencia de datos si isOwner fue true.
+        console.error(`Error de consistencia: Grupo ${groupId} no encontrado después de confirmar propiedad para docente ${docenteId}.`);
+        return res.status(404).json({ message: `Grupo no encontrado con ID ${groupId}` });
+    }
 
-
-    // 4. Si todo es correcto (grupo existe y el docente es el dueño), responder con el objeto del grupo
+    // 3. Si todo es correcto, responder con el objeto del grupo
     res.status(200).json(group);
 
   } catch (error) {
@@ -721,20 +725,12 @@ const getGroupMemberships = async (req, res, next) => {
 
         // 1. Primero, verificar que el usuario logueado es el dueño del grupo
         // Es crucial hacer esta verificación ANTES de buscar las membresías para evitar exponer datos.
-        const group = await Group.findById(groupId);
-
-        if (!group) {
-             return res.status(404).json({ message: `Grupo no encontrado con ID ${groupId}` });
-             // Si usas ErrorResponse: return next(new ErrorResponse(`Grupo no encontrado con ID ${groupId}`, 404));
+        // Refactor: Use isTeacherOfGroup
+        const isOwner = await isTeacherOfGroup(docenteId, groupId);
+        if (!isOwner) {
+            // No revelar si el grupo existe pero no pertenece, o no existe en absoluto.
+            return res.status(403).json({ message: 'No tienes permiso para ver las membresías de este grupo o el grupo no existe.' });
         }
-
-         if (!group.docente_id.equals(docenteId)) {
-             return res.status(403).json({ message: 'No tienes permiso para ver las membresías de este grupo.' });
-             // Si usas ErrorResponse: return next(new ErrorResponse('No tienes permiso para ver las membresías de este grupo.', 403));
-         }
-         // Alternativa con toString:
-         // if (group.docente_id.toString() !== docenteId.toString()) { ... }
-
 
         // 2. Si el docente es el dueño, buscar todas las membresías para este grupo
         // No filtramos por estado aquí; queremos TODAS las membresías asociadas a este grupo.
