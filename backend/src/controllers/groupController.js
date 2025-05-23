@@ -852,3 +852,102 @@ module.exports = {
   getGroupById,
   getGroupMemberships
 };
+
+// @desc    Eliminar una membresía de estudiante de un grupo por ID de membresía
+// @route   DELETE /api/groups/:groupId/memberships/:membershipId
+// @access  Privado/Docente
+const removeMembershipById = async (req, res) => {
+  const { groupId, membershipId } = req.params;
+  const docenteId = req.user._id;
+
+  // Validación básica de los IDs
+  if (!mongoose.Types.ObjectId.isValid(groupId)) {
+    return res.status(400).json({ message: 'ID de grupo inválido.' });
+  }
+  if (!mongoose.Types.ObjectId.isValid(membershipId)) {
+    return res.status(400).json({ message: 'ID de membresía inválido.' });
+  }
+
+  try {
+    // 1. Verificar que el docente es dueño del grupo
+    const isOwner = await isTeacherOfGroup(docenteId, groupId);
+    if (!isOwner) {
+      // Usar 403 para indicar prohibido si el grupo existe pero no le pertenece,
+      // o 404 si queremos ocultar la existencia del grupo. Para consistencia con otros endpoints, 403 es apropiado si el grupo existe.
+      // Sin embargo, isTeacherOfGroup no diferencia entre "no encontrado" y "no pertenece".
+      // Si isTeacherOfGroup devuelve false porque el grupo no existe, un 404 sería más preciso.
+      // Asumamos que isTeacherOfGroup implica que el grupo existe si devuelve true.
+      // Si el grupo no existe, Group.findById(groupId) dentro de isTeacherOfGroup fallaría o devolvería null.
+      // Para simplificar, si no es dueño, puede ser que el grupo no exista o no le pertenezca.
+      return res.status(403).json({ message: 'No tienes permiso para modificar este grupo o el grupo no existe.' });
+    }
+
+    // 2. Encontrar la membresía por su ID
+    const membership = await Membership.findById(membershipId);
+    if (!membership) {
+      return res.status(404).json({ message: 'Membresía no encontrada.' });
+    }
+
+    // 3. Verificar que la membresía pertenece al grupo especificado
+    if (membership.grupo_id.toString() !== groupId) {
+      // Esto indica una inconsistencia o un intento de usar una membresía de otro grupo.
+      return res.status(400).json({ message: 'La membresía no pertenece al grupo especificado.' });
+    }
+    
+    // (Opcional) Verificar el estado de la membresía.
+    // La tarea del frontend es remover estudiantes (generalmente 'Aprobado' o 'Pendiente').
+    // Si se quisiera restringir a solo 'Aprobado', se añadiría:
+    // if (membership.estado_solicitud !== 'Aprobado') {
+    //   return res.status(400).json({ message: 'Solo se pueden remover membresías aprobadas. Esta membresía está ' + membership.estado_solicitud });
+    // }
+    // Para el caso de uso actual, cualquier estado de membresía puede ser eliminado por el docente.
+
+    // 4. Eliminar la membresía
+    await Membership.findByIdAndDelete(membershipId);
+
+    // Notificar al estudiante (opcional, pero buena práctica)
+    try {
+        if (membership.usuario_id && membership.grupo_id) {
+            const group = await Group.findById(membership.grupo_id); // Fetch group name
+            const groupName = group ? group.nombre : 'un grupo';
+            const studentId = membership.usuario_id;
+            
+            await NotificationService.createNotification({
+                recipient: studentId,
+                sender: docenteId, // Teacher who performed the action
+                type: 'MEMBERSHIP_REMOVED', // A new type for this action
+                message: `Has sido removido del grupo '${groupName}' por el docente.`,
+                // link: '/student/groups/my-groups' // Link to student's group page or dashboard
+            });
+        }
+    } catch (notificationError) {
+        console.error('Error al enviar notificación de remoción de membresía:', notificationError);
+        // No detener la operación principal por error de notificación
+    }
+
+
+    res.status(200).json({ message: 'Membresía eliminada exitosamente del grupo.' });
+
+  } catch (error) {
+    console.error('Error al eliminar membresía del grupo:', error);
+    // Manejar otros errores, como problemas de conexión a la BD
+    res.status(500).json({ message: 'Error interno del servidor al eliminar la membresía.', error: error.message });
+  }
+};
+
+module.exports = {
+  createGroup,
+  requestJoinGroup,
+  getMyJoinRequests,
+  respondJoinRequest,
+  getGroupStudents,
+  getMyApprovedGroups,
+  updateGroup,
+  deleteGroup,
+  removeStudentFromGroup,
+  getMyOwnedGroups,
+  getMyMembershipsWithStatus,
+  getGroupById,
+  getGroupMemberships,
+  removeMembershipById, // Added new controller function
+};

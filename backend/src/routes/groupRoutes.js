@@ -8,7 +8,8 @@ const {
   createGroup, requestJoinGroup, getGroupMemberships,
   getMyJoinRequests, respondJoinRequest, getGroupById,
   getGroupStudents, getMyApprovedGroups, getMyMembershipsWithStatus,
-  updateGroup, deleteGroup, removeStudentFromGroup, getMyOwnedGroups
+  updateGroup, deleteGroup, removeStudentFromGroup, getMyOwnedGroups,
+  removeMembershipById // Added removeMembershipById
 } = require('../controllers/groupController');
 
 /**
@@ -239,5 +240,8 @@ router.delete('/:groupId', authorize('Docente'), deleteGroup);
  *         description: Estudiante eliminado del grupo
  */
 router.delete('/:groupId/students/:studentId', authorize('Docente'), removeStudentFromGroup);
+
+// Route for teachers to remove a specific membership by its ID from a group
+router.delete('/:groupId/memberships/:membershipId', protect, authorize('Docente'), removeMembershipById);
 
 module.exports = router;

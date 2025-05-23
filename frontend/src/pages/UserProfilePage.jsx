@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom'; // Import useParams
+import { useAuth, axiosInstance } from '../contexts/AuthContext'; // Import useAuth and axiosInstance
 import {
   Box,
   TextField,
@@ -30,7 +32,7 @@ import {
   CalendarToday as CalendarIcon,
   Check as CheckIcon
 } from '@mui/icons-material';
-import { axiosInstance } from '../contexts/AuthContext';
+// axiosInstance is already imported via useAuth line
 import { toast } from 'react-toastify';
 
 const tiposIdentificacion = [
@@ -155,22 +157,72 @@ function UserProfilePage() {
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isOwnProfile, setIsOwnProfile] = useState(false); // State to track if it's own profile
+
+  const { userId: userIdFromParams } = useParams(); // Get userId from URL parameters
+  const { user: currentUser } = useAuth(); // Get current authenticated user
 
   useEffect(() => {
     const loadProfile = async () => {
+      setLoading(true);
+      let apiUrl = '/api/profile'; // Default to own profile
+      let viewingUserId = currentUser?._id;
+
+      if (userIdFromParams) {
+        apiUrl = `/api/profile/${userIdFromParams}`;
+        viewingUserId = userIdFromParams;
+      }
+      
+      if (!currentUser || !currentUser._id) {
+        // If currentUser is not yet available, might need to wait or handle
+        // For now, if we don't have currentUser and no params, we can't do much.
+        // This case should ideally be handled by AuthContext initialization.
+        // If viewing other's profile, currentUser is needed to determine isOwnProfile.
+        // If viewing own, currentUser is needed for the default API URL.
+        // console.log("Current user or user ID not available yet.");
+        // toast.error("No se pudo determinar el usuario actual.");
+        // setLoading(false); // Stop loading if we can't proceed
+        // return;
+        // For now, let's assume currentUser will be available or the effect will re-run.
+      }
+
       try {
-        const res = await axiosInstance.get('/api/profile');
+        const res = await axiosInstance.get(apiUrl);
         setProfile(res.data);
         setForm(res.data);
-      } catch {
-        toast.error('Error al cargar el perfil');
+
+        // Determine if this is the user's own profile
+        if (currentUser && res.data && currentUser._id === res.data._id) {
+          setIsOwnProfile(true);
+        } else {
+          setIsOwnProfile(false);
+          setEdit(false); // Ensure edit mode is off if not own profile
+        }
+
+      } catch (error) {
+        console.error("Error loading profile:", error);
+        const errorMsg = error.response?.data?.message || 'Error al cargar el perfil';
+        toast.error(errorMsg);
+        // If profile load fails (e.g. 403, 404), it might not be own profile or not found
+        setIsOwnProfile(false); 
+        setEdit(false);
       } finally {
         setLoading(false);
       }
     };
     
-    loadProfile();
-  }, []);
+    // Only load if currentUser is available, or if viewing a specific user's profile (param exists)
+    if (currentUser?._id || userIdFromParams) {
+        loadProfile();
+    } else {
+        // This handles the case where AuthContext might not be initialized yet.
+        // We don't want to make an API call to /api/profile if currentUser is null.
+        // setLoading can be set to false if we know we can't load yet, or rely on re-run.
+        // If isAuthInitialized from useAuth is available, that can be a dependency.
+        // For now, this check prevents calls with undefined currentUser._id for own profile.
+        // If userIdFromParams is present, the call will be made, and backend will authorize.
+    }
+  }, [userIdFromParams, currentUser?._id]); // Re-run if param changes or current user ID changes
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -279,21 +331,23 @@ function UserProfilePage() {
                 </Box>
               </Stack>
               
-              <IconButton
-                onClick={() => setEdit(!edit)}
-                sx={{
-                  bgcolor: 'rgba(255,255,255,0.2)',
-                  color: 'white',
-                  '&:hover': {
-                    bgcolor: 'rgba(255,255,255,0.3)',
-                    transform: 'scale(1.05)'
-                  },
-                  transition: 'all 0.3s ease'
-                }}
-                disabled={saving}
-              >
-                <EditIcon />
-              </IconButton>
+              {isOwnProfile && (
+                <IconButton
+                  onClick={() => setEdit(!edit)}
+                  sx={{
+                    bgcolor: 'rgba(255,255,255,0.2)',
+                    color: 'white',
+                    '&:hover': {
+                      bgcolor: 'rgba(255,255,255,0.3)',
+                      transform: 'scale(1.05)'
+                    },
+                    transition: 'all 0.3s ease'
+                  }}
+                  disabled={saving}
+                >
+                  <EditIcon />
+                </IconButton>
+              )}
             </Stack>
           </Box>
 
@@ -311,8 +365,8 @@ function UserProfilePage() {
                   value={form.nombre}
                   name="nombre"
                   onChange={handleChange}
-                  disabled={!edit}
-                  editing={edit}
+                  disabled={!isOwnProfile || !edit}
+                  editing={isOwnProfile && edit}
                 />
                 
                 <ProfileField
@@ -321,18 +375,18 @@ function UserProfilePage() {
                   value={form.apellidos}
                   name="apellidos"
                   onChange={handleChange}
-                  disabled={!edit}
-                  editing={edit}
+                  disabled={!isOwnProfile || !edit}
+                  editing={isOwnProfile && edit}
                 />
                 
                 <ProfileField
                   icon={<EmailIcon />}
                   label="Correo Electrónico"
-                  value={form.email}
+                  value={form.email} // Assuming form.email is populated
                   name="email"
                   onChange={handleChange}
-                  disabled={true}
-                  editing={false}
+                  disabled={true} // Email usually not editable by user directly
+                  editing={false} // Always non-editing style for email
                 />
                 
                 <ProfileField
@@ -341,8 +395,8 @@ function UserProfilePage() {
                   value={form.telefono}
                   name="telefono"
                   onChange={handleChange}
-                  disabled={!edit}
-                  editing={edit}
+                  disabled={!isOwnProfile || !edit}
+                  editing={isOwnProfile && edit}
                 />
                 
                 <ProfileField
@@ -351,8 +405,8 @@ function UserProfilePage() {
                   value={form.institucion}
                   name="institucion"
                   onChange={handleChange}
-                  disabled={!edit}
-                  editing={edit}
+                  disabled={!isOwnProfile || !edit}
+                  editing={isOwnProfile && edit}
                 />
                 
                 <ProfileField
@@ -362,8 +416,8 @@ function UserProfilePage() {
                   name="tipo_identificacion"
                   options={tiposIdentificacion}
                   onChange={handleChange}
-                  disabled={!edit}
-                  editing={edit}
+                  disabled={!isOwnProfile || !edit}
+                  editing={isOwnProfile && edit}
                 />
                 
                 <ProfileField
@@ -372,8 +426,8 @@ function UserProfilePage() {
                   value={form.numero_identificacion}
                   name="numero_identificacion"
                   onChange={handleChange}
-                  disabled={!edit}
-                  editing={edit}
+                  disabled={!isOwnProfile || !edit}
+                  editing={isOwnProfile && edit}
                 />
                 
                 <ProfileField
@@ -383,12 +437,12 @@ function UserProfilePage() {
                   name="fecha_nacimiento"
                   type="date"
                   onChange={handleChange}
-                  disabled={!edit}
-                  editing={edit}
+                  disabled={!isOwnProfile || !edit}
+                  editing={isOwnProfile && edit}
                 />
               </Grid>
 
-              {edit && (
+              {isOwnProfile && edit && (
                 <Fade in={edit} timeout={300}>
                   <Box mt={4}>
                     <Divider sx={{ mb: 3 }} />
