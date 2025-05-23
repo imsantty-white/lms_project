@@ -40,7 +40,16 @@ const userSchema = new mongoose.Schema({
   tipo_identificacion: { // Campos opcionales
     type: String,
     trim: true,
-    maxlength: [20, 'El tipo de identificación no puede exceder 20 caracteres']
+    maxlength: [30, 'El tipo de identificación no puede exceder 30 caracteres'],
+    enum: [
+      'Tarjeta de Identidad',
+      'Cédula de Ciudadanía',
+      'Registro Civil de Nacimiento',
+      'Tarjeta de Extranjería',
+      'Cédula de Extranjería',
+      'NIT',
+      'Pasaporte'
+    ]
   },
   numero_identificacion: { // Campos opcionales
     type: String,
@@ -75,6 +84,11 @@ const userSchema = new mongoose.Schema({
       },
       message: 'El teléfono solo puede contener números'
     }
+  },
+  institucion: { // NUEVO CAMPO
+    type: String,
+    trim: true,
+    maxlength: [100, 'La institución no puede exceder 100 caracteres']
   },
   fecha_registro: {
     type: Date,

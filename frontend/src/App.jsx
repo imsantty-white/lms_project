@@ -26,6 +26,7 @@ import StudentLearningPathsPage from './pages/StudentLearningPathsPage';
 import StudentViewLearningPathPage from './pages/StudentViewLearningPathPage';
 import StudentTakeActivityPage from './pages/StudentTakeActivityPage';
 import StudentProgressPage from './pages/StudentProgressPage'; 
+import UserProfilePage from './pages/UserProfilePage';
 
 import { getTheme } from './theme';
 
@@ -173,6 +174,10 @@ function App() {
                   <Route
                     path="/student/progress"
                     element={<ProtectedRoute element={<StudentProgressPage />} allowedRoles={['Estudiante', 'Administrador']} />}
+                  />
+                  <Route
+                    path="/profile"
+                    element={<ProtectedRoute element={<UserProfilePage />} allowedRoles={['Estudiante', 'Docente', 'Administrador']} />}
                   />
 
                   {/* Puedes añadir una ruta para manejar 404 - Página no encontrada */}

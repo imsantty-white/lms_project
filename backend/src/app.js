@@ -72,6 +72,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const progressRoutes = require('./routes/progressRoutes');
 const activityRoutes = require('./routes/activityRoutes');
 const notificationRoutes = require('./routes/notificationRoutes'); // Import notification routes
+const profileRoutes = require('./routes/profileRoutes');
 
 app.use('/api/auth', authRoutes); // Monta las rutas de autenticación bajo el prefijo /api/auth
 
@@ -104,6 +105,10 @@ app.use('/api/activities', activityRoutes);
 // Mount notification routes
 // All routes in notificationRoutes.js will be prefixed with /api/notifications
 app.use('/api/notifications', notificationRoutes);
+
+// Usar rutas de perfil
+// Todas las rutas en profileRoutes.js se prefijarán con /api/profile
+app.use('/api/profile', profileRoutes);
 
 // Ruta de prueba simple
 app.get('/', (req, res) => {

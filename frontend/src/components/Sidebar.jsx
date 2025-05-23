@@ -40,30 +40,27 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
     ],
     Docente: [
       { text: 'Dashboard Docente', icon: <DashboardIcon />, path: '/dashboard-docente' },
-      { text: 'Mis Grupos', icon: <GroupIcon />, path: '/my-teacher-groups' }, // Ruta placeholder
-      // { text: 'Crear Grupo', icon: <GroupIcon />, path: '/create-group' },
+      { text: 'Mis Grupos', icon: <GroupIcon />, path: '/my-teacher-groups' },
       { text: 'Actividades Asignadas', icon: <LibraryBooksIcon />, path: '/teacher/assignments' },
-      { text: 'Banco de Contenido', icon: <AssignmentIcon />, path: '/my-content-bank' }, // Ruta placeholder
+      { text: 'Banco de Contenido', icon: <AssignmentIcon />, path: '/my-content-bank' },
       { text: 'Gestionar Rutas de Aprendizaje', icon: <RouteIcon />, path: '/teacher/learning-paths' },
     ],
     Administrador: [
       { text: 'Dashboard Admin', icon: <DashboardIcon />, path: '/dashboard-admin' },
-      { text: 'Gestión de Usuarios', icon: <PersonIcon />, path: '/admin/user-management' }, // Ruta placeholder
-      { text: 'Gestión de Grupos', icon: <GroupsIcon />, path: '/gestion-grupos-admin' }, // Ruta placeholder
-      { text: 'Configuración', icon: <SettingsIcon />, path: '/configuracion-admin' }, // Ruta placeholder
+      { text: 'Gestión de Usuarios', icon: <PersonIcon />, path: '/admin/user-management' },
+      { text: 'Gestión de Grupos', icon: <GroupsIcon />, path: '/gestion-grupos-admin' },
+      { text: 'Configuración', icon: <SettingsIcon />, path: '/configuracion-admin' },
     ],
-    // Opcional: Puedes tener enlaces comunes para todos los roles
-    // Common: [
-    //   { text: 'Configuración de Perfil', icon: <SettingsIcon />, path: '/perfil' },
-    // ]
+    Common: [
+      { text: 'Mi Perfil', icon: <PersonIcon />, path: '/profile' },
+    ]
   };
 
   // Obtiene los enlaces correspondientes al rol del usuario actual
   // Si el rol del usuario no coincide con ninguna lista, mostramos un array vacío
   const currentUserLinks = navLinks[user?.userType] || [];
-  // También podemos añadir enlaces comunes si los definimos
-  // const commonLinks = navLinks.Common || [];
-  // const linksToDisplay = [...currentUserLinks, ...commonLinks]; // Combina enlaces específicos y comunes
+  const commonLinks = navLinks.Common || [];
+  const linksToDisplay = [...currentUserLinks, ...commonLinks];
 
   // Si el usuario está logueado pero no tiene un userType válido definido para links, no mostrar sidebar o mostrar un mensaje
   if (currentUserLinks.length === 0 && isAuthenticated) {
@@ -111,7 +108,7 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
 
         {/* Lista de enlaces de navegación */}
         <List>
-          {currentUserLinks.map((link, index) => (
+          {linksToDisplay.map((link, index) => (
             // ListItemButton hace que toda el área sea clickeable
             <ListItem key={link.text} disablePadding>
               <ListItemButton component={Link} to={link.path}>
