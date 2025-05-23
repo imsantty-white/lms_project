@@ -1,15 +1,15 @@
 // src/pages/TeacherManageGroupPage.jsx
 
 import React, { useEffect, useState, useRef } from 'react'; // Importa useEffect, useState, useRef
-import { useParams } from 'react-router-dom'; // <-- Importa useParams para obtener parámetros de la URL
-import { Container, Typography, Box, CircularProgress, Alert, Paper, Divider, List, ListItem, ListItemText, Chip, Stack, Button,
+import { useParams, Link as RouterLink } from 'react-router-dom'; // <-- Importa useParams y Link
+import { Container, Typography, Box, CircularProgress, Alert, Paper, Divider, Chip, Stack, Button, Link, // Import Link from MUI for styling if needed
             Table, TableBody, TableCell, TableContainer, TableHead, TableRow, } from '@mui/material'; // Importa componentes de Material UI (Chip para estados, Stack para botones)
 import { useAuth, axiosInstance  } from '../contexts/AuthContext';
 //import axios from 'axios';
 import { toast } from 'react-toastify';
 //import { API_BASE_URL } from '../utils/constants';
 // Importa el modal de confirmación por si necesitas confirmar acciones (ej: aprobar/rechazar)
-// import ConfirmationModal from '../components/ConfirmationModal';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 
 
@@ -34,7 +34,20 @@ function TeacherManageGroupPage() {
 
   // --- NUEVO ESTADO para manejar la carga de acciones individuales (aprobar/rechazar) ---
   // Guarda un objeto donde las claves son los IDs de las membresías y el valor es un booleano (true si está cargando)
-  const [actionLoading, setActionLoading] = useState({})
+  const [actionLoading, setActionLoading] = useState({});
+
+  // --- Estados para el Modal de Confirmación ---
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMessage, setModalMessage] = useState('');
+  const [modalAction, setModalAction] = useState(null); // Almacenará una función a ejecutar
+  const [selectedMembershipId, setSelectedMembershipId] = useState(null);
+  const [selectedMembershipStatus, setSelectedMembershipStatus] = useState(null); // Para aprobar/rechazar
+  
+  // --- Estados específicos para el modal con input (Remover Estudiante) ---
+  const [showInputInModal, setShowInputInModal] = useState(false);
+  const [inputLabelInModal, setInputLabelInModal] = useState('');
+  const [typedConfirmationName, setTypedConfirmationName] = useState(''); // Valor del input
+  const [expectedConfirmationName, setExpectedConfirmationName] = useState(''); // Nombre esperado para confirmación
 
 
   // useEffect para obtener los DETALLES del grupo
@@ -189,9 +202,9 @@ function TeacherManageGroupPage() {
   };
 
   // --- NUEVA Función: Manejar la respuesta a una solicitud de unión (Aprobar/Rechazar) ---
-  // Recibe el ID de la membresía y el nuevo estado ('Aprobado' o 'Rechazado')
-  const handleRespondRequest = async (membershipId, status) => {
-      // Verifica que el usuario sea docente/admin antes de intentar la acción (capa extra de seguridad frontend)
+  // Esta función AHORA abre el modal de confirmación
+  const handleRespondRequest = (membershipId, status) => {
+      // Verifica que el usuario sea docente/admin
       if (!isAuthenticated || (user?.userType !== 'Docente' && user?.userType !== 'Administrador')) {
           toast.error('No tienes permiso para realizar esta acción.');
           return;
@@ -202,46 +215,108 @@ function TeacherManageGroupPage() {
           toast.error('Estado de respuesta no válido.');
           return;
       }
+      
+      // Guarda el ID y el estado de la membresía para usar en `executeRespondRequest`
+      setSelectedMembershipId(membershipId);
+      setSelectedMembershipStatus(status); // Específico para aprobar/rechazar
 
-      // Activa el estado de carga para esta membresía específica
+      // Configura el mensaje y la acción para el modal (sin input)
+      const actionText = status === 'Aprobado' ? 'aprobar' : 'rechazar';
+      setModalMessage(`¿Estás seguro de que quieres ${actionText} esta solicitud?`);
+      setModalAction(() => () => executeRespondRequest(membershipId, status));
+      
+      // Asegura que el input no se muestre para acciones de aprobar/rechazar
+      setShowInputInModal(false);
+      setTypedConfirmationName('');
+      setExpectedConfirmationName('');
+      
+      setIsModalOpen(true); // Abre el modal
+  };
+
+
+  // --- Función: Ejecuta la lógica de la API para aprobar/rechazar después de la confirmación ---
+  const executeRespondRequest = async (membershipId, status) => {
+      setIsModalOpen(false); 
       setActionLoading(prev => ({ ...prev, [membershipId]: true }));
 
       try {
-        const response = await axiosInstance.put(`/api/groups/join-request/${membershipId}/respond`, { responseStatus: status });
+          const response = await axiosInstance.put(`/api/groups/join-request/${membershipId}/respond`, { responseStatus: status });
+          const { message, membership: updatedMembershipFromBackend } = response.data;
 
-        // *** CORRECCIÓN: Usar la membresía actualizada y el mensaje de la respuesta del backend ***
+          setStudentMemberships(prevMemberships =>
+              prevMemberships.map(mem => mem._id === updatedMembershipFromBackend._id ? updatedMembershipFromBackend : mem)
+          );
+          toast.success(message || `Solicitud ${status === 'Aprobado' ? 'aprobada' : 'rechazada'} con éxito.`);
+      } catch (err) {
+          console.error(`Error al responder solicitud ${membershipId}:`, err.response ? err.response.data : err.message);
+          const errorMsg = err.response?.data?.message || `Error al ${status === 'Aprobado' ? 'aprobar' : 'rechazar'} la solicitud.`;
+          toast.error(errorMsg);
+      } finally {
+          setActionLoading(prev => ({ ...prev, [membershipId]: false }));
+          // Resetear estados comunes del modal (no los de input, se resetean en su propio flujo o al cerrar)
+          setSelectedMembershipId(null);
+          setSelectedMembershipStatus(null);
+      }
+  };
 
-        // Extrae el mensaje y la membresía actualizada de response.data
-        const { message, membership: updatedMembershipFromBackend } = response.data;
+  // --- NUEVA Función: Manejar la apertura del modal para REMOVER un estudiante ---
+  const handleRemoveStudent = (membershipId, studentFullName) => {
+      if (!isAuthenticated || (user?.userType !== 'Docente' && user?.userType !== 'Administrador')) {
+          toast.error('No tienes permiso para realizar esta acción.');
+          return;
+      }
+      setSelectedMembershipId(membershipId);
+      setExpectedConfirmationName(studentFullName); // Guardar el nombre completo para la verificación
+      setModalMessage(`Para remover a ${studentFullName}, por favor escribe su nombre completo ("${studentFullName}") abajo para confirmar.`);
+      setInputLabelInModal('Nombre completo del estudiante');
+      setShowInputInModal(true); // Mostrar el campo de texto en el modal
+      setTypedConfirmationName(''); // Limpiar el campo de texto al abrir
+      
+      // La acción de confirmación ahora llamará a executeRemoveStudent, 
+      // que recibirá el valor del input directamente desde ConfirmationModal
+      setModalAction(() => (typedNameFromModal) => executeRemoveStudent(typedNameFromModal));
+      
+      setIsModalOpen(true);
+  };
 
-        // Actualizar el estado local (studentMemberships) para reflejar el cambio
-        // Reemplazamos la membresía antigua en el array por la nueva que vino del backend
-        setStudentMemberships(prevMemberships =>
-          // Mapea el array de membresías previas
-          prevMemberships.map(membership =>
-            // Si el ID de la membresía actual coincide con la que respondimos
-            membership._id === updatedMembershipFromBackend._id
-              // Reemplaza el objeto completo de la membresía antigua
-              ? updatedMembershipFromBackend // <-- Usa el objeto actualizado del backend
-              : membership // Si no es la membresía actualizada, la devuelve sin cambios
-          )
-        );
-        // --- Fin Actualización de estado local ---
+  // --- NUEVA Función: Ejecuta la lógica de la API para REMOVER un estudiante después de la confirmación ---
+  const executeRemoveStudent = async (typedNameFromModal) => {
+      // selectedMembershipId y expectedConfirmationName se leen desde el estado
+      if (typedNameFromModal !== expectedConfirmationName) {
+          toast.error('El nombre ingresado no coincide. No se ha removido al estudiante.');
+          // No cerramos el modal aquí para que el usuario pueda corregir el nombre
+          // o cerrar el modal manualmente.
+          // Si se quisiera cerrar, se podría añadir: setIsModalOpen(false); setActionLoading({ ... }); etc.
+          return; 
+      }
 
-        // Muestra el toast usando el mensaje del backend
-        toast.success(message || `Solicitud ${status === 'Aprobado' ? 'aprobada' : 'rechazada'} con éxito.`); // Usa el mensaje del backend, con un fallback
+      setIsModalOpen(false); // Cerrar el modal ANTES de la llamada a la API
+      setActionLoading(prev => ({ ...prev, [selectedMembershipId]: true }));
 
-        // *** Fin CORRECCIÓN ***
+      try {
+          // El groupId se obtiene de useParams()
+          await axiosInstance.delete(`/api/groups/${groupId}/memberships/${selectedMembershipId}`);
+          
+          // Actualizar el estado local para reflejar la eliminación
+          setStudentMemberships(prevMemberships =>
+              prevMemberships.filter(membership => membership._id !== selectedMembershipId)
+          );
+          toast.success(`${expectedConfirmationName} ha sido removido del grupo.`);
 
       } catch (err) {
-        console.error(`Error al responder solicitud ${membershipId}:`, err.response ? err.response.data : err.message);
-        const errorMessage = err.response && err.response.data && err.response.data.message
-          ? err.response.data.message
-          : `Error al ${status === 'Aprobado' ? 'aprobar' : 'rechazar'} la solicitud.`;
-        toast.error(errorMessage);
+          console.error(`Error al remover estudiante con membresía ${selectedMembershipId}:`, err.response ? err.response.data : err.message);
+          const errorMsg = err.response?.data?.message || 'Error al remover al estudiante.';
+          toast.error(errorMsg);
       } finally {
-        // Desactiva el estado de carga para esta membresía específica
-        setActionLoading(prev => ({ ...prev, [membershipId]: false }));
+          setActionLoading(prev => ({ ...prev, [selectedMembershipId]: false }));
+          // Resetear todos los estados del modal y de selección
+          setSelectedMembershipId(null);
+          setExpectedConfirmationName('');
+          setTypedConfirmationName('');
+          setShowInputInModal(false);
+          setInputLabelInModal('');
+          setModalMessage(''); // Limpiar mensaje por si acaso
+          setModalAction(null); // Limpiar acción
       }
   };
 
@@ -346,7 +421,9 @@ function TeacherManageGroupPage() {
                          sx={{ '&:last-child td, &:last-child th': { border: 0 } }} // Remover borde en la última fila
                       >
                         <TableCell component="th" scope="row"> {/* Columna Nombre */}
-                          <Typography variant="body1">{`${student.nombre} ${student.apellidos}`.trim()}</Typography>
+                          <Link component={RouterLink} to={`/profile/${student._id}`} underline="hover" color="inherit">
+                            <Typography variant="body1">{`${student.nombre} ${student.apellidos}`.trim()}</Typography>
+                          </Link>
                         </TableCell>
                         <TableCell align="right"> {/* Columna Email */}
                           <Typography variant="body2" color="text.secondary">{student.email}</Typography>
@@ -388,11 +465,14 @@ function TeacherManageGroupPage() {
                                             variant="outlined"
                                             size="small"
                                             color="error"
-                                            // onClick={() => handleDeleteMembership(membership._id)} // Implementar esta función
-                                            disabled={actionLoading[membership._id]} // Usar el mismo estado de carga
-                                             startIcon={actionLoading[membership._id] ? <CircularProgress size={16} color="inherit" /> : null}
+                                            onClick={() => {
+                                                const studentFullName = `${student.nombre} ${student.apellidos}`.trim();
+                                                handleRemoveStudent(membership._id, studentFullName);
+                                            }}
+                                            disabled={actionLoading[membership._id]}
+                                            startIcon={actionLoading[membership._id] ? <CircularProgress size={16} color="inherit" /> : null}
                                         >
-                                            {actionLoading[membership._id] ? 'Eliminando...' : 'Eliminar'}
+                                            {actionLoading[membership._id] && selectedMembershipId === membership._id ? 'Removiendo...' : 'Remover'}
                                         </Button>
                                         {/* Podrías añadir otros botones aquí (ej. Ver Perfil Estudiante) */}
                                     </Stack>
@@ -409,8 +489,35 @@ function TeacherManageGroupPage() {
           {/* Fin de la Sección de Estudiantes/Membresías */}
            <Divider sx={{ mt: 3 }} /> {/* Añade un divisor después de la tabla */}
 
-
         </Box>
+
+        {/* Modal de Confirmación */}
+        <ConfirmationModal
+            open={isModalOpen}
+            onClose={() => {
+                setIsModalOpen(false);
+                // Resetear todos los estados relacionados con el modal al cerrar
+                setModalMessage('');
+                setModalAction(null); 
+                setSelectedMembershipId(null);
+                setSelectedMembershipStatus(null);
+                setShowInputInModal(false);
+                setInputLabelInModal('');
+                setTypedConfirmationName('');
+                setExpectedConfirmationName('');
+            }}
+            onConfirm={modalAction} // Esto llamará a executeRemoveStudent(typedName) o executeRespondRequest()
+            title="Confirmar Acción"
+            message={modalMessage}
+            // Props para el input condicional
+            showInput={showInputInModal}
+            inputLabel={inputLabelInModal}
+            inputValue={typedConfirmationName}
+            onInputChange={(e) => setTypedConfirmationName(e.target.value)}
+            // Cambiar texto de confirmación si es para remover
+            confirmText={showInputInModal ? "Confirmar Remoción" : "Sí"}
+            cancelText={showInputInModal ? "Cancelar" : "No"}
+        />
       </Container>
     );
   }
