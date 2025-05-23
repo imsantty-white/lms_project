@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { Box, CircularProgress } from '@mui/material'; // Importa componentes de MUI para un spinner
 

@@ -9,7 +9,7 @@ import {
   Alert,
   // FormHelperText // Might not be needed if errors are displayed directly in TextField helperText
 } from '@mui/material';
-import { axiosInstance } from '../../context/AuthContext'; // Ajusta la ruta si es necesario
+import { axiosInstance } from '../../contexts/AuthContext'; // Ajusta la ruta si es necesario
 import { toast } from 'react-toastify';
 import GenericFormModal from '../../components/GenericFormModal'; // Ajusta la ruta
 

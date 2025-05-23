@@ -13,7 +13,7 @@ const Progress = require('../models/ProgressModel');
 const User = require('../models/UserModel');
 const mongoose = require('mongoose');
 const { isApprovedGroupMember, isTeacherOfContentAssignment, isTeacherOfSubmission } = require('../utils/permissionUtils');
-const NotificationService = require('../../services/NotificationService'); // Adjust path if necessary
+const NotificationService = require('../services/NotificationService'); // Adjust path if necessary
 
 
 // @desc    Obtener los detalles de una Actividad asignada para que un estudiante la inicie

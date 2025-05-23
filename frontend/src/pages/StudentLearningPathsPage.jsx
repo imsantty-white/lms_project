@@ -19,7 +19,7 @@ import {
 import WorkIcon from '@mui/icons-material/Work';
 
 // *** Importar useAuth (ahora incluyendo isAuthInitialized) Y axiosInstance ***
-import { useAuth, axiosInstance } from '../context/AuthContext'; // <-- Modificado
+import { useAuth, axiosInstance } from '../contexts/AuthContext'; // <-- Modificado
 
 // *** Eliminar la importación de axios si ya no la usas directamente ***
 // import axios from 'axios';

@@ -15,7 +15,7 @@ import {
   useTheme,
   useMediaQuery
 } from '@mui/material';
-import { useAuth, axiosInstance } from '../context/AuthContext';
+import { useAuth, axiosInstance } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 // Asegúrate de instalar framer-motion con: npm install framer-motion

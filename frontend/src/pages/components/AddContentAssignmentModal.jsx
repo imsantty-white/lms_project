@@ -40,7 +40,7 @@ import WorkIcon from '@mui/icons-material/Work';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 
 // Importar axiosInstance desde AuthContext (ya lo tenías)
-import { axiosInstance } from '../../context/AuthContext';
+import { axiosInstance } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 
 // Helper para obtener el icono del contenido asociado (mantener)

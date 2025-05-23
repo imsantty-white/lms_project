@@ -38,7 +38,7 @@ import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
 import WorkIcon from '@mui/icons-material/Work';
 
 // Importar useAuth (ahora incluyendo isAuthInitialized) Y axiosInstance (mantener)
-import { useAuth, axiosInstance } from '../context/AuthContext';
+import { useAuth, axiosInstance } from '../contexts/AuthContext';
 
 // Eliminar la importación de axios si ya no la usas directamente (ya lo tenías)
 // import axios from 'axios';

@@ -21,7 +21,7 @@ import {
 // Añadido: iconos para mejorar la UX
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import GradingIcon from '@mui/icons-material/Grading';
-import { useAuth, axiosInstance } from '../context/AuthContext';
+import { useAuth, axiosInstance } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
 
 function TeacherAssignmentSubmissionsPage() {

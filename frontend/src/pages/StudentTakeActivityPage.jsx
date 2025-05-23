@@ -26,7 +26,7 @@ import {
 } from '@mui/material';
 
 // *** Importar useAuth (ahora incluyendo isAuthInitialized y isAuthenticated) Y axiosInstance ***
-import { useAuth, axiosInstance } from '../context/AuthContext';
+import { useAuth, axiosInstance } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 

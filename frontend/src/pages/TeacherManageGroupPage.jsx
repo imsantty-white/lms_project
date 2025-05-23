@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react'; // Importa useEffect
 import { useParams } from 'react-router-dom'; // <-- Importa useParams para obtener parámetros de la URL
 import { Container, Typography, Box, CircularProgress, Alert, Paper, Divider, List, ListItem, ListItemText, Chip, Stack, Button,
             Table, TableBody, TableCell, TableContainer, TableHead, TableRow, } from '@mui/material'; // Importa componentes de Material UI (Chip para estados, Stack para botones)
-import { useAuth, axiosInstance  } from '../context/AuthContext';
+import { useAuth, axiosInstance  } from '../contexts/AuthContext';
 //import axios from 'axios';
 import { toast } from 'react-toastify';
 //import { API_BASE_URL } from '../utils/constants';

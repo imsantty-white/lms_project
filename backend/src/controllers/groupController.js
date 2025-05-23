@@ -8,7 +8,7 @@ const { generateUniqueCode } = require('../utils/codeGenerator'); // Importamos 
 const Membership = require('../models/MembershipModel'); // Importamos el modelo de Membresía
 const User = require('../models/UserModel');
 const { isTeacherOfGroup } = require('../utils/permissionUtils');
-const NotificationService = require('../../services/NotificationService'); // Adjust path if necessary
+const NotificationService = require('../services/NotificationService'); // Adjust path if necessary
 
 const MAX_GROUPS_PER_DOCENTE = parseInt(process.env.MAX_GROUPS_PER_DOCENTE, 3) || 3; // Límite por defecto: 3
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Drawer, Toolbar, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography, Divider, IconButton } from '@mui/material';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 
 // Importa algunos iconos de ejemplo (puedes añadir más según necesites)

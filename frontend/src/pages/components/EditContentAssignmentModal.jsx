@@ -45,7 +45,7 @@ import LoopIcon from '@mui/icons-material/Loop';
 import TimerIcon from '@mui/icons-material/Timer';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
-import { axiosInstance } from '../../context/AuthContext';
+import { axiosInstance } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 
 // Helper para obtener el icono del contenido asociado

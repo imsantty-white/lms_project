@@ -21,7 +21,7 @@ import {
 
 // *** Importar useAuth (ahora incluyendo isAuthInitialized) Y axiosInstance ***
 // Eliminamos la importación de axios y API_BASE_URL si usas axiosInstance
-import { useAuth, axiosInstance } from '../context/AuthContext'; // <-- MODIFICADO
+import { useAuth, axiosInstance } from '../contexts/AuthContext'; // <-- MODIFICADO
 
 // import axios from 'axios'; // <-- ELIMINADO
 // import { API_BASE_URL } from '../utils/constants'; // <-- ELIMINADO

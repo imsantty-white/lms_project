@@ -24,7 +24,7 @@ import {
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 
 // *** Importar useAuth Y axiosInstance ***
-import { useAuth, axiosInstance } from '../context/AuthContext'; // <-- Importa axiosInstance aquí
+import { useAuth, axiosInstance } from '../contexts/AuthContext'; // <-- Importa axiosInstance aquí
 
 // *** Eliminar la importación de 'axios' si ya no la usas directamente ***
 // import axios from 'axios';

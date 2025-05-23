@@ -12,7 +12,7 @@ const Progress = require('../models/ProgressModel');
 const User = require('../models/UserModel');
 const Submission = require('../models/SubmissionModel');
 const mongoose = require('mongoose');
-const NotificationService = require('../../services/NotificationService'); // Adjust path if necessary
+const NotificationService = require('../services/NotificationService'); // Adjust path if necessary
 // Membership is already imported
 // ContentAssignment is already imported
 

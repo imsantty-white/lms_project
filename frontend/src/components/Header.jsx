@@ -5,11 +5,11 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import NotificationPanel from './Notifications/NotificationPanel';
 import { useSocket } from '../contexts/SocketContext';
-import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../../services/notificationService'; // Import new services
+import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../services/notificationService'; // Import new services
 
 const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode }) => {
   const { isAuthenticated, user, logout } = useAuth();

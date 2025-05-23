@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Paper, Typography, TextField, Button, Stack, FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 
 function RegisterForm() {
   const { register } = useAuth();

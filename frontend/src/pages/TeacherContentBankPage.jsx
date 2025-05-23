@@ -39,7 +39,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import { motion } from 'framer-motion'; 
 
 // Importar useAuth y axiosInstance
-import { useAuth, axiosInstance } from '../context/AuthContext';
+import { useAuth, axiosInstance } from '../contexts/AuthContext';
 
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';

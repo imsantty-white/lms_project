@@ -15,7 +15,7 @@ import {
 } from '@mui/material';
 import GroupsIcon from '@mui/icons-material/Groups'; // For EmptyState
 
-import { useAuth, axiosInstance } from '../context/AuthContext';
+import { useAuth, axiosInstance } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
 
 // Reusable Components

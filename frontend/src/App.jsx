@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { Box, CssBaseline, ThemeProvider } from '@mui/material';
-import { useAuth } from './context/AuthContext';
+import { useAuth } from './contexts/AuthContext';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import ProtectedRoute from './components/ProtectedRoute';

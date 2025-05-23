@@ -4,7 +4,7 @@ import App from './App.jsx';
 import './index.css';
 
 import { BrowserRouter as Router } from 'react-router-dom'; // Changed to Router alias
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext'; // Corrected path
 
 ReactDOM.createRoot(document.getElementById('root')).render(

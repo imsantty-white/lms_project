@@ -40,7 +40,7 @@ import AddCircleOutlinedIcon from '@mui/icons-material/AddCircleOutlined';
 // format is now primarily used in AssignmentItem
 
 // *** Importar useAuth Y axiosInstance ***
-import { useAuth, axiosInstance } from '../context/AuthContext';
+import { useAuth, axiosInstance } from '../contexts/AuthContext';
 
 
 import { toast } from 'react-toastify';
