@@ -21,8 +21,7 @@ const registerUser = async (req, res) => {
     // --- Verificar si el email ya existe ---
     const userExists = await User.findOne({ email });
     if (userExists) {
-      // Mensaje genérico para evitar enumeración
-      return res.status(400).json({ message: 'No se pudo registrar el usuario' });
+      return res.status(400).json({ message: 'El email ya está registrado. Por favor, usa otro.' });
     }
 
     // --- Crear el nuevo usuario SOLO con los campos permitidos ---
@@ -53,7 +52,7 @@ const registerUser = async (req, res) => {
     // Manejo de errores de validación de Mongoose
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(val => val.message);
-      return res.status(400).json({ message: messages[0] });
+      return res.status(400).json({ message: messages.join(', ') });
     }
     // Error por email duplicado (índice único)
     if (error.code === 11000 && error.keyPattern && error.keyPattern.email) {

@@ -94,7 +94,7 @@ function JoinGroupPage() {
     setIsLoading(true);
 
     try {
-      const response = await axiosInstance.post('/api/groups/join-request', { groupCode });
+      const response = await axiosInstance.post('/api/groups/join-request', { codigo_acceso: groupCode });
       const { message } = response.data;
 
       toast.success(message || 'Solicitud para unirse al grupo enviada correctamente.');
@@ -141,7 +141,9 @@ function JoinGroupPage() {
             width: '100%',
             overflow: 'hidden',
             borderRadius: 3,
-            backgroundImage: 'linear-gradient(to right bottom, #ffffff, #fafbff)',
+            // Usa los colores del theme para fondo
+            backgroundImage: 'none',
+            bgcolor: theme.palette.background.paper,
           }}
         >
           <Grid container>
@@ -150,7 +152,7 @@ function JoinGroupPage() {
               <Grid item xs={12} md={4} 
                 sx={{ 
                   bgcolor: 'primary.main', 
-                  color: 'white',
+                  color: 'primary.contrastText',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'center',
@@ -174,7 +176,7 @@ function JoinGroupPage() {
             )}
           
           {/* Contenido principal */}
-          <Grid item xs={12} md={8} sx={{ p: { xs: 3, md: 5 } }}>
+          <Grid item xs={12} md={8} sx={{ p: { xs: 3, md: 5 }, bgcolor: theme.palette.background.paper }}>
             <MotionBox
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -221,9 +223,13 @@ function JoinGroupPage() {
                   }}
                   sx={{ mb: 4 }}
                 >
-                  <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
-                    <Typography variant="h6" gutterBottom color="primary.dark">
-                      Código de Acceso
+                  <Paper elevation={3} sx={{ 
+                    p: 3, 
+                    borderRadius: 2, 
+                    bgcolor: theme.palette.background.default // Fondo acorde al modo
+                  }}>
+                    <Typography variant="h6" gutterBottom color="primary">
+                      Código de Acceso:
                     </Typography>
                     <TextField
                       label="Ingresa el código del grupo"

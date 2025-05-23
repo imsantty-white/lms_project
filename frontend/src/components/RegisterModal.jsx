@@ -16,6 +16,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import ConfirmationModal from './ConfirmationModal';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-toastify';
 
 const modalStyle = {
   width: { xs: '90%', sm: 400 },
@@ -51,7 +52,7 @@ function RegisterModal({ open, onClose }) {
     event.preventDefault();
     setIsLoading(true);
 
-    const registrationData = { nombre, apellidos, email, password, userType };
+    const registrationData = { nombre, apellidos, email, password, tipo_usuario: userType };
 
     const result = await register(registrationData);
 
@@ -73,6 +74,8 @@ function RegisterModal({ open, onClose }) {
       setEmail('');
       setPassword('');
       setUserType('Estudiante');
+    } else {
+      toast.error(result.message || 'Error al registrar usuario');
     }
   };
 

@@ -145,12 +145,12 @@ export const AuthProvider = ({ children }) => {
   // Función para manejar el Registro (mantener tu lógica, ajusta axiosInstance si aplica)
   const register = async (registrationData) => {
       // *** Usar axiosInstance ***
-      try {
-        const response = await axiosInstance.post('/api/auth/register', registrationData);
-        // ... resto de tu lógica de registro ...
-      } catch (error) {
-      // ... manejo de error ...
-      }
+    try {
+      const res = await axiosInstance.post('/api/auth/register', registrationData);
+      return { success: true, ...res.data, userType: registrationData.tipo_usuario };
+    } catch (error) {
+      return { success: false, message: error.response?.data?.message || 'Error al registrar' };
+    }
   };
 
 
