@@ -170,7 +170,7 @@ const requestJoinGroup = async (req, res) => {
               const message = `${studentName} has requested to join your group '${groupName}'.`;
               // TODO: Confirm teacher's link to manage join requests for this specific group.
               // Assuming a route like /teacher/groups/:groupId/manage or similar where requests are listed.
-              const link = `/teacher/groups/${group._id}/members`; // Link to member management page
+              const link = `/teacher/groups/${group._id}/manage`; // Link to member management page
 
               await NotificationService.createNotification({
                   recipient: teacherId,

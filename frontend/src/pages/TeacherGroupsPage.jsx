@@ -232,7 +232,7 @@ function TeacherGroupsPage() {
                 <Paper key={group._id} sx={{ mb: 2, width: '100%' }}>
                   <ListItemButton
                     component={Link} // Asegúrate de que Link esté importado de react-router-dom
-                    to={`/my-teacher-groups/${group._id}/manage`}
+                    to={`/teacher/groups/${group._id}/manage`}
                     sx={{ p: 2, width: '100%' }}
                   >
                     <ListItemText

@@ -263,7 +263,7 @@ function StudentTakeActivityPage() {
     } else {
       // Opción 2: Redireccionar a la lista de mis rutas de aprendizaje si no se pudo obtener el ID de la ruta actual
       console.warn('Could not determine learning path ID, redirecting to my learning paths list.');
-      navigate('/student/my-learning-paths');
+      navigate('/student/learning-paths');
     }
   };
 

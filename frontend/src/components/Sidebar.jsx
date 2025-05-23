@@ -33,16 +33,16 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
   const navLinks = {
     Estudiante: [
       { text: 'Dashboard Estudiante', icon: <DashboardIcon />, path: '/dashboard-estudiante' },
-      { text: 'Mis Grupos', icon: <GroupsIcon />, path: '/my-student-groups' },
-      { text: 'Mis Rutas de Aprendizaje', icon: <RouteIcon />, path: '/student/my-learning-paths' },
+      { text: 'Mis Grupos', icon: <GroupsIcon />, path: '/student/groups' },
+      { text: 'Mis Rutas de Aprendizaje', icon: <RouteIcon />, path: '/student/learning-paths' },
       { text: 'Unirse a un Grupo', icon: <GroupAddIcon />, path: '/join-group' },
       { text: 'Mi Progreso', icon: <DonutLargeIcon />, path: '/student/progress' },
     ],
     Docente: [
       { text: 'Dashboard Docente', icon: <DashboardIcon />, path: '/dashboard-docente' },
-      { text: 'Mis Grupos', icon: <GroupIcon />, path: '/my-teacher-groups' },
+      { text: 'Mis Grupos', icon: <GroupIcon />, path: '/teacher/groups/' },
       { text: 'Actividades Asignadas', icon: <LibraryBooksIcon />, path: '/teacher/assignments' },
-      { text: 'Banco de Contenido', icon: <AssignmentIcon />, path: '/my-content-bank' },
+      { text: 'Banco de Contenido', icon: <AssignmentIcon />, path: '/content-bank' },
       { text: 'Gestionar Rutas de Aprendizaje', icon: <RouteIcon />, path: '/teacher/learning-paths' },
     ],
     Administrador: [

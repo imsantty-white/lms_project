@@ -20,7 +20,7 @@ const NotificationPanel = ({
       transformOrigin={{ vertical: 'top', horizontal: 'right' }}
     >
       <Box sx={{ width: 360, p: 1 }}>
-        <Typography variant="h6" sx={{ p: 1 }}>Notifications</Typography>
+        <Typography variant="h6" sx={{ p: 1 }}>Notificationes</Typography>
         <Divider sx={{ mb: 1 }} />
 
         {isLoading && (

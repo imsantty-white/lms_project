@@ -384,7 +384,7 @@ function ManageLearningPathPage() {
   const handleConfirmNavigateToContentCreation = () => {
     handleCloseNavigateToContentCreationConfirm();
     handleCloseAddContentAssignmentModal(); // Asegúrate de cerrar también el modal de asignación
-    navigate('/my-content-bank');
+    navigate('/content-bank');
     toast.info('Puedes crear nuevo contenido en la página del Banco de Contenido.');
   };
 

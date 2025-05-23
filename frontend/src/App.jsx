@@ -124,15 +124,15 @@ function App() {
                     element={<ProtectedRoute element={<JoinGroupPage />} allowedRoles={['Estudiante']} />}
                   />
                   <Route
-                    path="/my-teacher-groups"
+                    path="/teacher/groups/"
                     element={<ProtectedRoute element={<TeacherGroupsPage />} allowedRoles={['Docente', 'Administrador']} />}
                   />
                   <Route
-                    path="/my-student-groups"
+                    path="/student/groups"
                     element={<ProtectedRoute element={<StudentGroupsPage />} allowedRoles={['Estudiante', 'Administrador']} />} 
                   />
                   <Route
-                    path="/my-teacher-groups/:groupId/manage"
+                    path="/teacher/groups/:groupId/manage"
                     element={<ProtectedRoute element={<TeacherManageGroupPage />} allowedRoles={['Docente', 'Administrador']} />}
                   />
                   <Route
@@ -140,7 +140,7 @@ function App() {
                     element={<ProtectedRoute element={<AdminUserManagementPage />} allowedRoles={['Administrador']} />}
                   />
                   <Route
-                    path="/my-content-bank"
+                    path="/content-bank"
                     element={<ProtectedRoute element={<TeacherContentBankPage />} allowedRoles={['Docente', 'Administrador']} />}
                   />
                   <Route
@@ -152,7 +152,7 @@ function App() {
                     element={<ProtectedRoute element={<ManageLearningPathPage />} allowedRoles={['Docente', 'Administrador']} />}
                   />
                   <Route 
-                    path="/student/my-learning-paths" 
+                    path="/student/learning-paths" 
                     element={<ProtectedRoute element={<StudentLearningPathsPage />} allowedRoles={['Estudiante', 'Administrador']} />}
                   />
                   <Route 
