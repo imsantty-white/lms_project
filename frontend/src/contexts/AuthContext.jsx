@@ -6,7 +6,7 @@ import { jwtDecode } from 'jwt-decode'; // Necesitas instalar esta librería: np
 
 
 // Crea el contexto de autenticación
-const AuthContext = createContext(null);
+export const AuthContext = createContext(null); // MODIFIED: Added export
 
 // *** Configurar una instancia de Axios separada ***
 const axiosInstance = axios.create({
