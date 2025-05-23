@@ -5,13 +5,9 @@ import { useParams, Link as RouterLink } from 'react-router-dom'; // <-- Importa
 import { Container, Typography, Box, CircularProgress, Alert, Paper, Divider, Chip, Stack, Button, Link, // Import Link from MUI for styling if needed
             Table, TableBody, TableCell, TableContainer, TableHead, TableRow, } from '@mui/material'; // Importa componentes de Material UI (Chip para estados, Stack para botones)
 import { useAuth, axiosInstance  } from '../contexts/AuthContext';
-//import axios from 'axios';
 import { toast } from 'react-toastify';
-//import { API_BASE_URL } from '../utils/constants';
 // Importa el modal de confirmación por si necesitas confirmar acciones (ej: aprobar/rechazar)
 import ConfirmationModal from '../components/ConfirmationModal';
-
-
 
 
 
