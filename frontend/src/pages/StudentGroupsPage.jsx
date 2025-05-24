@@ -87,8 +87,9 @@ function StudentGroupsPage() {
 
   return (
     <Container>
-      <Box sx={{ mt: 4 }}>
-        <PageHeader title="Mis Grupos" />
+      <PageHeader title="Mis Grupos" />
+      <Box sx={{ maxWidth: 'sm', mx: 'auto', mt: 3 }}>
+        
 
         {/* Removed custom loading/error/empty rendering, will use EmptyState or direct rendering */}
         
@@ -115,7 +116,7 @@ function StudentGroupsPage() {
 
         {!isLoading && !error && groups.length > 0 && (
           // Consider removing the alignItems: 'center' and maxWidth if the list should be wider
-          <List sx={{ mt: 3, width: '100%' }}> 
+          <List dense sx={{ width: '100%', p: 0 }}>
             {groups.map((group) => {
               const statusInfo = getStatusDisplay(group.student_status);
 
@@ -124,16 +125,20 @@ function StudentGroupsPage() {
                   key={group._id} 
                   sx={{ 
                     mb: 2, 
-                    p: 2, 
-                    backgroundColor: group.activo === false ? grey[100] : 'transparent' 
+                    p: 2
                   }}
                 >
                   <ListItem disablePadding>
                     <ListItemText
                       primary={
-                        <Typography variant="h6">
-                          {group.nombre} {group.activo === false && "(Archivado)"}
-                        </Typography>
+                        <Box display="flex" alignItems="center">
+                          <Typography variant="h6" sx={{ mr: 1 }}>
+                            {group.nombre}
+                          </Typography>
+                          {group.activo === false && (
+                            <Chip label="ARCHIVADO" color="default" size="medium" sx={{ ml: 1 }} />
+                          )}
+                        </Box>
                       }
                       secondary={
                         <>

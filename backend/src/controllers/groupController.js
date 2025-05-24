@@ -521,6 +521,7 @@ const getMyMembershipsWithStatus = async (req, res) => {
         nombre: membership.grupo_id.docente_id.nombre,
         apellidos: membership.grupo_id.docente_id.apellidos
       } : null,
+      activo: membership.grupo_id.activo,
       student_status: membership.estado_solicitud,
       membership_id: membership._id
     }));

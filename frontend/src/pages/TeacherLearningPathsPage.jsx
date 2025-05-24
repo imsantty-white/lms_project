@@ -390,7 +390,7 @@ function TeacherLearningPathsPage() {
                         e.stopPropagation();
                         handleEditLearningPath(path);
                       }}
-                      sx={{ ml: 2 }}
+                      sx={{ ml: 3, mr: 2 }}
                     >
                       <EditIcon />
                     </IconButton>
@@ -428,7 +428,7 @@ function TeacherLearningPathsPage() {
                         e.stopPropagation();
                         handleOpenDeleteDialog(path);
                       }}
-                      sx={{ mr: 2 }}
+                      sx={{ ml: 3, mr: 2 }}
                     >
                       <DeleteIcon />
                     </IconButton>
