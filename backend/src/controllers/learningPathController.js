@@ -26,7 +26,7 @@ const getMyCreatedLearningPaths = async (req, res, next) => {
         const docenteId = req.user._id;
 
         // 1. Encontrar todos los Grupos que pertenecen a este docente
-        const ownedGroups = await Group.find({ docente_id: docenteId });
+        const ownedGroups = await Group.find({ docente_id: docenteId, activo: true });
 
         // 2. Obtener los IDs de estos grupos
         const groupIds = ownedGroups.map(group => group._id);
@@ -75,10 +75,10 @@ const createLearningPath = async (req, res, next) => { // Añadir 'next' para pa
         // --- Verificación de Propiedad: Asegurar que el grupo pertenece a este docente ---
         // Un docente solo puede crear rutas en sus propios grupos
         // Busca el grupo por su ID Y verificando que su docente_id coincida con el docente logueado
-        const group = await Group.findOne({ _id: group_id, docente_id: docenteId }); // Usamos group_id aquí
+        const group = await Group.findOne({ _id: group_id, docente_id: docenteId, activo: true }); // Usamos group_id aquí
         if (!group) {
             // Si no encuentra el grupo con ese ID Y que pertenezca a este docente
-            return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece. No puedes crear una ruta aquí.' });
+            return res.status(404).json({ message: 'Grupo no encontrado, no está activo o no te pertenece. No puedes crear una ruta aquí.' });
         }
         // --- Fin Verificación de Propiedad ---
 
@@ -124,15 +124,15 @@ const createModule = async (req, res, next) => { // Añadir 'next'
         // --- Verificación de Propiedad: Asegurar que la ruta de aprendizaje pertenece a este docente ---
         // Un docente solo puede añadir módulos a rutas que le pertenecen (a través de sus grupos)
         // Primero, encontrar la ruta de aprendizaje
-        const learningPath = await LearningPath.findById(learningPathId).populate('group_id');
+        const learningPath = await LearningPath.findById(learningPathId).populate({ path: 'group_id', select: 'docente_id activo' });
 
         if (!learningPath) {
             return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada.' });
         }
 
         // Verificar si el docente autenticado es el dueño del grupo al que pertenece la ruta
-        if (learningPath.group_id.docente_id.toString() !== docenteId.toString()) {
-             return res.status(403).json({ message: 'No tienes permiso para añadir módulos a esta ruta de aprendizaje.' });
+        if (!learningPath.group_id || learningPath.group_id.docente_id.toString() !== docenteId.toString() || !learningPath.group_id.activo) {
+             return res.status(403).json({ message: 'No tienes permiso para añadir módulos a esta ruta de aprendizaje, o el grupo está inactivo.' });
         }
         // --- Fin Verificación de Propiedad ---
 
@@ -186,7 +186,8 @@ const createTheme = async (req, res, next) => { // Añadir 'next'
         const module = await Module.findById(moduleId).populate({
             path: 'learning_path_id',
             populate: {
-                path: 'group_id'
+                path: 'group_id',
+                select: 'docente_id activo'
             }
         });
 
@@ -195,8 +196,8 @@ const createTheme = async (req, res, next) => { // Añadir 'next'
         }
 
         // Verificar si el docente autenticado es el dueño del grupo al que pertenece la ruta del módulo
-        if (module.learning_path_id.group_id.docente_id.toString() !== docenteId.toString()) {
-             return res.status(403).json({ message: 'No tienes permiso para añadir temas a este módulo.' });
+        if (!module.learning_path_id.group_id || module.learning_path_id.group_id.docente_id.toString() !== docenteId.toString() || !module.learning_path_id.group_id.activo) {
+             return res.status(403).json({ message: 'No tienes permiso para añadir temas a este módulo, o el grupo está inactivo.' });
         }
         // --- Fin Verificación de Propiedad ---
 
@@ -268,7 +269,7 @@ const assignContentToTheme = async (req, res, next) => {
                 path: 'learning_path_id',
                 populate: { // Pobla el grupo
                     path: 'group_id',
-                    select: 'docente_id' // Solo necesitamos el ID del docente del grupo
+                    select: 'docente_id activo' // Solo necesitamos el ID del docente del grupo
                 }
             }
         });
@@ -279,8 +280,8 @@ const assignContentToTheme = async (req, res, next) => {
 
          // Comprueba si la jerarquía completa existe y si el grupo pertenece al docente (tu lógica existente)
         // CORREGIDO: theme -> module_id -> learning_path_id -> group_id
-        if (!theme.module_id || !theme.module_id.learning_path_id || !theme.module_id.learning_path_id.group_id || !theme.module_id.learning_path_id.group_id.docente_id.equals(req.user._id)) {
-             return res.status(403).json({ message: 'No tienes permiso para añadir contenido a este tema. No te pertenece.' }); // 403 Forbidden
+        if (!theme.module_id || !theme.module_id.learning_path_id || !theme.module_id.learning_path_id.group_id || !theme.module_id.learning_path_id.group_id.docente_id.equals(req.user._id) || !theme.module_id.learning_path_id.group_id.activo) {
+             return res.status(403).json({ message: 'No tienes permiso para añadir contenido a este tema. No te pertenece o el grupo está inactivo.' }); // 403 Forbidden
         }
         // --- Fin Verificación de Tema y Propiedad ---
 
@@ -468,9 +469,9 @@ const getGroupLearningPathsForDocente = async (req, res) => {
 
     try {
         // --- Verificación de Propiedad: Asegurar que el grupo pertenece a este docente ---
-        const group = await Group.findOne({ _id: groupId, docente_id: docenteId });
+        const group = await Group.findOne({ _id: groupId, docente_id: docenteId, activo: true });
         if (!group) {
-            return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece' });
+            return res.status(404).json({ message: 'Grupo no encontrado, no está activo o no te pertenece.' });
         }
         // --- Fin Verificación de Propiedad ---
 
@@ -514,6 +515,10 @@ const getGroupLearningPathsForStudent = async (req, res) => {
         }
         // --- Fin Verificación de Membresía ---
 
+        const group = await Group.findById(groupId); 
+        if (!group || !group.activo) {
+            return res.status(404).json({ message: 'Este grupo ya no está activo o no ha sido encontrado.' });
+        }
 
         // Buscar todas las rutas de aprendizaje asociadas a este grupo
         const learningPaths = await LearningPath.find({ group_id: groupId });
@@ -538,7 +543,7 @@ const getLearningPathStructure = async (req, res) => {
     try {
         // --- Verificación de Permiso: Asegurar que el usuario tiene permiso para ver esta ruta ---
         // Primero, buscar la ruta y poblar el grupo asociado
-        const learningPath = await LearningPath.findById(pathId).populate('group_id');
+        const learningPath = await LearningPath.findById(pathId).populate({ path: 'group_id', select: '_id nombre activo' });
 
         if (!learningPath) {
             return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada' });
@@ -576,7 +581,17 @@ const getLearningPathStructure = async (req, res) => {
 
         // Creamos el objeto de respuesta estructurado jerárquicamente
         const pathStructure = {
-            ...learningPath.toObject(), // Copia los datos de la ruta
+            _id: learningPath._id,
+            nombre: learningPath.nombre,
+            descripcion: learningPath.descripcion,
+            fecha_inicio: learningPath.fecha_inicio,
+            fecha_fin: learningPath.fecha_fin,
+            activo: learningPath.activo,
+            group_id: learningPath.group_id ? { // Ensure group_id is populated
+                _id: learningPath.group_id._id,
+                nombre: learningPath.group_id.nombre,
+                activo: learningPath.group_id.activo
+            } : null,
             modules: [] // Array para los módulos
         };
 
@@ -584,7 +599,10 @@ const getLearningPathStructure = async (req, res) => {
         for (const module of modules) {
             const themes = await Theme.find({ module_id: module._id }).sort('orden');
             const moduleObject = {
-                ...module.toObject(), // Copia los datos del módulo
+                _id: module._id,
+                nombre: module.nombre,
+                descripcion: module.descripcion,
+                orden: module.orden,
                 themes: [] // Array para los temas
             };
 
@@ -592,12 +610,46 @@ const getLearningPathStructure = async (req, res) => {
             for (const theme of themes) {
                 // Buscar asignaciones para este tema y poblar los detalles del contenido (Recurso o Actividad)
                 const assignments = await ContentAssignment.find({ theme_id: theme._id }).sort('orden')
-                    .populate('resource_id') // Pobla los detalles si es un recurso
-                    .populate('activity_id'); // Pobla los detalles si es una actividad (solo se poblará uno)
+                    .populate({ path: 'resource_id', select: '_id title type' }) 
+                    .populate({ path: 'activity_id', select: '_id title type' }); 
 
                  const themeObject = {
-                     ...theme.toObject(), // Copia los datos del tema
-                     assignments: assignments // Añade el array de asignaciones (con contenido poblado)
+                     _id: theme._id,
+                     nombre: theme.nombre,
+                     descripcion: theme.descripcion,
+                     orden: theme.orden,
+                     assignments: assignments.map(assign => {
+                        let resource_details = null;
+                        if (assign.type === 'Resource' && assign.resource_id) {
+                            resource_details = {
+                                _id: assign.resource_id._id,
+                                title: assign.resource_id.title,
+                                type: assign.resource_id.type
+                            };
+                        }
+                        let activity_details = null;
+                        if (assign.type === 'Activity' && assign.activity_id) {
+                            activity_details = {
+                                _id: assign.activity_id._id,
+                                title: assign.activity_id.title,
+                                type: assign.activity_id.type
+                            };
+                        }
+                        return {
+                            _id: assign._id,
+                            type: assign.type,
+                            orden: assign.orden,
+                            status: assign.status,
+                            fecha_inicio: assign.fecha_inicio,
+                            fecha_fin: assign.fecha_fin,
+                            puntos_maximos: assign.puntos_maximos,
+                            // Incluir otros campos directos de ContentAssignmentModel si son esenciales
+                            // visible_a_estudiantes: assign.visible_a_estudiantes, 
+                            // obligatorio: assign.obligatorio,
+                            resource_details: resource_details,
+                            activity_details: activity_details
+                        };
+                    })
                  };
                  moduleObject.themes.push(themeObject); // Añade el tema (con asignaciones) al módulo
             }
@@ -636,7 +688,7 @@ const getMyAssignedLearningPaths = async (req, res) => {
 
         const assignedLearningPaths = await LearningPath.find({
             group_id: { $in: approvedGroupIds }
-        }).populate('group_id', 'nombre');
+        }).populate('group_id', 'nombre activo');
 
         res.status(200).json({
             success: true,
@@ -677,9 +729,9 @@ const updateLearningPath = async (req, res) => {
     }
 
     try {
-        const learningPath = await LearningPath.findById(learningPathId).populate('group_id');
-        if (!learningPath || !learningPath.group_id || !learningPath.group_id.docente_id.equals(docenteId)) {
-            return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada o no te pertenece' });
+        const learningPath = await LearningPath.findById(learningPathId).populate({ path: 'group_id', select: 'nombre docente_id activo' });
+        if (!learningPath || !learningPath.group_id || !learningPath.group_id.docente_id.equals(docenteId) || !learningPath.group_id.activo) {
+            return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada, no te pertenece o el grupo está inactivo.' });
         }
 
         if (nombre !== undefined) {
@@ -718,10 +770,10 @@ const deleteLearningPath = async (req, res) => {
 
     try {
         // Buscar la ruta de aprendizaje por ID y verificar que pertenece al docente autenticado VÍA su grupo
-        const learningPath = await LearningPath.findById(learningPathId).populate('group_id');
+        const learningPath = await LearningPath.findById(learningPathId).populate({ path: 'group_id', select: 'nombre docente_id activo' });
 
-        if (!learningPath || !learningPath.group_id || !learningPath.group_id.docente_id.equals(docenteId)) {
-            return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada o no te pertenece' });
+        if (!learningPath || !learningPath.group_id || !learningPath.group_id.docente_id.equals(docenteId) || !learningPath.group_id.activo) {
+            return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada, no te pertenece o el grupo está inactivo.' });
         }
 
         // Verificar que el nombre proporcionado coincida exactamente
@@ -910,7 +962,7 @@ const updateTheme = async (req, res, next) => { // Añadir 'next'
                 path: 'learning_path_id',
                 populate: { // Pobla el grupo
                     path: 'group_id',
-                    select: 'docente_id' // Solo necesitamos el ID del docente del grupo
+                    select: 'docente_id activo' // Solo necesitamos el ID del docente del grupo
                 }
             }
         });
@@ -920,8 +972,8 @@ const updateTheme = async (req, res, next) => { // Añadir 'next'
         }
 
         // Comprueba si la jerarquía completa existe y si el grupo pertenece al docente
-        if (!themeToUpdate.module_id || !themeToUpdate.module_id.learning_path_id || !themeToUpdate.module_id.learning_path_id.group_id || !themeToUpdate.module_id.learning_path_id.group_id.docente_id.equals(req.user._id)) {
-             return res.status(403).json({ message: 'No tienes permiso para actualizar este tema. No te pertenece.' }); // 403 Forbidden
+        if (!moduleToUpdate.learning_path_id || !moduleToUpdate.learning_path_id.group_id || !moduleToUpdate.learning_path_id.group_id.docente_id.equals(req.user._id) || !moduleToUpdate.learning_path_id.group_id.activo) {
+             return res.status(403).json({ message: 'No tienes permiso para actualizar este módulo. No te pertenece o el grupo está inactivo.' }); // 403 Forbidden
         }
         // --- Fin Verificación de Propiedad ---
 
@@ -965,7 +1017,7 @@ const deleteTheme = async (req, res, next) => { // Añadir 'next'
                 path: 'learning_path_id',
                 populate: { // Pobla el grupo
                     path: 'group_id',
-                    select: 'docente_id' // Solo necesitamos el ID del docente del grupo
+                    select: 'docente_id activo' // Solo necesitamos el ID del docente del grupo
                 }
             }
         });
@@ -975,8 +1027,8 @@ const deleteTheme = async (req, res, next) => { // Añadir 'next'
         }
 
         // Comprueba si la jerarquía completa del tema (módulo, ruta, grupo) existe y si el grupo pertenece al docente
-        if (!theme.module_id || !theme.module_id.learning_path_id || !theme.module_id.learning_path_id.group_id || !theme.module_id.learning_path_id.group_id.docente_id.equals(req.user._id)) {
-             return res.status(403).json({ message: 'No tienes permiso para eliminar este tema. No te pertenece.' }); // 403 Forbidden
+        if (!theme.module_id || !theme.module_id.learning_path_id || !theme.module_id.learning_path_id.group_id || !theme.module_id.learning_path_id.group_id.docente_id.equals(req.user._id) || !theme.module_id.learning_path_id.group_id.activo) {
+             return res.status(403).json({ message: 'No tienes permiso para eliminar este tema. No te pertenece o el grupo está inactivo.' }); // 403 Forbidden
         }
         // --- Fin Verificación de Propiedad del Tema ---
 
@@ -1088,7 +1140,7 @@ const updateContentAssignment = async (req, res, next) => { // Añadir 'next'
                     path: 'learning_path_id',
                     populate: { // Pobla el grupo
                         path: 'group_id',
-                        select: 'docente_id' // Solo necesitamos el ID del docente del grupo
+                            select: 'docente_id activo' // Solo necesitamos el ID del docente del grupo
                     }
                 }
             }
@@ -1099,8 +1151,8 @@ const updateContentAssignment = async (req, res, next) => { // Añadir 'next'
         }
 
         // Comprueba si la jerarquía completa existe y si el grupo pertenece al docente (tu lógica existente)
-        if (!assignmentToUpdate.theme_id || !assignmentToUpdate.theme_id.module_id || !assignmentToUpdate.theme_id.module_id.learning_path_id || !assignmentToUpdate.theme_id.module_id.learning_path_id.group_id || !assignmentToUpdate.theme_id.module_id.learning_path_id.group_id.docente_id.equals(req.user._id)) {
-             return res.status(403).json({ message: 'No tienes permiso para actualizar esta asignación. No te pertenece.' }); // 403 Forbidden
+        if (!assignmentToUpdate.theme_id || !assignmentToUpdate.theme_id.module_id || !assignmentToUpdate.theme_id.module_id.learning_path_id || !assignmentToUpdate.theme_id.module_id.learning_path_id.group_id || !assignmentToUpdate.theme_id.module_id.learning_path_id.group_id.docente_id.equals(req.user._id) || !assignmentToUpdate.theme_id.module_id.learning_path_id.group_id.activo) {
+             return res.status(403).json({ message: 'No tienes permiso para actualizar esta asignación. No te pertenece o el grupo está inactivo.' }); // 403 Forbidden
         }
         // --- Fin Verificación de Propiedad ---
 
@@ -1171,16 +1223,16 @@ const deleteContentAssignment = async (req, res, next) => {
                     path: 'learning_path_id',
                     populate: {
                         path: 'group_id',
-                        select: 'docente_id'
+                            select: 'docente_id activo'
                     }
                 }
             }
         });
 
          // Si por alguna razón no se pudo poblar o encontrar con el populate (aunque findById ya verificó la existencia)
-         if (!assignmentWithOwnership || !assignmentWithOwnership.theme_id || !assignmentWithOwnership.theme_id.module_id || !assignmentWithOwnership.theme_id.module_id.learning_path_id || !assignmentWithOwnership.theme_id.module_id.learning_path_id.group_id || !assignmentWithOwnership.theme_id.module_id.learning_path_id.group_id.docente_id.equals(req.user._id)) {
+         if (!assignmentWithOwnership || !assignmentWithOwnership.theme_id || !assignmentWithOwnership.theme_id.module_id || !assignmentWithOwnership.theme_id.module_id.learning_path_id || !assignmentWithOwnership.theme_id.module_id.learning_path_id.group_id || !assignmentWithOwnership.theme_id.module_id.learning_path_id.group_id.docente_id.equals(req.user._id) || !assignmentWithOwnership.theme_id.module_id.learning_path_id.group_id.activo) {
               // Usamos el themeId y deletedOrder obtenidos antes, pero la verificación es sobre el documento populado
-              return res.status(403).json({ message: 'No tienes permiso para eliminar esta asignación. No te pertenece.' }); // 403 Forbidden
+              return res.status(403).json({ message: 'No tienes permiso para eliminar esta asignación. No te pertenece o el grupo está inactivo.' }); // 403 Forbidden
          }
         // --- Fin Verificación de Propiedad ---
 
@@ -1254,7 +1306,7 @@ const getContentAssignmentById = async (req, res, next) => {
                          path: 'learning_path_id',
                          populate: {
                              path: 'group_id',
-                             select: 'docente_id' // Asegurarse de traer el docente_id del grupo
+                                 select: 'docente_id activo' // Asegurarse de traer el docente_id del grupo
                          }
                      }
                  }
@@ -1272,8 +1324,9 @@ const getContentAssignmentById = async (req, res, next) => {
             !assignment.theme_id.module_id ||
             !assignment.theme_id.module_id.learning_path_id ||
             !assignment.theme_id.module_id.learning_path_id.group_id ||
-            !assignment.theme_id.module_id.learning_path_id.group_id.docente_id.equals(req.user._id)) {
-            return res.status(403).json({ message: 'No tienes permiso para ver esta asignación.' }); // 403 Forbidden
+            !assignment.theme_id.module_id.learning_path_id.group_id.docente_id.equals(req.user._id) ||
+            !assignment.theme_id.module_id.learning_path_id.group_id.activo ) {
+            return res.status(403).json({ message: 'No tienes permiso para ver esta asignación o el grupo está inactivo.' }); // 403 Forbidden
         }
 
         // Construir la respuesta incluyendo el tipo/subtipo del contenido asociado
