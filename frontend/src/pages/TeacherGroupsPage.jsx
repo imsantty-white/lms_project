@@ -50,13 +50,13 @@ function TeacherGroupsPage() {
   // *** Obtén isAuthInitialized del hook useAuth ***
   const { user, isAuthenticated, isAuthInitialized } = useAuth(); // <-- Añade isAuthInitialized
 
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
   const [groups, setGroups] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentTab, setCurrentTab] = useState('active'); // State for current tab
 
-  const hasShownSuccessToast = useRef(false);
+  const _hasShownSuccessToast = useRef(false);
 
 
   // --- NUEVOS ESTADOS PARA MODAL DE CREAR GRUPO Y SU CONFIRMACIÓN (mantener) ---
@@ -306,7 +306,7 @@ function TeacherGroupsPage() {
             <List dense sx={{ width: '100%', p: 0 }}>
               {groups.map((group) => (
                 <Paper key={group._id} sx={{ mb: 2, width: '100%' }}>
-                  <ListItemButton
+                  <ListItem
                     component={Link} // Asegúrate de que Link esté importado de react-router-dom
                     to={`/teacher/groups/${group._id}/manage`}
                     sx={{ p: 2, width: '100%' }}

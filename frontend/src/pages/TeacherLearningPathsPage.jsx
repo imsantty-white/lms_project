@@ -334,7 +334,12 @@ function TeacherLearningPathsPage() {
       <Box sx={{ mt: 4 }}>
         {/* --- Encabezado y botón Crear Ruta de Aprendizaje --- */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4" gutterBottom sx={{ mb: 0 }}>Mis Rutas de Aprendizaje</Typography>
+          <Box>
+            <Typography variant="h4" gutterBottom sx={{ mb: 2 }}>Mis Rutas de Aprendizaje</Typography>
+            <Typography variant="body1" color="text.secondary"> 
+              Gestiona tus rutas de aprendizaje y los contenidos asignados.
+            </Typography>
+          </Box>
           {/* Botón para crear nueva Ruta de Aprendizaje */}
           <Button
             variant="contained"

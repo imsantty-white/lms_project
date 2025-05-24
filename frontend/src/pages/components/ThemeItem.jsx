@@ -36,7 +36,7 @@ const ThemeItem = React.memo(({
   isAnyOperationInProgress
 }) => {
   return (
-    <Paper sx={{ mb: 1, ml: 2, border: '1px solid #eee' }}>
+    <Paper sx={{ mb: 1, ml: 2, boxShadow: 5 }}>
       <Accordion expanded={expanded} onChange={onAccordionChange}>
         <AccordionSummary
           expandIcon={<ExpandMoreIcon />}
@@ -54,7 +54,7 @@ const ThemeItem = React.memo(({
                 onEditTheme(theme);
               }}
               disabled={isAnyOperationInProgress}
-              sx={{ mr: 1 }}
+              sx={{ mr: 2 }}
             >
               <EditIcon fontSize="small" />
             </IconButton>
@@ -66,6 +66,7 @@ const ThemeItem = React.memo(({
                 onDeleteTheme(theme._id);
               }}
               disabled={isAnyOperationInProgress}
+              sx={{ mr: 2 }}
             >
               <DeleteIcon fontSize="small" />
             </IconButton>
@@ -79,14 +80,15 @@ const ThemeItem = React.memo(({
             <Button
               variant="outlined"
               size="small"
+              color="text.primary"
               startIcon={<AddCircleOutlinedIcon />}
               onClick={() => onAddContentAssignment(theme._id, theme.nombre)}
               disabled={isAnyOperationInProgress}
             >
-              Añadir Contenido
+              Asignar Contenido
             </Button>
           </Stack>
-          <Divider sx={{ borderStyle: 'dashed', my: 2 }} />
+          <Divider sx={{ borderStyle: 'dashed', borderColor: 'primary.main', my: 2 }} />
           <Typography variant="subtitle1" sx={{ mt: 2, mb: 1 }}>
             Contenido:
           </Typography>

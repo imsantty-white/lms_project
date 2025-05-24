@@ -41,7 +41,7 @@ const ModuleItem = React.memo(({
   isAnyOperationInProgress
 }) => {
   return (
-    <Paper sx={{ mb: 2 }}>
+    <Paper sx={{ mb: 2, boxShadow: 3 }}>
       <Accordion expanded={expanded} onChange={onAccordionChange}>
         <AccordionSummary
           expandIcon={<ExpandMoreIcon />}
@@ -81,18 +81,19 @@ const ModuleItem = React.memo(({
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             {module.descripcion}
           </Typography>
-          <Stack direction="row" spacing={1} sx={{ mb: 2 }} alignItems="center">
+          <Stack direction="row" spacing={1} sx={{ mb: 2 }} alignItems="center" justifyContent="flex-end">
             <Button
               variant="outlined"
               size="small"
+              color="text.primary"
               startIcon={<AddCircleOutlinedIcon />}
               onClick={() => onCreateTheme(module._id)}
               disabled={isAnyOperationInProgress}
             >
-              Añadir Tema
+              Nuevo Tema
             </Button>
           </Stack>
-          <Divider sx={{ borderStyle: 'dashed', my: 2 }} />
+          <Divider sx={{ borderStyle: 'dashed', borderColor: 'primary.main', my: 2 }} />
           <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Temas:</Typography>
           {module.themes && module.themes.length > 0 ? (
             <List dense disablePadding>

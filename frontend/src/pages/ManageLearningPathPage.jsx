@@ -1,5 +1,5 @@
 // src/pages/ManageLearningPathPage.jsx
-import React, {useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useReducer } from 'react'; // Added useReducer
 import { useParams } from 'react-router-dom';
 // Componentes de Material UI
 import {
@@ -60,7 +60,6 @@ import ModuleItem from '../pages/components/ModuleItem';
 // ThemeItem and AssignmentItem will be used by ModuleItem
 
 
-import React, { useCallback, useEffect, useState, useReducer } from 'react'; // Added useReducer
 
 // --- BEGIN Reducer and Initial State for Module Modals ---
 const initialModuleModalState = {
@@ -794,11 +793,15 @@ function ManageLearningPathPage() {
     <Container>
       <Box sx={{ mt: 4 }}>
         {/* Título y Datos de la Ruta */}
-        <Typography variant="h4" gutterBottom>
+        
+          <Typography color="text.secondary" variant="h4" gutterBottom>
+            Ruta de Aprendizaje: 
+          </Typography>
+          <Typography variant="h4" align="center" gutterBottom>
           {learningPath.nombre}
         </Typography>
 
-        <Paper sx={{ p: 2, mb: 3 }}>
+        <Paper sx={{ p: 2, mb: 3, width: '40%', textAlign: 'center', margin: ' auto' }}>
           <Typography variant="h6" gutterBottom>
             Información de la Ruta
           </Typography>
@@ -826,10 +829,25 @@ function ManageLearningPathPage() {
         </Paper>
 
         {/* --- Renderizar Módulos --- */}
-        <Typography variant="h5" gutterBottom sx={{ mt: 4 }}>Estructura de la Ruta:</Typography>
+        <Box display="flex" flexDirection="row" alignItems="center" justifyContent="space-between" sx={{ mt: 3 }}>
+          <Typography variant="h5" align="left" gutterBottom sx={{ mt: 2}}>
+            Estructura de la Ruta
+          </Typography>
+          
+          {/* Botón de Acción General (Añadir Módulo) */}
+          <Button
+            variant="outlined"
+            color="primary.text"
+            startIcon={<AddCircleOutlinedIcon />}
+            onClick={handleOpenCreateModuleModal}
+            disabled={isAnyOperationInProgress}
+          >
+            Nuevo Módulo
+          </Button>
+        </Box>
 
         {learningPath.modules && learningPath.modules.length > 0 ? (
-          <List sx={{ width: '100%', p: 0 }}>
+          <List sx={{ width: '100%', p: 0, alignItems: 'center', margin: '0 auto' }}>
             {learningPath.modules.map((module, moduleIndex) => (
               <ModuleItem
                 key={module._id}
@@ -858,12 +876,6 @@ function ManageLearningPathPage() {
         ) : (
           <Alert severity="info"> Esta ruta de aprendizaje aún no tiene módulos. </Alert>
         )}
-
-
-        {/* Botones de Acción General (Añadir Módulo, etc.) - actualiza disabled para todos */}
-        <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
-          <Button variant="contained" startIcon={<AddCircleOutlinedIcon />} onClick={handleOpenCreateModuleModal} disabled={isAnyOperationInProgress}> Añadir Módulo </Button>
-        </Stack>
 
 
         {/* --- Modales y Diálogos --- */}

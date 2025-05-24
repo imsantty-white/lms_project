@@ -543,7 +543,7 @@ const getLearningPathStructure = async (req, res) => {
     try {
         // --- Verificación de Permiso: Asegurar que el usuario tiene permiso para ver esta ruta ---
         // Primero, buscar la ruta y poblar el grupo asociado
-        const learningPath = await LearningPath.findById(pathId).populate({ path: 'group_id', select: '_id nombre activo' });
+        const learningPath = await LearningPath.findById(pathId).populate({ path: 'group_id', select: '_id nombre activo docente_id' });
 
         if (!learningPath) {
             return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada' });
@@ -610,7 +610,7 @@ const getLearningPathStructure = async (req, res) => {
             for (const theme of themes) {
                 // Buscar asignaciones para este tema y poblar los detalles del contenido (Recurso o Actividad)
                 const assignments = await ContentAssignment.find({ theme_id: theme._id }).sort('orden')
-                    .populate({ path: 'resource_id', select: '_id title type' }) 
+                    .populate({ path: 'resource_id', select: '_id title type link_url video_url content_body' }) 
                     .populate({ path: 'activity_id', select: '_id title type' }); 
 
                  const themeObject = {
@@ -618,38 +618,31 @@ const getLearningPathStructure = async (req, res) => {
                      nombre: theme.nombre,
                      descripcion: theme.descripcion,
                      orden: theme.orden,
-                     assignments: assignments.map(assign => {
-                        let resource_details = null;
-                        if (assign.type === 'Resource' && assign.resource_id) {
-                            resource_details = {
-                                _id: assign.resource_id._id,
-                                title: assign.resource_id.title,
-                                type: assign.resource_id.type
-                            };
-                        }
-                        let activity_details = null;
-                        if (assign.type === 'Activity' && assign.activity_id) {
-                            activity_details = {
-                                _id: assign.activity_id._id,
-                                title: assign.activity_id.title,
-                                type: assign.activity_id.type
-                            };
-                        }
-                        return {
-                            _id: assign._id,
-                            type: assign.type,
-                            orden: assign.orden,
-                            status: assign.status,
-                            fecha_inicio: assign.fecha_inicio,
-                            fecha_fin: assign.fecha_fin,
-                            puntos_maximos: assign.puntos_maximos,
-                            // Incluir otros campos directos de ContentAssignmentModel si son esenciales
-                            // visible_a_estudiantes: assign.visible_a_estudiantes, 
-                            // obligatorio: assign.obligatorio,
-                            resource_details: resource_details,
-                            activity_details: activity_details
-                        };
-                    })
+                     assignments: assignments.map(assign => ({
+                        _id: assign._id,
+                        type: assign.type,
+                        orden: assign.orden,
+                        status: assign.status,
+                        fecha_inicio: assign.fecha_inicio,
+                        fecha_fin: assign.fecha_fin,
+                        puntos_maximos: assign.puntos_maximos,
+                        // Incluir otros campos directos de ContentAssignmentModel si son esenciales
+                        // visible_a_estudiantes: assign.visible_a_estudiantes, 
+                        // obligatorio: assign.obligatorio,
+                        resource_id: assign.type === 'Resource' && assign.resource_id ? {
+                            _id: assign.resource_id._id,
+                            title: assign.resource_id.title,
+                            type: assign.resource_id.type,
+                            link_url: assign.resource_id.link_url,
+                            video_url: assign.resource_id.video_url,
+                            content_body: assign.resource_id.content_body
+                        } : null,
+                        activity_id: assign.type === 'Activity' && assign.activity_id ? {
+                            _id: assign.activity_id._id,
+                            title: assign.activity_id.title,
+                            type: assign.activity_id.type
+                        } : null,
+                    }))
                  };
                  moduleObject.themes.push(themeObject); // Añade el tema (con asignaciones) al módulo
             }
@@ -1064,7 +1057,7 @@ const updateContentAssignment = async (req, res, next) => { // Añadir 'next'
     const { fecha_inicio, fecha_fin, puntos_maximos, intentos_permitidos, tiempo_limite } = req.body;
 
     // *** Validación de entrada mejorada ***
-    // *** REMOVER 'orden' de los campos permitidos ***
+    // *** REMOVER VALIDACIÓN DE 'orden' AQUÍ ***
     const allowedFields = ['fecha_inicio', 'fecha_fin', 'puntos_maximos', 'intentos_permitidos', 'tiempo_limite'];
     const updateData = {}; // Objeto para construir solo los campos que se van a actualizar
 
@@ -1480,6 +1473,7 @@ const getStudentActivitiesForLearningPath = async (req, res) => {
 
     // 1. Buscar todos los temas de la ruta
     const modules = await Module.find({ learning_path_id: learningPathId });
+
     const moduleIds = modules.map(m => m._id);
     const themes = await Theme.find({ module_id: { $in: moduleIds } });
     const themeIds = themes.map(t => t._id);

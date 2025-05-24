@@ -39,13 +39,6 @@ import WorkIcon from '@mui/icons-material/Work';
 
 // Importar useAuth (ahora incluyendo isAuthInitialized) Y axiosInstance (mantener)
 import { useAuth, axiosInstance } from '../contexts/AuthContext';
-
-// Eliminar la importación de axios si ya no la usas directamente (ya lo tenías)
-// import axios from 'axios';
-
-// Eliminar la importación de API_BASE_URL si axiosInstance ya la tiene configurada (ya lo tenías)
-// import { API_BASE_URL } from '../utils/constants';
-
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns'; // Para formatear fechas si es necesario
@@ -83,7 +76,7 @@ const translateAssignmentStatus = (status) => {
   switch (status.toLowerCase()) {
     case 'open': return 'Abierto';
     case 'closed': return 'Cerrado';
-    case 'draft': return 'Borrador';
+    case 'draft': return 'Proximamente';
     default: return status.charAt(0).toUpperCase() + status.slice(1);
   }
 };
@@ -388,7 +381,7 @@ function StudentViewLearningPathPage() {
                                                   {/* Mostrar estado de la asignación */}
                                                   {assignment.status && (
                                                     <Chip
-                                                      label={`Estado: ${translateAssignmentStatus(assignment.status)}`}
+                                                      label={`${translateAssignmentStatus(assignment.status)}`}
                                                       size="small"
                                                       variant="filled"
                                                       color={assignment.status === 'Open' ? 'success' : assignment.status === 'Closed' ? 'error' : 'default'}

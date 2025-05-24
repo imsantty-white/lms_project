@@ -143,7 +143,7 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
       elevation={0}
       sx={{
         background: 'rgba(255,255,255,0)', // Fondo blanco semitransparente
-        //backdropFilter: 'blur(8px)',         // Efecto de desenfoque
+        backdropFilter: 'blur(8px)',         // Efecto de desenfoque
         boxShadow: 'none',
         color: '#222',
         zIndex: (theme) => theme.zIndex.drawer + 1, // Para que quede sobre el sidebar
@@ -186,18 +186,6 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
           LMS - Learning Management System
         </Typography>
 
-        {/* Botón modo día/noche */}
-        <IconButton
-          color="inherit"
-          onClick={onToggleMode}
-          sx={{
-            ml: 1,
-            color: mode === 'dark' ? '#fff' : '#222',
-          }}
-        >
-          {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
-        </IconButton>
-
         {isAuthenticated && (
           <>
             <IconButton
@@ -239,6 +227,18 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
             >
               {`${user?.nombre || ''} ${user?.apellidos || ''}`.trim() || user?.email || 'Usuario'}
             </Typography>
+            {/* Botón modo día/noche */}
+            <IconButton
+              color="inherit"
+              onClick={onToggleMode}
+              sx={{
+                ml: 1,
+                color: mode === 'dark' ? '#fff' : '#222',
+              }}
+            >
+              {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
+            </IconButton>
+            {/* Botón de cierre de sesión */}
             <IconButton
               color="inherit"
               onClick={handleLogout}

@@ -110,7 +110,7 @@ const AssignmentItem = React.memo(({
                   )}
                   {assignment.status && (
                     <Chip
-                      label={`Estado: ${statusLabel}`}
+                      label={`${statusLabel}`}
                       size="small"
                       variant="filled"
                       color={

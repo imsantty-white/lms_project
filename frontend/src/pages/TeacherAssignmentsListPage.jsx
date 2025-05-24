@@ -306,7 +306,7 @@ function TeacherAssignmentsListPage() {
         {/* Header con título y acciones */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
           <Box>
-            <Typography variant="h4" fontWeight="500">
+            <Typography variant="h4" fontWeight="500" mb={2}>
               Todas Las Actividades Asignadas
             </Typography>
             <Typography variant="body1" color="text.secondary">
