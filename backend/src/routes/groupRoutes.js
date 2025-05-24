@@ -195,7 +195,7 @@ router.get('/docente/me', protect, authorize('Docente'), getMyOwnedGroups);
  *       200:
  *         description: Grupo actualizado
  */
-router.put('/:groupId', authorize('Docente'), updateGroup);
+router.put('/:groupId', protect, authorize('Docente'), updateGroup);
 
 /**
  * @swagger
@@ -215,7 +215,7 @@ router.put('/:groupId', authorize('Docente'), updateGroup);
  *       200:
  *         description: Grupo eliminado
  */
-router.delete('/:groupId', authorize('Docente'), deleteGroup);
+router.delete('/:groupId', protect, authorize('Docente'), deleteGroup);
 
 /**
  * @swagger
@@ -240,12 +240,12 @@ router.delete('/:groupId', authorize('Docente'), deleteGroup);
  *       200:
  *         description: Estudiante eliminado del grupo
  */
-router.delete('/:groupId/students/:studentId', authorize('Docente'), removeStudentFromGroup);
+router.delete('/:groupId/students/:studentId', protect, authorize('Docente'), removeStudentFromGroup);
 
-// Route for teachers to remove a specific membership by its ID from a group
+// Ruta para eliminar una membresía por ID
 router.delete('/:groupId/memberships/:membershipId', protect, authorize('Docente'), removeMembershipById);
 
-// Route for teachers to restore an archived group
+// Ruta para restaurar un grupo eliminado
 router.put('/:groupId/restore', protect, authorize(['Docente']), restoreGroup);
 
 module.exports = router;
