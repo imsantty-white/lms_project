@@ -31,13 +31,6 @@ import RestoreIcon from '@mui/icons-material/Restore'; // Icon for unarchive/res
 
 // *** Importar useAuth Y axiosInstance ***
 import { useAuth, axiosInstance } from '../contexts/AuthContext'; // <-- Importa axiosInstance aquí
-
-// *** Eliminar la importación de 'axios' si ya no la usas directamente ***
-// import axios from 'axios';
-
-// *** Eliminar la importación de API_BASE_URL si axiosInstance ya la tiene configurada ***
-// import { API_BASE_URL } from '../utils/constants';
-
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 
@@ -56,7 +49,7 @@ function TeacherGroupsPage() {
   const [error, setError] = useState(null);
   const [currentTab, setCurrentTab] = useState('active'); // State for current tab
 
-  const _hasShownSuccessToast = useRef(false);
+  const _hasShownSuccessToast = useRef({ active: false, archived: false });
 
 
   // --- NUEVOS ESTADOS PARA MODAL DE CREAR GRUPO Y SU CONFIRMACIÓN (mantener) ---
@@ -81,14 +74,11 @@ function TeacherGroupsPage() {
     const fetchTeacherGroups = async () => {
       setIsLoading(true);
       setError(null);
-      // Resetting toast ref for each fetch attempt based on tab
-      // hasShownSuccessToast.current = false; // This might be too noisy if reset on every tab change. Let's manage it carefully.
 
       let endpoint = '/api/groups/docente/me';
       if (currentTab === 'archived') {
         endpoint = '/api/groups/docente/me?status=archived';
       } else {
-        // Default to active, or explicitly for 'active' tab
         endpoint = '/api/groups/docente/me?status=active';
       }
 
@@ -96,10 +86,11 @@ function TeacherGroupsPage() {
         const response = await axiosInstance.get(endpoint);
         setGroups(response.data.data);
 
-        // Show success toast only once per successful load of a tab, or adjust as needed
-        // For simplicity, let's show it every time a tab loads successfully for now.
-        toast.success(`Grupos ${currentTab === 'active' ? 'activos' : 'archivados'} cargados con éxito.`);
-        
+        // Solo muestra el toast si no se ha mostrado para este tab
+        if (!_hasShownSuccessToast.current[currentTab]) {
+          toast.success(`Grupos ${currentTab === 'active' ? 'activos' : 'archivados'} cargados con éxito.`);
+          _hasShownSuccessToast.current[currentTab] = true;
+        }
       } catch (err) {
         console.error(`Error al obtener los grupos (${currentTab}) del docente:`, err.response ? err.response.data : err.message);
         const errorMessage = err.response && err.response.data && err.response.data.message
