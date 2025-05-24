@@ -179,6 +179,10 @@ function App() {
                     path="/profile"
                     element={<ProtectedRoute element={<UserProfilePage />} allowedRoles={['Estudiante', 'Docente', 'Administrador']} />}
                   />
+                  <Route
+                    path="/profile/:userId"
+                    element={<ProtectedRoute element={<UserProfilePage />} allowedRoles={['Estudiante', 'Docente', 'Administrador']} />}
+                  />
 
                   {/* Puedes añadir una ruta para manejar 404 - Página no encontrada */}
                   {/* <Route path="*" element={<div>404 Not Found</div>} /> */}

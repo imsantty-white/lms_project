@@ -32,7 +32,6 @@ import {
   CalendarToday as CalendarIcon,
   Check as CheckIcon
 } from '@mui/icons-material';
-// axiosInstance is already imported via useAuth line
 import { toast } from 'react-toastify';
 
 const tiposIdentificacion = [
@@ -165,25 +164,17 @@ function UserProfilePage() {
   useEffect(() => {
     const loadProfile = async () => {
       setLoading(true);
-      let apiUrl = '/api/profile'; // Default to own profile
-      let viewingUserId = currentUser?._id;
+      let apiUrl = '/api/profile'; // Por defecto: perfil propio
 
+      // Si hay userId en la URL, decide el endpoint según el rol
       if (userIdFromParams) {
-        apiUrl = `/api/profile/${userIdFromParams}`;
-        viewingUserId = userIdFromParams;
-      }
-      
-      if (!currentUser || !currentUser._id) {
-        // If currentUser is not yet available, might need to wait or handle
-        // For now, if we don't have currentUser and no params, we can't do much.
-        // This case should ideally be handled by AuthContext initialization.
-        // If viewing other's profile, currentUser is needed to determine isOwnProfile.
-        // If viewing own, currentUser is needed for the default API URL.
-        // console.log("Current user or user ID not available yet.");
-        // toast.error("No se pudo determinar el usuario actual.");
-        // setLoading(false); // Stop loading if we can't proceed
-        // return;
-        // For now, let's assume currentUser will be available or the effect will re-run.
+        if (currentUser?.tipo_usuario === 'Administrador') {
+          apiUrl = `/api/profile/admin/${userIdFromParams}`;
+        } else if (currentUser?.tipo_usuario === 'Docente') {
+          apiUrl = `/api/profile/${userIdFromParams}`;
+        } else {
+          apiUrl = '/api/profile'; // Estudiante solo puede ver su propio perfil
+        }
       }
 
       try {
@@ -191,38 +182,28 @@ function UserProfilePage() {
         setProfile(res.data);
         setForm(res.data);
 
-        // Determine if this is the user's own profile
+        // Determina si es el propio perfil
         if (currentUser && res.data && currentUser._id === res.data._id) {
           setIsOwnProfile(true);
         } else {
           setIsOwnProfile(false);
-          setEdit(false); // Ensure edit mode is off if not own profile
+          setEdit(false);
         }
-
       } catch (error) {
         console.error("Error loading profile:", error);
         const errorMsg = error.response?.data?.message || 'Error al cargar el perfil';
         toast.error(errorMsg);
-        // If profile load fails (e.g. 403, 404), it might not be own profile or not found
         setIsOwnProfile(false); 
         setEdit(false);
       } finally {
         setLoading(false);
       }
     };
-    
-    // Only load if currentUser is available, or if viewing a specific user's profile (param exists)
+
     if (currentUser?._id || userIdFromParams) {
-        loadProfile();
-    } else {
-        // This handles the case where AuthContext might not be initialized yet.
-        // We don't want to make an API call to /api/profile if currentUser is null.
-        // setLoading can be set to false if we know we can't load yet, or rely on re-run.
-        // If isAuthInitialized from useAuth is available, that can be a dependency.
-        // For now, this check prevents calls with undefined currentUser._id for own profile.
-        // If userIdFromParams is present, the call will be made, and backend will authorize.
+      loadProfile();
     }
-  }, [userIdFromParams, currentUser?._id]); // Re-run if param changes or current user ID changes
+  }, [userIdFromParams, currentUser?._id]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -354,11 +335,11 @@ function UserProfilePage() {
           {/* Content Section */}
           <Card sx={{ m: 0, borderRadius: 0 }}>
             <CardContent sx={{ p: 4 }}>
-              <Typography variant="h6" gutterBottom color="primary" fontWeight="bold" mb={3}>
+              <Typography variant="h6" gutterBottom color="theme.palette.text.primary" fontWeight="bold" mb={3}>
                 Información Personal
               </Typography>
               
-              <Grid container spacing={2}>
+              <Grid container spacing={2} >
                 <ProfileField
                   icon={<LabelIcon />}
                   label="Nombre"

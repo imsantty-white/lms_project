@@ -124,22 +124,16 @@ const requestJoinGroup = async (req, res) => {
       // --- Fin Buscar grupo ---
 
 
-      // --- Verificar si el estudiante ya es miembro o ya envió una solicitud pendiente ---
+      // --- Verificar si el estudiante ya tiene cualquier membresía en este grupo ---
       const existingMembership = await Membership.findOne({
           usuario_id: userId,
-          grupo_id: group._id,
-          // Podemos verificar por cualquier estado (Pendiente, Aprobado) para evitar duplicados,
-          // o solo por Pendiente/Aprobado si permitimos reenviar después de rechazo.
-          // Para empezar, verifiquemos Pendiente o Aprobado:
-          estado_solicitud: { $in: ['Pendiente', 'Aprobado'] }
+          grupo_id: group._id
       });
 
       if (existingMembership) {
-          let message = 'Ya eres miembro de este grupo.';
-          if (existingMembership.estado_solicitud === 'Pendiente') {
-              message = 'Ya enviaste una solicitud a este grupo y está pendiente de aprobación.';
-          }
-          return res.status(400).json({ message: message });
+          return res.status(400).json({
+              message: 'Ya tienes una solicitud o membresía para este grupo. No puedes enviar otra hasta que sea eliminada.'
+          });
       }
       // --- Fin Verificar membresía existente ---
 
@@ -483,43 +477,45 @@ const getMyOwnedGroups = async (req, res) => {
 // @route   GET /api/groups/my-memberships
 // Acceso: Privado
 const getMyMembershipsWithStatus = async (req, res) => {
-  const userId = req.user._id; // Obtenemos el ID del usuario autenticado del objeto req.user (gracias al middleware protect)
+  const userId = req.user._id;
 
   try {
-    // 1. Buscar todas las membresías asociadas a este usuario, sin filtrar por estado
-    // 2. Poblar la información completa del grupo asociado (grupo_id)
-    // 3. Dentro del grupo, poblar también la información del docente (si necesitas el nombre del docente, por ejemplo)
+    // 1. Buscar todas las membresías asociadas a este usuario
     const membershipsWithGroups = await Membership.find({ usuario_id: userId })
       .populate({
-        path: 'grupo_id', // El campo en Membership que referencia al Grupo
-        select: 'nombre codigo_acceso docente_id', // Campos del Grupo que queremos incluir
-        populate: { // Anidar población: dentro del grupo, poblar el docente
-          path: 'docente_id', // El campo en Grupo que referencia al Docente
-          model: 'User', // Explicitly state the model for clarity, good practice
-          select: 'nombre apellidos' // Campos del Docente que queremos incluir
+        path: 'grupo_id',
+        select: 'nombre codigo_acceso docente_id',
+        populate: {
+          path: 'docente_id',
+          model: 'User',
+          select: 'nombre apellidos'
         }
-      });
+      })
+      .sort({ createdAt: -1 }); // Ordena por la más reciente primero
 
-    // 4. Mapear los resultados para construir la respuesta para el frontend
-    const studentGroups = membershipsWithGroups.map(membership => ({
-      // Incluye los detalles del grupo poblado
-      _id: membership.grupo_id._id, // ID del grupo
-      nombre: membership.grupo_id.nombre, // Nombre del grupo
-      codigo_acceso: membership.grupo_id.codigo_acceso, // Código de acceso del grupo
-      // Información del docente poblado (si existe)
+    // 2. Filtrar para dejar solo la membresía más reciente por grupo
+    const uniqueGroups = new Map();
+    for (const membership of membershipsWithGroups) {
+      const groupId = membership.grupo_id?._id?.toString();
+      if (groupId && !uniqueGroups.has(groupId)) {
+        uniqueGroups.set(groupId, membership);
+      }
+    }
+
+    // 3. Mapear la respuesta como antes, pero usando solo la membresía más reciente por grupo
+    const studentGroups = Array.from(uniqueGroups.values()).map(membership => ({
+      _id: membership.grupo_id._id,
+      nombre: membership.grupo_id.nombre,
+      codigo_acceso: membership.grupo_id.codigo_acceso,
       docente: membership.grupo_id.docente_id ? {
-          _id: membership.grupo_id.docente_id._id,
-          nombre: membership.grupo_id.docente_id.nombre, // Nombre del docente
-          apellidos: membership.grupo_id.docente_id.apellidos
+        _id: membership.grupo_id.docente_id._id,
+        nombre: membership.grupo_id.docente_id.nombre,
+        apellidos: membership.grupo_id.docente_id.apellidos
       } : null,
-      // Incluye el estado de la solicitud de la membresía actual
-      student_status: membership.estado_solicitud, // Mapeamos el nombre backend 'estado_solicitud' a frontend 'student_status'
-      // Incluye el ID de la membresía por si es necesario para acciones futuras (ej: cancelar solicitud)
+      student_status: membership.estado_solicitud,
       membership_id: membership._id
-      // Puedes añadir otras propiedades del grupo desde membership.grupo_id si las necesitas
     }));
 
-    // 5. Enviar la respuesta con la lista de grupos y sus estados
     res.status(200).json(studentGroups);
 
   } catch (error) {
@@ -527,6 +523,7 @@ const getMyMembershipsWithStatus = async (req, res) => {
     res.status(500).json({ message: 'Error interno del servidor al obtener tus grupos y estados.', error: error.message });
   }
 };
+
 
 // @desc    Actualizar detalles del grupo (nombre, limite_estudiantes)
 // @route   PUT /api/groups/:groupId

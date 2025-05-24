@@ -14,7 +14,7 @@ const protect = async (req, res, next) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
       // Busca el usuario y verifica que esté activo y aprobado
-      req.user = await User.findById(decoded.id).select('-contrasena_hash');
+      req.user = await User.findById(decoded._id).select('-contrasena_hash');
 
       if (!req.user) {
         console.error('Authentication failed: User not found for token ID.');

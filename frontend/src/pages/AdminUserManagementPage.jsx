@@ -1,6 +1,7 @@
 // src/pages/AdminUserManagementPage.jsx
 
 import React, { useEffect, useState, useRef } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -16,201 +17,145 @@ import {
   TableRow,
   Chip,
   Button,
-  Stack // Importa Stack si lo usas para alinear botones
+  Link,
+  Stack
 } from '@mui/material';
-
-// *** Importar useAuth (ahora incluyendo isAuthInitialized) Y axiosInstance ***
-// Eliminamos la importación de axios y API_BASE_URL si usas axiosInstance
-import { useAuth, axiosInstance } from '../contexts/AuthContext'; // <-- MODIFICADO
-
-// import axios from 'axios'; // <-- ELIMINADO
-// import { API_BASE_URL } from '../utils/constants'; // <-- ELIMINADO
-
+import { useAuth, axiosInstance } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
 
 // Import reusable components
 import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
-import GroupIcon from '@mui/icons-material/Group'; // Example icon for EmptyState
-
+import GroupIcon from '@mui/icons-material/Group';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 function AdminUserManagementPage() {
-    // *** Usar useAuth para obtener user, isAuthenticated, Y isAuthInitialized ***
-    const { user, isAuthenticated, isAuthInitialized } = useAuth(); // <-- MODIFICADO
+    const { user, isAuthenticated, isAuthInitialized } = useAuth();
 
-    const [users, setUsers] = useState([]); // Estado para la lista de usuarios
-    // Estado de carga general para la lista de usuarios, ahora incluye espera por auth
+    const [users, setUsers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState(null); // Estado de error para la lista de usuarios
-
-    // Estado para manejar la carga de acciones individuales (aprobar docente, cambiar estado)
+    const [error, setError] = useState(null);
     const [actionLoading, setActionLoading] = useState({});
-
-    // Referencia para controlar el toast de éxito al cargar la lista (opcional, mantenido de tu código)
     const hasShownListSuccessToast = useRef(false);
 
+    // Estado para el modal de confirmación
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalAction, setModalAction] = useState(() => () => {});
+    const [modalMessage, setModalMessage] = useState('');
 
-    // useEffect para obtener la lista de usuarios
     useEffect(() => {
-        // *** Solo proceder si la autenticación ha terminado de inicializar ***
-        if (isAuthInitialized) { // <-- Lógica añadida
+        if (isAuthInitialized) {
             const fetchUsers = async () => {
-                // Verificar rol después de que auth inicialice
-                if (!isAuthenticated || user?.userType !== 'Administrador') { // <-- Lógica de rol que ya tenías
-                    setIsLoading(false); // Parar carga
-                    setError('No tienes permiso para ver esta página.'); // Mostrar error de permiso
-                    return; // Salir del fetch
+                if (!isAuthenticated || user?.userType !== 'Administrador') {
+                    setIsLoading(false);
+                    setError('No tienes permiso para ver esta página.');
+                    return;
                 }
 
-                setIsLoading(true); // Activar carga para el fetch
-                setError(null); // Limpiar errores previos
-                hasShownListSuccessToast.current = false; // Restablece la referencia
+                setIsLoading(true);
+                setError(null);
+                hasShownListSuccessToast.current = false;
 
                 try {
-                    // --- Petición GET al backend usando axiosInstance ---
-                    // Asume que axiosInstance ya tiene la URL base configurada
-                    const response = await axiosInstance.get('/api/admin/users'); // <-- MODIFICADO
+                    const response = await axiosInstance.get('/api/admin/users');
+                    setUsers(response.data.data);
 
-                    // Asume que el backend devuelve un array de objetos de usuario en response.data.data
-                    setUsers(response.data.data); // <-- Guarda el array de usuarios
-
-                    // Opcional: Si en el futuro necesitas la información de paginación, guárdala
-                    // setPagination(response.data.pagination);
-
-                    // Lógica del toast de éxito/info
                     if (!hasShownListSuccessToast.current) {
-                        if (response.data.data.length > 0) { // Usar response.data.data
+                        if (response.data.data.length > 0) {
                             toast.success('Lista de usuarios cargada.');
                         } else {
                             toast.info('No hay usuarios registrados.');
                         }
                         hasShownListSuccessToast.current = true;
                     }
-
                 } catch (err) {
                     console.error('Error al obtener lista de usuarios:', err.response ? err.response.data : err.message);
-                    // Manejo de error genérico o específico del backend
                     const errorMessage = err.response?.data?.message || 'Error al cargar la lista de usuarios.';
                     setError(errorMessage);
-                    toast.error('Error al cargar usuarios.'); // Toast genérico de error
-                    hasShownListSuccessToast.current = false; // No mostrar toast de éxito si hay error
+                    toast.error('Error al cargar usuarios.');
+                    hasShownListSuccessToast.current = false;
                 } finally {
-                    setIsLoading(false); // Desactivar carga
+                    setIsLoading(false);
                 }
             };
-
-            // Ejecuta la petición solo si la autenticación inicializó Y el usuario es un Admin autenticado
-            // La verificación de rol dentro de fetchUsers ya se encarga del resto.
             fetchUsers();
         }
-        // Dependencias: Volver a ejecutar si cambia el estado de autenticación o el usuario
-    }, [isAuthenticated, user, isAuthInitialized]); // <-- MODIFICADO
-
+    }, [isAuthenticated, user, isAuthInitialized]);
 
     // --- Función: Manejar la actualización del estado de cuenta de un usuario (Activo/Inactivo) ---
-    // Recibe el ID del usuario a actualizar y un booleano indicando si debe estar activo
     const handleUpdateUserStatus = async (userIdToUpdate, isActive) => {
-        // Verificación de rol (capa extra de seguridad frontend)
-         if (!isAuthenticated || user?.userType !== 'Administrador') {
+        if (!isAuthenticated || user?.userType !== 'Administrador') {
             toast.error('No tienes permiso para realizar esta acción.');
             return;
         }
-        // Prevenir que un admin se desactive a sí mismo (opcional pero recomendado)
         if (user?._id === userIdToUpdate && !isActive) {
             toast.warning('No puedes desactivar tu propia cuenta de administrador.');
             return;
         }
 
-
-        // Activa el estado de carga para este usuario
         setActionLoading(prev => ({ ...prev, [userIdToUpdate]: true }));
 
         try {
-            // --- Petición PUT al backend usando axiosInstance ---
-            // Endpoint: PUT /api/admin/users/:userId/status
-            // Cuerpo de la petición: { isActive: true | false }
-            const response = await axiosInstance.put(`/api/admin/users/${userIdToUpdate}/status`, { isActive: isActive }); // <-- MODIFICADO
-
-             // Asume que el backend devuelve el objeto de usuario actualizado (con activo: true/false)
+            const response = await axiosInstance.put(`/api/admin/users/${userIdToUpdate}/status`, { isActive: isActive });
             const { message, user: updatedUserFromBackend } = response.data;
 
-
-             // --- Actualizar el estado local (users) para reflejar el cambio ---
-             setUsers(prevUsers =>
+            setUsers(prevUsers =>
                 prevUsers.map(userItem =>
                     userItem._id === updatedUserFromBackend._id
-                        ? updatedUserFromBackend // Reemplaza con el objeto actualizado del backend
+                        ? updatedUserFromBackend
                         : userItem
                 )
-             );
-            // --- Fin Actualización de estado local ---
-
-
-            // El mensaje del toast aún puede usar la cadena 'activada'/'desactivada' para mejor legibilidad
+            );
             toast.success(message || `Cuenta de usuario ${isActive ? 'activada' : 'desactivada'} exitosamente.`);
-
         } catch (err) {
             console.error(`Error al actualizar estado de usuario ${userIdToUpdate}:`, err.response ? err.response.data : err.message);
             const errorMessage = err.response?.data?.message || `Error al ${isActive ? 'activar' : 'desactivar'} la cuenta de usuario.`;
             toast.error(errorMessage);
         } finally {
-            // Desactiva el estado de carga
             setActionLoading(prev => ({ ...prev, [userIdToUpdate]: false }));
         }
     };
-    // --- FIN Función handleUpdateUserStatus ---
 
-
-     // --- Función: Manejar la aprobación de un docente ---
+    // --- Función: Manejar la aprobación de un docente ---
     const handleApproveTeacher = async (userIdToApprove) => {
-        // Verificación de rol (capa extra de seguridad frontend)
-         if (!isAuthenticated || user?.userType !== 'Administrador') {
+        if (!isAuthenticated || user?.userType !== 'Administrador') {
             toast.error('No tienes permiso para realizar esta acción.');
             return;
         }
-
-        // Activa el estado de carga para esta acción de usuario específica
         setActionLoading(prev => ({ ...prev, [userIdToApprove]: true }));
 
         try {
-            // --- Petición PUT al backend usando axiosInstance para aprobar a un docente ---
-            // Asume un endpoint como PUT /api/admin/users/docentes/approve/:userId
-            // Este endpoint debe estar protegido para Administradores
-            const response = await axiosInstance.put(`/api/admin/users/docentes/approve/${userIdToApprove}`); // <-- MODIFICADO
-
-             // Asume que el backend devuelve el objeto de usuario actualizado (con isApproved: true)
+            const response = await axiosInstance.put(`/api/admin/users/docentes/approve/${userIdToApprove}`);
             const { message, user: updatedUserFromBackend } = response.data;
 
-             // --- Actualizar el estado local (users) para reflejar el cambio ---
-             // Encuentra al usuario en el array y actualiza su estado isApproved
-             setUsers(prevUsers =>
+            setUsers(prevUsers =>
                 prevUsers.map(userItem =>
                     userItem._id === updatedUserFromBackend._id
-                        ? updatedUserFromBackend // Reemplaza el objeto completo del usuario
+                        ? updatedUserFromBackend
                         : userItem
                 )
-             );
-            // --- Fin Actualización de estado local ---
-
-
+            );
             toast.success(message || 'Docente aprobado exitosamente.');
-
         } catch (err) {
             console.error(`Error al aprobar docente ${userIdToApprove}:`, err.response ? err.response.data : err.message);
             const errorMessage = err.response?.data?.message || 'Error al aprobar al docente.';
             toast.error(errorMessage);
         } finally {
-            // Desactiva el estado de carga para esta acción
             setActionLoading(prev => ({ ...prev, [userIdToApprove]: false }));
         }
     };
-    // --- FIN Función handleApproveTeacher ---
 
+    // --- Función: Abrir el modal de confirmación ---
+    const openConfirmationModal = (action, message) => {
+        setModalAction(() => action);
+        setModalMessage(message);
+        setIsModalOpen(true);
+    };
 
     // --- Renderizado Condicional (Carga, Error, Lista Vacía) ---
     if (isLoading) {
         return (
-             <Container>
+            <Container>
                 <Box sx={{ mt: 4, textAlign: 'center' }}>
                     <CircularProgress />
                     <Typography variant="body1" color="text.secondary" sx={{ ml: 2 }}>Cargando usuarios...</Typography>
@@ -221,7 +166,7 @@ function AdminUserManagementPage() {
 
     if (error && !isLoading) {
         return (
-             <Container>
+            <Container>
                 <Box sx={{ mt: 4, textAlign: 'center' }}>
                     <Alert severity="error">{error}</Alert>
                 </Box>
@@ -230,54 +175,53 @@ function AdminUserManagementPage() {
     }
 
     if (!isLoading && !error && users.length === 0) {
-         return (
+        return (
             <Container>
                 <PageHeader title="Gestión de Usuarios" />
                 <EmptyState
                     message="No hay usuarios registrados en el sistema."
-                    icon={GroupIcon} // Using GroupIcon as an example for users
+                    icon={GroupIcon}
                 />
             </Container>
         );
     }
 
-
-    // --- Renderizado de la Tabla de Usuarios si hay usuarios ---
-     // Filtramos opcionalmente si solo queremos ver docentes pendientes, etc.
-     // Por ahora, mostramos todos, pero destacando docentes pendientes.
-    const usersToDisplay = users; // Podrías filtrar aquí: users.filter(...)
-
+    const usersToDisplay = users;
 
     return (
         <Container>
             <Box sx={{ mt: 4 }}>
                 <PageHeader title="Gestión de Usuarios" />
 
-                 <TableContainer component={Paper} sx={{ mt: 3 }}>
+                <TableContainer component={Paper} sx={{ mt: 3 }}>
                     <Table>
                         <TableHead>
                             <TableRow>
-                                {/* Encabezados de la tabla */}
                                 <TableCell>Nombre Completo</TableCell>
                                 <TableCell>Email</TableCell>
                                 <TableCell>Tipo de Usuario</TableCell>
                                 <TableCell>Estado Aprobación</TableCell>
-                                {/* --- NUEVA Celda en la Cabecera --- */}
-                                <TableCell>Estado Cuenta</TableCell> {/* <-- Nueva columna */}
-                                {/* --- Fin NUEVA Celda --- */}
-                                <TableCell>Acciones</TableCell> {/* Columna para botones de acción */}
+                                <TableCell>Estado Cuenta</TableCell>
+                                <TableCell>Acciones</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {/* Mapea sobre la lista de usuarios para crear filas */}
                             {usersToDisplay.map((userItem) => (
                                 <TableRow key={userItem._id}>
-                                    {/* Celdas de información del usuario */}
-                                    <TableCell>{`${userItem.nombre} ${userItem.apellidos}`.trim()}</TableCell>
+                                    <TableCell>
+                                        <Link
+                                            component={RouterLink}
+                                            to={`/profile/${userItem._id}`}
+                                            underline="hover"
+                                            color="inherit"
+                                            sx={{ cursor: 'pointer' }}
+                                        >
+                                            {`${userItem.nombre} ${userItem.apellidos}`.trim()}
+                                        </Link>
+                                    </TableCell>
                                     <TableCell>{userItem.email}</TableCell>
                                     <TableCell>{userItem.tipo_usuario}</TableCell>
                                     <TableCell>
-                                        {/* Mostrar estado de aprobación usando Chip (Solo Docentes) */}
                                         {userItem.tipo_usuario === 'Docente' ? (
                                             <Chip
                                                 label={userItem.aprobado ? 'Aprobado' : 'Pendiente'}
@@ -285,23 +229,18 @@ function AdminUserManagementPage() {
                                                 size="small"
                                             />
                                         ) : (
-                                            <Typography variant="body2" color="text.secondary">N/A</Typography> // No aplica para otros roles
+                                            <Typography variant="body2" color="text.secondary">N/A</Typography>
                                         )}
                                     </TableCell>
-                                     {/* --- NUEVA Celda para el estado de la cuenta --- */}
                                     <TableCell>
-                                        {/* Mostrar estado de la cuenta (activo/inactivo) usando Chip */}
                                         <Chip
-                                            label={userItem.activo ? 'Activa' : 'Inactiva'} // Usa la propiedad 'activo' del usuario
-                                            color={userItem.activo ? 'success' : 'default'} // Color verde para activa, gris por defecto para inactiva
+                                            label={userItem.activo ? 'Activa' : 'Inactiva'}
+                                            color={userItem.activo ? 'success' : 'default'}
                                             size="small"
                                         />
                                     </TableCell>
-                                    {/* --- Fin NUEVA Celda --- */}
                                     <TableCell>
-                                        {/* Botones de Acción */}
                                         <Stack direction="row" spacing={1}>
-                                            {/* Botón Aprobar Docente Pendiente (mantén como está) */}
                                             {userItem.tipo_usuario === 'Docente' && !userItem.aprobado && (
                                                 <Button
                                                     variant="contained"
@@ -315,46 +254,61 @@ function AdminUserManagementPage() {
                                                 </Button>
                                             )}
 
-                                            {/* *** NUEVOS BOTONES Activar/Desactivar Cuenta *** */}
-                                            {/* Mostrar Activar/Desactivar si el usuario no es el Admin logueado */}
-                                            {userItem._id !== user._id && ( // No mostrar para el usuario Admin logueado
-                                                userItem.activo ? ( // Si el usuario está ACTIVO, mostrar botón DESACTIVAR
+                                            {userItem._id !== user._id && (
+                                                userItem.activo ? (
                                                     <Button
                                                         variant="outlined"
                                                         size="small"
-                                                        color="warning" // Color de advertencia para desactivar
-                                                        onClick={() => handleUpdateUserStatus(userItem._id, false)} // Llama a la función con isActive = false
-                                                        disabled={actionLoading[userItem._id]} // Deshabilita si está cargando
+                                                        color="warning"
+                                                        onClick={() =>
+                                                            openConfirmationModal(
+                                                                () => handleUpdateUserStatus(userItem._id, false),
+                                                                `¿Estás seguro que deseas desactivar la cuenta de ${userItem.nombre} ${userItem.apellidos}?`
+                                                            )
+                                                        }
+                                                        disabled={actionLoading[userItem._id]}
                                                         startIcon={actionLoading[userItem._id] ? <CircularProgress size={16} color="inherit" /> : null}
                                                     >
                                                         {actionLoading[userItem._id] ? 'Desactivando...' : 'Desactivar'}
                                                     </Button>
-                                                ) : ( // Si el usuario está INACTIVO, mostrar botón ACTIVAR
+                                                ) : (
                                                     <Button
                                                         variant="outlined"
                                                         size="small"
-                                                        color="success" // Color verde para activar
-                                                        onClick={() => handleUpdateUserStatus(userItem._id, true)} // Llama a la función con isActive = true
-                                                        disabled={actionLoading[userItem._id]} // Deshabilita si está cargando
+                                                        color="success"
+                                                        onClick={() =>
+                                                            openConfirmationModal(
+                                                                () => handleUpdateUserStatus(userItem._id, true),
+                                                                `¿Estás seguro que deseas activar la cuenta de ${userItem.nombre} ${userItem.apellidos}?`
+                                                            )
+                                                        }
+                                                        disabled={actionLoading[userItem._id]}
                                                         startIcon={actionLoading[userItem._id] ? <CircularProgress size={16} color="inherit" /> : null}
                                                     >
-                                                         {actionLoading[userItem._id] ? 'Activando...' : 'Activar'}
+                                                        {actionLoading[userItem._id] ? 'Activando...' : 'Activar'}
                                                     </Button>
                                                 )
                                             )}
-                                             {/* *** FIN NUEVOS BOTONES *** */}
-
-                                             {/* Aquí puedes añadir botón Eliminar */}
-                                             {/* <Button variant="outlined" size="small" color="error">Eliminar</Button> */}
                                         </Stack>
                                     </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
                     </Table>
-                 </TableContainer>
+                </TableContainer>
 
-
+                <ConfirmationModal
+                    open={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    onConfirm={() => {
+                        modalAction();
+                        setIsModalOpen(false);
+                    }}
+                    title="Confirmar acción"
+                    message={modalMessage}
+                    confirmText="Sí"
+                    cancelText="No"
+                />
             </Box>
         </Container>
     );

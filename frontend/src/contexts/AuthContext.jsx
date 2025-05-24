@@ -105,7 +105,8 @@ export const AuthProvider = ({ children }) => {
       const user = {
         _id,
         email: userEmail,
-        userType: tipo_usuario,
+        userType: tipo_usuario,      // para el frontend
+        tipo_usuario,                // para compatibilidad si lo necesitas
         nombre,
         apellidos,
       };

@@ -206,8 +206,11 @@ const updateUserStatus = async (req, res) => {
 
         // --- Salvaguardas para cuentas de administrador ---
         // Opcional pero recomendado: Evitar que un admin se desactive a sí mismo
-        if (user._id.equals(req.user._id)) { // Compara el ID del usuario a modificar con el ID del admin logueado
-             return res.status(400).json({ message: 'No puedes cambiar el estado de tu propia cuenta de administrador' });
+        if (!req.user || !req.user._id) {
+            return res.status(401).json({ message: 'No autenticado o usuario no válido' });
+        }
+        if (user._id.equals(req.user._id)) {
+            return res.status(400).json({ message: 'No puedes cambiar el estado de tu propia cuenta de administrador' });
         }
          // Opcional: Evitar que un admin cambie el estado de otras cuentas de admin
         if (user.tipo_usuario === 'Administrador') {

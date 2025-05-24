@@ -40,7 +40,7 @@ exports.updateProfile = async (req, res) => {
 exports.getStudentProfileForTeacher = async (req, res) => {
   try {
     // 1. Autenticación: Verificar que el usuario es un Docente
-    if (req.user.userType !== 'Docente') {
+    if (req.user.tipo_usuario !== 'Docente') {
       return res.status(403).json({ message: 'Acceso denegado. Solo los docentes pueden realizar esta acción.' });
     }
 
@@ -67,11 +67,11 @@ exports.getStudentProfileForTeacher = async (req, res) => {
 
     const teacherGroupIds = teacherGroups.map(group => group._id);
 
-    // Verificar si el estudiante es miembro APROBADO de alguno de los grupos del docente
+    // Verificar si el estudiante es miembro APROBADO o PENDIENTE de alguno de los grupos del docente
     const membership = await Membership.findOne({
       grupo_id: { $in: teacherGroupIds },
       usuario_id: studentIdToView,
-      estado_solicitud: 'Aprobado',
+      estado_solicitud: { $in: ['Aprobado', 'Pendiente'] }, // <-- permite ambos estados
     });
 
     if (!membership) {
@@ -85,5 +85,22 @@ exports.getStudentProfileForTeacher = async (req, res) => {
   } catch (error) {
     console.error('Error en getStudentProfileForTeacher:', error);
     res.status(500).json({ message: 'Error al obtener el perfil del estudiante', error: error.message });
+  }
+};
+
+// Obtener perfil de cualquier usuario por parte de un administrador
+exports.getUserProfileForAdmin = async (req, res) => {
+  try {
+    if (req.user.tipo_usuario !== 'Administrador') {
+      return res.status(403).json({ message: 'Acceso denegado. Solo los administradores pueden realizar esta acción.' });
+    }
+    const userIdToView = req.params.userId;
+    const user = await User.findById(userIdToView).select('-contrasena_hash');
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado.' });
+    }
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener el perfil del usuario', error: error.message });
   }
 };

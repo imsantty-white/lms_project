@@ -21,6 +21,7 @@ const notificationSchema = new mongoose.Schema({
       'JOIN_REQUEST',
       'GROUP_INVITE_ACCEPTED',
       'GROUP_INVITE_DECLINED',
+      'MEMBERSHIP_REMOVED',
       'CONTENT_SHARED',
       'GENERAL_INFO',
     ],

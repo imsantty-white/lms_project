@@ -12,6 +12,9 @@ const {
   updateUserStatus
 } = require('../controllers/adminController');
 
+// Aplica protección y autorización a todas las rutas de este router
+router.use(protect, authorize('Administrador'));
+
 /**
  * @swagger
  * tags:

@@ -36,14 +36,14 @@ function JoinGroupPage() {
   const [groupCode, setGroupCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [isAnimationComplete, setIsAnimationComplete] = useState(false);
+  const [_isAnimationComplete, setIsAnimationComplete] = useState(false);
   
   // Acceder al tema y media queries para diseño responsive
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // Animaciones para los elementos
-  const containerVariants = {
+  const _containerVariants = {
     hidden: { opacity: 0 },
     visible: { 
       opacity: 1,
@@ -54,7 +54,7 @@ function JoinGroupPage() {
     }
   };
 
-  const itemVariants = {
+  const _itemVariants = {
     hidden: { y: 20, opacity: 0 },
     visible: { 
       y: 0, 
@@ -103,7 +103,17 @@ function JoinGroupPage() {
     } catch (error) {
       console.error('Error al unirse al grupo:', error.response ? error.response.data : error.message);
       const errorMessage = error.response?.data?.message || 'Error al intentar unirse al grupo. Verifica el código.';
-      toast.error(errorMessage);
+
+      // Mensaje personalizado para membresía existente
+      if (errorMessage.includes('solicitud o membresía para este grupo')) {
+        toast.info('Ya tienes una solicitud o membresía para este grupo. No puedes enviar otra hasta que sea eliminada.');
+      } else if (errorMessage.includes('Grupo no encontrado')) {
+        toast.error('El código de grupo ingresado no es válido. Verifica con tu docente.');
+      } else if (errorMessage.includes('Solo los estudiantes pueden solicitar')) {
+        toast.error('Solo los estudiantes pueden unirse a grupos.');
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }

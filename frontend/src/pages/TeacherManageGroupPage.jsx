@@ -262,58 +262,56 @@ function TeacherManageGroupPage() {
           return;
       }
       setSelectedMembershipId(membershipId);
-      setExpectedConfirmationName(studentFullName); // Guardar el nombre completo para la verificación
+      setExpectedConfirmationName(studentFullName); // Puedes dejarlo para mostrar en el modal si quieres
       setModalMessage(`Para remover a ${studentFullName}, por favor escribe su nombre completo ("${studentFullName}") abajo para confirmar.`);
       setInputLabelInModal('Nombre completo del estudiante');
-      setShowInputInModal(true); // Mostrar el campo de texto en el modal
-      setTypedConfirmationName(''); // Limpiar el campo de texto al abrir
-      
-      // La acción de confirmación ahora llamará a executeRemoveStudent, 
-      // que recibirá el valor del input directamente desde ConfirmationModal
-      setModalAction(() => (typedNameFromModal) => executeRemoveStudent(typedNameFromModal));
-      
+      setShowInputInModal(true);
+      setTypedConfirmationName('');
+      // CAPTURA el valor correcto aquí:
+      setModalAction(() => (typedNameFromModal) => executeRemoveStudent(typedNameFromModal, studentFullName, membershipId));
       setIsModalOpen(true);
   };
 
   // --- NUEVA Función: Ejecuta la lógica de la API para REMOVER un estudiante después de la confirmación ---
-  const executeRemoveStudent = async (typedNameFromModal) => {
-      // selectedMembershipId y expectedConfirmationName se leen desde el estado
-      if (typedNameFromModal !== expectedConfirmationName) {
-          toast.error('El nombre ingresado no coincide. No se ha removido al estudiante.');
-          // No cerramos el modal aquí para que el usuario pueda corregir el nombre
-          // o cerrar el modal manualmente.
-          // Si se quisiera cerrar, se podría añadir: setIsModalOpen(false); setActionLoading({ ... }); etc.
-          return; 
-      }
+  const normalizeString = (str) =>
+    (str || '')
+      .normalize('NFD') // Quita tildes
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ') // Reemplaza múltiples espacios por uno solo
+      .trim()
+      .toLowerCase();
 
-      setIsModalOpen(false); // Cerrar el modal ANTES de la llamada a la API
-      setActionLoading(prev => ({ ...prev, [selectedMembershipId]: true }));
+  const executeRemoveStudent = async (typedNameFromModal, expectedName, membershipId) => {
+    // LOG para depuración
+    console.log('typed:', typedNameFromModal, '| expected:', expectedName);
 
-      try {
-          // El groupId se obtiene de useParams()
-          await axiosInstance.delete(`/api/groups/${groupId}/memberships/${selectedMembershipId}`);
-          
-          // Actualizar el estado local para reflejar la eliminación
-          setStudentMemberships(prevMemberships =>
-              prevMemberships.filter(membership => membership._id !== selectedMembershipId)
-          );
-          toast.success(`${expectedConfirmationName} ha sido removido del grupo.`);
+    if (typedNameFromModal !== expectedName) {
+      toast.error('El nombre ingresado no coincide exactamente. No se ha removido al estudiante.');
+      return;
+    }
 
-      } catch (err) {
-          console.error(`Error al remover estudiante con membresía ${selectedMembershipId}:`, err.response ? err.response.data : err.message);
-          const errorMsg = err.response?.data?.message || 'Error al remover al estudiante.';
-          toast.error(errorMsg);
-      } finally {
-          setActionLoading(prev => ({ ...prev, [selectedMembershipId]: false }));
-          // Resetear todos los estados del modal y de selección
-          setSelectedMembershipId(null);
-          setExpectedConfirmationName('');
-          setTypedConfirmationName('');
-          setShowInputInModal(false);
-          setInputLabelInModal('');
-          setModalMessage(''); // Limpiar mensaje por si acaso
-          setModalAction(null); // Limpiar acción
-      }
+    setIsModalOpen(false);
+    setActionLoading(prev => ({ ...prev, [membershipId]: true }));
+
+    try {
+      await axiosInstance.delete(`/api/groups/${groupId}/memberships/${membershipId}`);
+      setStudentMemberships(prevMemberships =>
+        prevMemberships.filter(membership => membership._id !== membershipId)
+      );
+      toast.success(`${expectedName} ha sido removido del grupo.`);
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || 'Error al remover al estudiante.';
+      toast.error(errorMsg);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [membershipId]: false }));
+      setSelectedMembershipId(null);
+      setExpectedConfirmationName('');
+      setTypedConfirmationName('');
+      setShowInputInModal(false);
+      setInputLabelInModal('');
+      setModalMessage('');
+      setModalAction(null);
+    }
   };
 
   // Renderizar si el grupo está cargando o hay un error al obtener detalles del grupo
@@ -492,7 +490,6 @@ function TeacherManageGroupPage() {
             open={isModalOpen}
             onClose={() => {
                 setIsModalOpen(false);
-                // Resetear todos los estados relacionados con el modal al cerrar
                 setModalMessage('');
                 setModalAction(null); 
                 setSelectedMembershipId(null);
@@ -500,7 +497,7 @@ function TeacherManageGroupPage() {
                 setShowInputInModal(false);
                 setInputLabelInModal('');
                 setTypedConfirmationName('');
-                setExpectedConfirmationName('');
+                // NO limpies aquí: setExpectedConfirmationName('');
             }}
             onConfirm={modalAction} // Esto llamará a executeRemoveStudent(typedName) o executeRespondRequest()
             title="Confirmar Acción"
