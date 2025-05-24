@@ -30,21 +30,21 @@ This document outlines potential improvements and new functionalities that could
     *   **Current State:** Pages like `TeacherAssignmentsListPage` and `StudentLearningPathsPage` render all items in a list.
     *   **Suggestion:** If these lists can grow very large (hundreds/thousands of items), implement list virtualization (e.g., using `react-window` or `react-virtualized`). This significantly improves rendering performance by only rendering items visible in the viewport.
 
-2.  **Optimistic Updates for `ManageLearningPathPage.jsx`:**
+2.  (APPLIED)**Optimistic Updates for `ManageLearningPathPage.jsx`:**
     *   **Current State:** CRUD operations in `ManageLearningPathPage.jsx` refetch the entire learning path structure.
     *   **Suggestion:** Implement optimistic updates for a smoother UX. This involves updating the UI state immediately upon user action and then syncing with the backend. Provide clear feedback and rollback mechanisms in case of API errors. This would likely require more granular backend APIs for updating specific parts of a learning path.
 
-3.  **Advanced State Management Review:**
+3.  (APPLIED)**Advanced State Management Review:**
     *   **Current State:** Components like `ManageLearningPathPage.jsx` use many `useState` hooks.
     *   **Suggestion:** For highly complex components with many related pieces of state, consider using `useReducer` for more organized state logic, or explore a global state management library (like Zustand, Redux Toolkit) if state needs to be shared across many distant components without prop drilling.
 
-4.  **Enhanced User Feedback and Skeletons:**
+4.  (APPLIED)**Enhanced User Feedback and Skeletons:**
     *   **Current State:** Loading states are typically handled with `CircularProgress`.
     *   **Suggestion:** Implement more skeleton loading components (like MUI's Skeleton) for a better perceived performance, especially for complex pages like dashboards or the learning path management page. Provide more contextual feedback messages for API operations beyond simple toasts.
 
 ## New Potential Functionalities
 
-1.  **Notification System:**
+1.  (APPLIED)**Notification System:**
     *   Implement a real-time or near real-time notification system (e.g., using WebSockets or polling).
     *   Notify students of new assignments, graded work, or approaching deadlines.
     *   Notify teachers of new submissions, join requests, or student messages.
