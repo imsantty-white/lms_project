@@ -134,14 +134,18 @@ function TeacherAssignmentSubmissionsPage() {
       setAssignmentTitle('');
       try {
         const response = await axiosInstance.get(`/api/activities/assignments/${assignmentId}/submissions`);
-        console.log("Entregas cargadas para asignación:", assignmentId, response.data);
         setSubmissions(response.data);
+
         if (response.data.length > 0 && response.data[0].assignment_id?.activity_id?.title) {
           setAssignmentTitle(`Entregas para Asignación: ${response.data[0].assignment_id.activity_id.title}`);
-        } else if (assignmentId) {
-          setAssignmentTitle(`Entregas para Asignación: ${assignmentId}`);
         } else {
-          setAssignmentTitle('Entregas de Asignación');
+          // Si no hay entregas, obtener el título de la asignación
+          const assignmentRes = await axiosInstance.get(`/api/activities/assignments/${assignmentId}`);
+          setAssignmentTitle(
+            assignmentRes.data?.activity_id?.title
+              ? `Entregas para la Actividad Asignada: ${assignmentRes.data.activity_id.title}`
+              : 'Entregas para la Actividad Asignada'
+          );
         }
         setFetchError(null);
       } catch (err) {

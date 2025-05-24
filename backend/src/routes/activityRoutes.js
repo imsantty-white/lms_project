@@ -9,7 +9,8 @@ const {
   submitStudentActivityAttempt,
   getAssignmentSubmissions, 
   getTeacherAssignments, 
-  gradeSubmission 
+  gradeSubmission,
+  getAssignmentById 
 } = require('../controllers/activityController');
 
 /**
@@ -179,5 +180,28 @@ router.get('/teacher/assignments', protect, authorize('Docente', 'Administrador'
  *         description: Entrega no encontrada
  */
 router.put('/submissions/:submissionId/grade', protect, authorize('Docente', 'Administrador'), gradeSubmission);
+
+/**
+ * @swagger
+ * /api/activities/assignments/{assignmentId}:
+ *   get:
+ *     summary: Obtener una asignación por ID
+ *     tags: [Actividades]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: assignmentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la asignación
+ *     responses:
+ *       200:
+ *         description: Asignación encontrada
+ *       404:
+ *         description: Asignación no encontrada
+ */
+router.get('/assignments/:assignmentId', protect, authorize('Docente', 'Administrador'), getAssignmentById);
 
 module.exports = router; // Exporta el router

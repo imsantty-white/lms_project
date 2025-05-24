@@ -3,6 +3,7 @@ import { Box, Drawer, Toolbar, List, ListItem, ListItemButton, ListItemIcon, Lis
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import Avatar from '@mui/material/Avatar';
 
 // Importa algunos iconos de ejemplo (puedes añadir más según necesites)
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -59,8 +60,9 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
   // Obtiene los enlaces correspondientes al rol del usuario actual
   // Si el rol del usuario no coincide con ninguna lista, mostramos un array vacío
   const currentUserLinks = navLinks[user?.userType] || [];
-  const commonLinks = navLinks.Common || [];
-  const linksToDisplay = [...currentUserLinks, ...commonLinks];
+  // const commonLinks = navLinks.Common || [];
+  // const linksToDisplay = [...currentUserLinks, ...commonLinks];
+  const linksToDisplay = [...currentUserLinks];
 
   // Si el usuario está logueado pero no tiene un userType válido definido para links, no mostrar sidebar o mostrar un mensaje
   if (currentUserLinks.length === 0 && isAuthenticated) {
@@ -71,69 +73,72 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
 
 
   return (
-    // Drawer es un buen componente para sidebars. Aquí usamos variant="permanent" para un sidebar fijo.
     <Drawer
       variant="persistent"
       open={open}
       sx={{
-        width,
-        flexShrink: 0, // Previene que el contenido principal se encoja para dejar espacio
-        [`& .MuiDrawer-paper`]: { // Estilos para el papel (el fondo) del drawer
-          width,
-          boxSizing: 'border-box', // Incluye padding y borde en el ancho total
-          // position: 'relative', // Para un sidebar que no se superponga, sino que empuje el contenido (si el layout principal es flex)
-          // Asegúrate de que el sidebar no tape el Header si el Header tiene una altura fija
-           marginTop: '64px', // Ajusta según la altura de tu AppBar (por defecto 64px)
-           height: 'calc(100% - 64px)', // Ajusta la altura para que no se superponga con el Header
-           transition: 'width 0.3s',
+        width: width,
+        flexShrink: 0,
+        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        [`& .MuiDrawer-paper`]: {
+          width: open ? width : 0,
+          boxSizing: 'border-box',
+          marginTop: '64px',
+          height: 'calc(100% - 64px)',
+          transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          overflowX: 'hidden',
+          borderRight: open ? undefined : 'none',
         },
       }}
     >
-      {/* Botón para cerrar el sidebar */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 1 }}>
-        <IconButton onClick={onClose}>
-          <ChevronLeftIcon />
-        </IconButton>
-      </Box>
-      {/* Toolbar es útil para crear un espacio en la parte superior que coincida con la altura del AppBar */}
-      {/* <Toolbar /> */} {/* Ya ajustamos el margen superior directamente */}
-      <Box sx={{ overflow: 'auto' }}> {/* Permite scroll si la lista de enlaces es muy larga */}
-        {/* Opcional: Información básica del usuario en el sidebar */}
-         <Box sx={{ p: 2, textAlign: 'center' }}>
-            <Typography variant="h6">{user?.nombre || 'Usuario'}</Typography>
-            <Typography variant="body2" color="text.secondary">{user?.userType}</Typography>
+      <Box
+        sx={{
+          opacity: open ? 1 : 0,
+          transition: 'opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1) 0.1s',
+          pointerEvents: open ? 'auto' : 'none',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 1 }}>
+          <IconButton onClick={onClose}>
+            <ChevronLeftIcon />
+          </IconButton>
+        </Box>
+        <Box sx={{ overflow: 'auto' }}>
+          {/* Bloque de usuario: ahora clickeable y con avatar */}
+          <Box
+            sx={{ p: 2, textAlign: 'center', cursor: 'pointer' }}
+            component={Link}
+            to="/profile"
+            style={{ textDecoration: 'none', color: 'inherit' }}
+          >
+            <Avatar sx={{ mx: 'auto', mb: 1, bgcolor: 'primary.main' }}>
+              {`${(user?.nombre?.[0] || '')}${(user?.apellidos?.[0] || '')}`.toUpperCase()}
+            </Avatar>
+            <Typography variant="h6">
+              {`${user?.nombre || ''} ${user?.apellidos || ''}`.trim() || 'Usuario'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {user?.userType}
+            </Typography>
             <Divider sx={{ mt: 2 }} />
-         </Box>
-
-
-        {/* Lista de enlaces de navegación */}
-        <List>
-          {linksToDisplay.map((link, index) => (
-            // ListItemButton hace que toda el área sea clickeable
-            <ListItem key={link.text} disablePadding>
-              <ListItemButton component={Link} to={link.path}>
-                {/* Icono del enlace */}
-                <ListItemIcon>
-                  {link.icon}
-                </ListItemIcon>
-                {/* Texto del enlace */}
-                <ListItemText primary={link.text} />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
-         {/* Opcional: Añadir enlaces comunes si los tienes */}
-          {/* <Divider />
-           <List>
-             {commonLinks.map((link, index) => (
-               <ListItem key={link.text} disablePadding>
-                 <ListItemButton component={Link} to={link.path}>
-                   <ListItemIcon>{link.icon}</ListItemIcon>
-                   <ListItemText primary={link.text} />
-                 </ListItemButton>
-               </ListItem>
-             ))}
-           </List> */}
+          </Box>
+          {/* Lista de enlaces de navegación */}
+          <List>
+            {linksToDisplay.map((link, index) => (
+              <ListItem key={link.text} disablePadding>
+                <ListItemButton component={Link} to={link.path}>
+                  <ListItemIcon>
+                    {link.icon}
+                  </ListItemIcon>
+                  <ListItemText primary={link.text} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </Box>
       </Box>
     </Drawer>
   );

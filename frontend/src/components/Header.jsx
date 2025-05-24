@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'; // Added useEffect
-import { AppBar, Toolbar, Typography, IconButton, Box, Badge } from '@mui/material';
+import { AppBar, Toolbar, Typography, IconButton, Box, Badge, Avatar } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
@@ -163,7 +163,7 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
           to="/"
           sx={{
             textDecoration: 'none',
-            color: '#fff', // SIEMPRE blanco con sombra
+            color: 'primary',
             fontWeight: 700,
             letterSpacing: 1,
             fontSize: { xs: 18, sm: 22 },
@@ -196,7 +196,7 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
               color="inherit"
               onClick={handleNotificationBellClick}
               sx={{
-                ml: 1,
+                ml: 1, mr: 2,
                 color: mode === 'dark' ? '#fff' : '#222',
               }}
             >
@@ -218,15 +218,18 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
 
         {isAuthenticated && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
+              {`${(user?.nombre?.[0] || '')}${(user?.apellidos?.[0] || '')}`.toUpperCase()}
+            </Avatar>
             <Typography
               variant="body2"
               sx={{
                 fontWeight: 500,
                 color: mode === 'dark' ? '#fff' : '#222',
-                marginLeft: 1, // Added margin for spacing from notification bell
+                marginLeft: 1,
               }}
             >
-              {user?.nombre || user?.email || 'Usuario'}
+              {`${user?.nombre || ''} ${user?.apellidos || ''}`.trim() || user?.email || 'Usuario'}
             </Typography>
             <IconButton
               color="inherit"

@@ -307,26 +307,16 @@ function TeacherAssignmentsListPage() {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
           <Box>
             <Typography variant="h4" fontWeight="500">
-              Mis Actividades Asignadas
+              Todas Las Actividades Asignadas
             </Typography>
             <Typography variant="body1" color="text.secondary">
-              Gestiona y califica las entregas de tus estudiantes
+              Gestiona las actividades asignadas en cada grupo y califica las entregas de tus estudiantes.
             </Typography>
           </Box>
           <Box>
             <Tooltip title="Actualizar">
               <IconButton onClick={handleRefresh} disabled={refreshing}>
                 <RefreshIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Filtrar">
-              <IconButton>
-                <FilterListIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Ordenar">
-              <IconButton>
-                <SortIcon />
               </IconButton>
             </Tooltip>
           </Box>
@@ -351,7 +341,7 @@ function TeacherAssignmentsListPage() {
               <Table sx={{ minWidth: 650 }}>
                 <TableHead>
                   <TableRow sx={{ backgroundColor: theme.palette.background.paper }}>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Asignación</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Nombre de Actividad</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Tipo</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Ubicación</TableCell>
                     <TableCell align="center" sx={{ fontWeight: 'bold' }}>Entregas</TableCell>

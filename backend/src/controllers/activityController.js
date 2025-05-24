@@ -900,10 +900,26 @@ const gradeSubmission = async (req, res, next) => {
     }
 };
 
+// Obtener una asignación por ID
+const getAssignmentById = async (req, res, next) => {
+  try {
+    const { assignmentId } = req.params;
+    const assignment = await ContentAssignment.findById(assignmentId)
+      .populate({ path: 'activity_id', select: 'title type' });
+    if (!assignment) {
+      return res.status(404).json({ message: 'Asignación no encontrada.' });
+    }
+    res.status(200).json(assignment);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = { 
     getStudentActivityForAttempt,
     submitStudentActivityAttempt,
     getAssignmentSubmissions,
     getTeacherAssignments,
     gradeSubmission,
+    getAssignmentById,
 };
