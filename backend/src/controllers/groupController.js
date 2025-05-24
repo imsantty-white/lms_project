@@ -924,22 +924,6 @@ const removeMembershipById = async (req, res) => {
   }
 };
 
-module.exports = {
-  createGroup,
-  requestJoinGroup,
-  getMyJoinRequests,
-  respondJoinRequest,
-  getGroupStudents,
-  getMyApprovedGroups,
-  updateGroup,
-  deleteGroup,
-  removeStudentFromGroup,
-  getMyOwnedGroups,
-  getMyMembershipsWithStatus,
-  getGroupById,
-  getGroupMemberships,
-  removeMembershipById, // Added new controller function
-};
 
 // @desc    Restaurar un grupo archivado (marcarlo como activo)
 // @route   PUT /api/groups/:groupId/restore

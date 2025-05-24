@@ -797,7 +797,7 @@ function ManageLearningPathPage() {
           <Typography color="text.secondary" variant="h4" gutterBottom>
             Ruta de Aprendizaje: 
           </Typography>
-          <Typography variant="h4" align="center" gutterBottom>
+          <Typography variant="h4" align="center" gutterBottom sx={{ mb: 3 }}>
           {learningPath.nombre}
         </Typography>
 

@@ -77,12 +77,19 @@ function CreateLearningPathModal({
 
   return (
     <Dialog open={open} onClose={onClose} aria-labelledby="learning-path-dialog-title" fullWidth maxWidth="sm">
-      <DialogTitle id="learning-path-dialog-title">
+      <DialogTitle id="learning-path-dialog-title" sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        p: 2,
+        bgcolor: 'primary.light',
+        color: 'primary.contrastText'
+      }}>
         {initialData ? 'Editar Ruta de Aprendizaje' : 'Crear Nueva Ruta de Aprendizaje'}
       </DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2} component="form" onSubmit={handleFormSubmit} id="learning-path-form">
-          <FormControl fullWidth variant="outlined" required disabled={isCreating || !teacherGroups || teacherGroups.length === 0}>
+          <FormControl fullWidth color="primary.light" variant="outlined" required disabled={isCreating || !teacherGroups || teacherGroups.length === 0}>
             <InputLabel id="group-select-label">Seleccionar Grupo</InputLabel>
             <Select
               labelId="group-select-label"
@@ -106,15 +113,18 @@ function CreateLearningPathModal({
           <TextField
             label="Nombre de la Ruta"
             variant="outlined"
+            color="primary.light"
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
             fullWidth
             required
             disabled={isCreating || !selectedGroupId}
+            sx={{ mb: 2 }}
           />
           <TextField
-            label="Descripción (Opcional)"
+            label="Descripción breve de la ruta de aprendizaje (Opcional)"
             variant="outlined"
+            color="primary.light"
             value={descripcion}
             onChange={(e) => setDescripcion(e.target.value)}
             fullWidth
@@ -126,6 +136,7 @@ function CreateLearningPathModal({
             label="Fecha de Inicio"
             type="date"
             variant="outlined"
+            color="primary.light"
             value={fechaInicio}
             onChange={(e) => setFechaInicio(e.target.value)}
             fullWidth
@@ -136,6 +147,7 @@ function CreateLearningPathModal({
             label="Fecha de Fin"
             type="date"
             variant="outlined"
+            color="primary.light"
             value={fechaFin}
             onChange={(e) => setFechaFin(e.target.value)}
             fullWidth
@@ -145,7 +157,7 @@ function CreateLearningPathModal({
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} disabled={isCreating}>Cancelar</Button>
+        <Button onClick={onClose} disabled={isCreating} color="secondary">Cancelar</Button>
         <Button
           type="submit"
           form="learning-path-form"

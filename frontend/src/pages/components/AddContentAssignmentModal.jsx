@@ -279,7 +279,7 @@ function AddContentAssignmentDialog({ open, onClose, onSubmitAssignment, onReque
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <AssignmentIcon />
           <Typography variant="h6" component="div">
-            Asignar un Contenido al Tema:  {themeName}
+            Asigna un Contenido al Tema:  {themeName}
           </Typography>
         </Box>
       </DialogTitle>

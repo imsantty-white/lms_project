@@ -35,7 +35,14 @@ function CreateModuleModal({ open, onClose, onSubmit, isCreating }) {
       onSubmit={handleInternalSubmit} // Pasa la función de submit interna
       isSubmitting={isCreating}
       submitText="Crear"
-      // dialogActionsSx={{ justifyContent: 'space-between' }} // Ejemplo de personalización
+      sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        p: 2,
+        bgcolor: 'primary.light',
+        color: 'primary.contrastText'
+      }}
     >
       <Stack spacing={2} sx={{ pt: 1 }}> {/* pt:1 para un pequeño padding top */}
         <TextField

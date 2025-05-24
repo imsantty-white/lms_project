@@ -51,13 +51,24 @@ function CreateThemeModal({ open, onClose, onSubmit, isCreating }) {
 
   return (
       <Dialog open={open} onClose={onClose} aria-labelledby="create-theme-dialog-title">
-          <DialogTitle id="create-theme-dialog-title">Crear Nuevo Tema</DialogTitle>
+          <DialogTitle id="create-theme-dialog-title"
+                sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                p: 2,
+                bgcolor: 'primary.light',
+                color: 'primary.contrastText'
+            }}
+            >Crear Nuevo Tema
+            </DialogTitle>
           <DialogContent dividers>
               <Stack spacing={2} component="form" onSubmit={handleFormSubmit} id="create-theme-form">
                   {/* Campo Nombre del Tema */}
                   <TextField
                       label="Nombre del Tema"
                       variant="outlined"
+                      color="primary.light"
                       value={nombre}
                       onChange={(e) => setNombre(e.target.value)}
                       fullWidth
@@ -68,6 +79,7 @@ function CreateThemeModal({ open, onClose, onSubmit, isCreating }) {
                   <TextField
                       label="Descripción (Opcional)"
                       variant="outlined"
+                      color="primary.light"
                       value={descripcion}
                       onChange={(e) => setDescripcion(e.target.value)}
                       fullWidth
@@ -78,7 +90,7 @@ function CreateThemeModal({ open, onClose, onSubmit, isCreating }) {
               </Stack>
           </DialogContent>
           <DialogActions>
-              <Button onClick={onClose} disabled={isCreating}>Cancelar</Button>
+              <Button onClick={onClose} disabled={isCreating} color="secondary">Cancelar</Button>
               <Button
                   type="submit"
                   form="create-theme-form"

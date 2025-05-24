@@ -82,7 +82,7 @@ const ConfirmationModal = React.memo(({
         <Button onClick={onClose} color="secondary">
           {cancelText}
         </Button>
-        <Button onClick={handleConfirm} color="primary"> {/* Usar handleConfirm */}
+        <Button variant="contained" onClick={handleConfirm} color="primary"> {/* Usar handleConfirm */}
           {confirmText}
         </Button>
       </DialogActions>

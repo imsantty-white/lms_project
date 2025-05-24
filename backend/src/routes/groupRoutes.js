@@ -246,6 +246,6 @@ router.delete('/:groupId/students/:studentId', protect, authorize('Docente'), re
 router.delete('/:groupId/memberships/:membershipId', protect, authorize('Docente'), removeMembershipById);
 
 // Ruta para restaurar un grupo eliminado
-router.put('/:groupId/restore', protect, authorize(['Docente']), restoreGroup);
+router.put('/:groupId/restore', protect, authorize('Docente'), restoreGroup);
 
 module.exports = router;
