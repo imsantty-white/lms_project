@@ -115,7 +115,7 @@ const requestJoinGroup = async (req, res) => {
 
   try {
       // --- Buscar el grupo por código de acceso ---
-      const group = await Group.findOne({ codigo_acceso: codigo_acceso.toUpperCase() }); // Buscar usando el código en mayúsculas
+      const group = await Group.findOne({ codigo_acceso: codigo_acceso.toUpperCase(), activo: true }); // Buscar usando el código en mayúsculas
 
       // Si el grupo no existe
       if (!group) {
@@ -399,7 +399,7 @@ const getMyApprovedGroups = async (req, res) => {
       usuario_id: userId,
       estado_solicitud: 'Aprobado' // Filtrar solo membresías aprobadas
     })
-    .populate('grupo_id', 'nombre codigo_acceso docente_id'); // 'Poblar' la información del grupo
+    .populate('grupo_id', 'nombre codigo_acceso docente_id activo'); // 'Poblar' la información del grupo
 
     // Extraer solo los objetos de grupo de las membresías encontradas
     const groups = approvedMemberships.map(membership => membership.grupo_id);
@@ -419,10 +419,19 @@ const getMyApprovedGroups = async (req, res) => {
 // Acceso:  Privado/Docente
 const getMyOwnedGroups = async (req, res) => {
   try {
-    const docenteId = new mongoose.Types.ObjectId(req.user._id); 
+    const docenteId = new mongoose.Types.ObjectId(req.user._id);
+    const { status } = req.query; // Get status from query parameters
+
+    const matchCriteria = { docente_id: docenteId };
+
+    if (status === 'archived') {
+      matchCriteria.activo = false;
+    } else { // Default to active if status is 'active', undefined, or any other value
+      matchCriteria.activo = true;
+    }
 
     const groupsWithStudentCount = await Group.aggregate([
-      { $match: { docente_id: docenteId } },
+      { $match: matchCriteria },
       {
         $lookup: {
           from: 'memberships',
@@ -484,7 +493,7 @@ const getMyMembershipsWithStatus = async (req, res) => {
     const membershipsWithGroups = await Membership.find({ usuario_id: userId })
       .populate({
         path: 'grupo_id',
-        select: 'nombre codigo_acceso docente_id',
+        select: 'nombre codigo_acceso docente_id activo',
         populate: {
           path: 'docente_id',
           model: 'User',
@@ -571,9 +580,9 @@ const updateGroup = async (req, res) => {
           return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece' });
       }
       // Fetch the group instance separately for updates if isOwner is true
-      const group = await Group.findById(groupId);
+      const group = await Group.findOne({ _id: groupId, docente_id: docenteId, activo: true });
       if (!group) { // Should not happen if isOwner was true, but as a safeguard
-          return res.status(404).json({ message: 'Grupo no encontrado.'});
+          return res.status(404).json({ message: 'Grupo no encontrado, no está activo o no te pertenece.'});
       }
 
       // Actualizar los campos permitidos solo si se proporcionaron en el cuerpo de la petición
@@ -629,48 +638,30 @@ const deleteGroup = async (req, res) => {
            // Se usa 404 para no revelar si el grupo existe pero pertenece a otro
           return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece' });
       }
-      // Fetch the group instance separately if needed, though for deletion, only ID might be enough if no further checks on group object.
-      // However, the relatedMembershipCount check needs groupId.
+      // Fetch the group instance using isTeacherOfGroup, which already verifies ownership.
+      // The isTeacherOfGroup utility returns true if the group exists and belongs to the teacher, otherwise false.
+      // We need the group object itself to update it.
+      const group = await Group.findOne({ _id: groupId, docente_id: docenteId });
 
-      // --- Verificación para EVITAR eliminar si hay datos relacionados ---
-      // Para simplificar y evitar la complejidad de la "eliminación en cascada" (borrar membresías, asignaciones, entregas, progresos),
-      // vamos a impedir la eliminación del grupo si tiene CUALQUIER membresía asociada (pendiente o aprobada).
-      // Si hay miembros, significa que hay estudiantes que podrían tener asignaciones, entregas, etc.
-      const relatedMembershipCount = await Membership.countDocuments({ grupo_id: groupId });
-
-      if (relatedMembershipCount > 0) {
-           // Si se encuentra al menos una membresía asociada a este grupo, no se permite eliminar.
-           // Se usa 409 Conflict para indicar que la petición no puede ser completada debido a un conflicto con el estado actual del recurso.
-           return res.status(409).json({ message: 'No se puede eliminar el grupo porque tiene estudiantes o solicitudes de unión asociadas. Elimina primero a todos los miembros y solicitudes pendientes.' });
+      // This check is technically redundant if isOwner was true, but good for safety.
+      if (!group) {
+          // This case should ideally be caught by isOwner check already.
+          return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece.' });
       }
 
-      // NOTA: En un sistema más robusto, podrías necesitar verificar también:
-      // - Si hay ContentAssignment asociados a este grupo
-      // - Si hay Submission asociadas a este grupo
-      // - Si hay Progress asociados a este grupo
-      // O implementar una lógica de "eliminación suave" (ej: marcar el grupo como inactivo en lugar de borrarlo).
-      // Para esta etapa, impedir la eliminación si hay miembros es una salvaguarda razonable.
+      // --- Soft Delete: Marcar el grupo como inactivo ---
+      group.activo = false;
+      await group.save(); // Guardar el cambio en la base de datos
 
+      // La verificación de relatedMembershipCount ya no es necesaria para impedir la operación.
+      // Los miembros existentes y las solicitudes pendientes permanecerán, pero el grupo estará inactivo.
 
-      // Si no hay miembros asociados, procedemos con la eliminación del documento del grupo
-      // Usamos findByIdAndDelete para encontrar y eliminar en una sola operación
-      await Group.findByIdAndDelete(groupId);
-
-      // En un escenario con eliminación en cascada, aquí también borrarías:
-      // - Todas las Membership donde grupo_id = groupId
-      // - Todas las ContentAssignment donde group_id = groupId
-      // - Todas las Submission donde group_id = groupId
-      // - Todos los Progress donde group_id = groupId
-      // Esto es complejo y no se implementa aquí para mantener el foco,
-      // por eso impedimos la eliminación si hay miembros.
-
-
-      // Respuesta de éxito
-      res.status(200).json({ message: 'Grupo eliminado exitosamente' });
+      // Respuesta de éxito actualizada
+      res.status(200).json({ message: 'Grupo archivado exitosamente' });
 
   } catch (error) {
-       console.error('Error eliminando grupo:', error);
-       res.status(500).json({ message: 'Error interno del servidor al eliminar el grupo', error: error.message });
+       console.error('Error archivando el grupo:', error); // Mensaje de error actualizado
+       res.status(500).json({ message: 'Error interno del servidor al archivar el grupo', error: error.message });
   }
 };
 
@@ -758,13 +749,14 @@ const getGroupById = async (req, res, next) => {
     }
 
     // 2. Si es el dueño, buscar el grupo por su ID para devolverlo
-    const group = await Group.findById(groupId);
+    const group = await Group.findOne({ _id: groupId, docente_id: docenteId, activo: true });
     // Esta segunda búsqueda es necesaria porque isTeacherOfGroup solo devuelve boolean.
     // Debería existir si isOwner es true, pero es una buena práctica verificar.
     if (!group) {
         // Esto podría indicar un problema de consistencia de datos si isOwner fue true.
-        console.error(`Error de consistencia: Grupo ${groupId} no encontrado después de confirmar propiedad para docente ${docenteId}.`);
-        return res.status(404).json({ message: `Grupo no encontrado con ID ${groupId}` });
+        // O el grupo está inactivo
+        console.error(`Error de consistencia o grupo inactivo: Grupo ${groupId} no encontrado o inactivo después de confirmar propiedad para docente ${docenteId}.`);
+        return res.status(404).json({ message: `Grupo no encontrado con ID ${groupId} o no está activo.` });
     }
 
     // 3. Si todo es correcto, responder con el objeto del grupo
@@ -947,4 +939,61 @@ module.exports = {
   getGroupById,
   getGroupMemberships,
   removeMembershipById, // Added new controller function
+};
+
+// @desc    Restaurar un grupo archivado (marcarlo como activo)
+// @route   PUT /api/groups/:groupId/restore
+// @access  Privado/Docente
+const restoreGroup = async (req, res) => {
+  const { groupId } = req.params;
+  const docenteId = req.user._id;
+
+  // Validación básica del ID del grupo
+  if (!mongoose.Types.ObjectId.isValid(groupId)) {
+    return res.status(400).json({ message: 'ID de grupo inválido' });
+  }
+
+  try {
+    // Buscar el grupo por ID y verificar que pertenece al docente autenticado
+    // No filtramos por activo: true aquí, ya que queremos encontrarlo incluso si está archivado.
+    const group = await Group.findOne({ _id: groupId, docente_id: docenteId });
+
+    if (!group) {
+      // Si no encuentra el grupo con ese ID Y que pertenezca a este docente
+      return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece.' });
+    }
+
+    // Si el grupo ya está activo, simplemente devolverlo o un mensaje específico
+    if (group.activo) {
+      return res.status(200).json({ message: 'El grupo ya está activo.', group });
+    }
+
+    // Restaurar el grupo
+    group.activo = true;
+    await group.save();
+
+    res.status(200).json({ message: 'Grupo restaurado exitosamente.', group });
+
+  } catch (error) {
+    console.error('Error restaurando grupo:', error);
+    res.status(500).json({ message: 'Error interno del servidor al restaurar el grupo.', error: error.message });
+  }
+};
+
+module.exports = {
+  createGroup,
+  requestJoinGroup,
+  getMyJoinRequests,
+  respondJoinRequest,
+  getGroupStudents,
+  getMyApprovedGroups,
+  updateGroup,
+  deleteGroup, // This is actually archiveGroup now
+  restoreGroup, // Added restoreGroup
+  removeStudentFromGroup,
+  getMyOwnedGroups,
+  getMyMembershipsWithStatus,
+  getGroupById,
+  getGroupMemberships,
+  removeMembershipById,
 };

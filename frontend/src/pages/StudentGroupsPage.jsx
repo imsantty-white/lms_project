@@ -13,6 +13,7 @@ import {
   Divider,
   Chip // Importamos Chip de Material UI
 } from '@mui/material';
+import { grey } from '@mui/material/colors'; // Import grey color
 import GroupsIcon from '@mui/icons-material/Groups'; // For EmptyState
 
 import { useAuth, axiosInstance } from '../contexts/AuthContext';
@@ -119,10 +120,21 @@ function StudentGroupsPage() {
               const statusInfo = getStatusDisplay(group.student_status);
 
               return (
-                <Paper key={group._id} sx={{ mb: 2, p: 2 }}>
+                <Paper 
+                  key={group._id} 
+                  sx={{ 
+                    mb: 2, 
+                    p: 2, 
+                    backgroundColor: group.activo === false ? grey[100] : 'transparent' 
+                  }}
+                >
                   <ListItem disablePadding>
                     <ListItemText
-                      primary={<Typography variant="h6">{group.nombre}</Typography>}
+                      primary={
+                        <Typography variant="h6">
+                          {group.nombre} {group.activo === false && "(Archivado)"}
+                        </Typography>
+                      }
                       secondary={
                         <>
                           <Typography sx={{ display: 'inline' }} component="span" variant="body2" color="text.secondary">

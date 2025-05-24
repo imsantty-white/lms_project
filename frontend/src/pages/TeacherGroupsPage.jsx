@@ -19,9 +19,15 @@ import {
   DialogActions, // <-- Importa DialogActions
   DialogContent, // <-- Importa DialogContent
   DialogContentText, // <-- Importa DialogContentText
-  DialogTitle // <-- Importa DialogTitle
+  DialogTitle, // <-- Importa DialogTitle
+  Tabs, // <-- Importa Tabs
+  Tab, // <-- Importa Tab
+  IconButton, // For Archive button
+  ListItemSecondaryAction, // To position the archive button
 } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import ArchiveIcon from '@mui/icons-material/Archive'; // Icon for archive button
+import RestoreIcon from '@mui/icons-material/Restore'; // Icon for unarchive/restore button
 
 // *** Importar useAuth Y axiosInstance ***
 import { useAuth, axiosInstance } from '../contexts/AuthContext'; // <-- Importa axiosInstance aquí
@@ -37,6 +43,7 @@ import { useNavigate } from 'react-router-dom';
 
 // Importa el nuevo componente modal para crear grupo
 import CreateGroupModal from '../pages/components/CreateGroupModal';
+import ConfirmationModal from '../components/ConfirmationModal'; // Import ConfirmationModal
 
 
 function TeacherGroupsPage() {
@@ -47,6 +54,7 @@ function TeacherGroupsPage() {
   const [groups, setGroups] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentTab, setCurrentTab] = useState('active'); // State for current tab
 
   const hasShownSuccessToast = useRef(false);
 
@@ -58,65 +66,63 @@ function TeacherGroupsPage() {
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   // --- FIN NUEVOS ESTADOS GRUPO ---
 
+  // --- State for Archive Group confirmation ---
+  const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
+  const [groupToArchive, setGroupToArchive] = useState(null); // Store { id, nombre }
+  const [isArchiving, setIsArchiving] = useState(false);
+
+  // --- State for Unarchive Group confirmation ---
+  const [isUnarchiveConfirmOpen, setIsUnarchiveConfirmOpen] = useState(false);
+  const [groupToUnarchive, setGroupToUnarchive] = useState(null); // Store { id, nombre }
+  const [isUnarchiving, setIsUnarchiving] = useState(false);
+
 
   useEffect(() => {
     const fetchTeacherGroups = async () => {
-         // No necesitas la verificación de auth aquí dentro, la haremos en la condición del useEffect
-         // if (!isAuthenticated || user?.userType !== 'Docente') {
-         //    setIsLoading(false);
-         //    setError('No tienes permiso para ver esta página.');
-         //    return;
-         // }
-
       setIsLoading(true);
       setError(null);
-      hasShownSuccessToast.current = false;
+      // Resetting toast ref for each fetch attempt based on tab
+      // hasShownSuccessToast.current = false; // This might be too noisy if reset on every tab change. Let's manage it carefully.
+
+      let endpoint = '/api/groups/docente/me';
+      if (currentTab === 'archived') {
+        endpoint = '/api/groups/docente/me?status=archived';
+      } else {
+        // Default to active, or explicitly for 'active' tab
+        endpoint = '/api/groups/docente/me?status=active';
+      }
 
       try {
-        // *** Usar axiosInstance.get en lugar de axios.get ***
-        // Nota: si axiosInstance ya tiene baseURL, puedes usar rutas relativas como '/api/groups/'
-        const response = await axiosInstance.get('/api/groups/docente/me'); // <-- Modificado
+        const response = await axiosInstance.get(endpoint);
+        setGroups(response.data.data);
 
-        setGroups(response.data.data); // Asumiendo que tu backend devuelve los grupos en response.data.data
-
-        if (!hasShownSuccessToast.current) {
-            toast.success('Grupos cargados con éxito.');
-            hasShownSuccessToast.current = true;
-        }
-
+        // Show success toast only once per successful load of a tab, or adjust as needed
+        // For simplicity, let's show it every time a tab loads successfully for now.
+        toast.success(`Grupos ${currentTab === 'active' ? 'activos' : 'archivados'} cargados con éxito.`);
+        
       } catch (err) {
-        console.error('Error al obtener los grupos del docente:', err.response ? err.response.data : err.message);
+        console.error(`Error al obtener los grupos (${currentTab}) del docente:`, err.response ? err.response.data : err.message);
         const errorMessage = err.response && err.response.data && err.response.data.message
           ? err.response.data.message
-          : 'Error al cargar tus grupos.';
+          : `Error al cargar tus grupos ${currentTab === 'active' ? 'activos' : 'archivados'}.`;
         setError(errorMessage);
-        toast.error('Error al cargar grupos.');
-        hasShownSuccessToast.current = false;
+        toast.error(errorMessage);
       } finally {
         setIsLoading(false);
       }
     };
 
-    // *** CONDICIÓN CLAVE: Ejecutar el fetch solo si la Auth está inicializada Y autenticado como Docente ***
     if (isAuthInitialized && isAuthenticated && user?.userType === 'Docente') {
-        fetchTeacherGroups();
-    } else if (isAuthInitialized && !isAuthenticated) {
-         // Si la inicialización terminó pero no estamos autenticados,
-         // esto no debería pasar si la ruta está protegida por ProtectedRoute,
-         // pero como fallback, seteamos el error y el estado de carga.
-         // La redirección a '/' la maneja ProtectedRoute.
-         console.log("Auth inicializada, pero usuario no autenticado. No se cargan grupos.");
-         setIsLoading(false);
-         setError("No estás autenticado para ver tus grupos."); // Mostrar error apropiado
-     } else if (!isAuthInitialized) {
-         // Si la Auth aún no ha terminado de inicializar, no hacemos nada aún,
-         // ProtectedRoute mostrará el spinner inicial.
-         console.log("Auth aún no inicializada. Esperando para cargar grupos.");
-     }
+      fetchTeacherGroups();
+    } else if (isAuthInitialized && (!isAuthenticated || user?.userType !== 'Docente')) {
+      setIsLoading(false);
+      setError("No estás autenticado o no tienes permiso para ver esta página.");
+    }
+  }, [isAuthenticated, user, isAuthInitialized, currentTab]); // <-- Añade currentTab
 
-
-    // *** Añadir isAuthInitialized a las dependencias ***
-  }, [isAuthenticated, user, isAuthInitialized]); // <-- Añade isAuthInitialized
+  const handleTabChange = (event, newValue) => {
+    setCurrentTab(newValue);
+  };
 
   // Mensaje de acceso denegado si no es docente/admin (mantener, pero la redirección la maneja ProtectedRoute)
   // Este bloque se ejecutará solo si isAuthInitialized es true y !isAuthenticated
@@ -188,6 +194,68 @@ function TeacherGroupsPage() {
   };
   // --- FIN Lógica para Modal de Crear Grupo y su Confirmación ---
 
+  // --- Lógica para Modal de Archivar Grupo ---
+  const handleOpenArchiveConfirm = (group) => {
+    setGroupToArchive({ id: group._id, nombre: group.nombre });
+    setIsArchiveConfirmOpen(true);
+  };
+
+  const handleConfirmArchive = async () => {
+    if (!groupToArchive) return;
+
+    setIsArchiving(true);
+    try {
+      await axiosInstance.delete(`/api/groups/${groupToArchive.id}`);
+      toast.success(`Grupo "${groupToArchive.nombre}" archivado con éxito.`);
+      setGroups(prevGroups => prevGroups.filter(g => g._id !== groupToArchive.id));
+      setIsArchiveConfirmOpen(false);
+      setGroupToArchive(null);
+    } catch (err) {
+      console.error('Error archiving group:', err.response ? err.response.data : err.message);
+      const errorMessage = err.response && err.response.data && err.response.data.message
+        ? err.response.data.message
+        : 'Error al intentar archivar el grupo.';
+      toast.error(errorMessage);
+    } finally {
+      setIsArchiving(false);
+      // Ensure modal closes even on error, unless specific handling is needed
+      // setIsArchiveConfirmOpen(false); 
+      // setGroupToArchive(null); // Reset groupToArchive here or in onClose of modal
+    }
+  };
+  // --- FIN Lógica para Modal de Archivar Grupo ---
+
+  // --- Lógica para Modal de Restaurar Grupo ---
+  const handleOpenUnarchiveConfirm = (group) => {
+    setGroupToUnarchive({ id: group._id, nombre: group.nombre });
+    setIsUnarchiveConfirmOpen(true);
+  };
+
+  const handleConfirmUnarchive = async () => {
+    if (!groupToUnarchive) return;
+
+    setIsUnarchiving(true);
+    try {
+      await axiosInstance.put(`/api/groups/${groupToUnarchive.id}/restore`);
+      toast.success(`Grupo "${groupToUnarchive.nombre}" restaurado con éxito.`);
+      setGroups(prevGroups => prevGroups.filter(g => g._id !== groupToUnarchive.id));
+      setIsUnarchiveConfirmOpen(false);
+      setGroupToUnarchive(null);
+    } catch (err) {
+      console.error('Error unarchiving group:', err.response ? err.response.data : err.message);
+      const errorMessage = err.response && err.response.data && err.response.data.message
+        ? err.response.data.message
+        : 'Error al intentar restaurar el grupo.';
+      toast.error(errorMessage);
+      // It's good practice to close modal even on error, or handle specific cases
+      setIsUnarchiveConfirmOpen(false);
+      setGroupToUnarchive(null);
+    } finally {
+      setIsUnarchiving(false);
+    }
+  };
+  // --- FIN Lógica para Modal de Restaurar Grupo ---
+
 
   // ----Renderizado seguiria aqui (mantener tu JSX de renderizado) ------------
   return (
@@ -209,6 +277,12 @@ function TeacherGroupsPage() {
         </Box>
         {/* --- Fin Encabezado --- */}
 
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+          <Tabs value={currentTab} onChange={handleTabChange} aria-label="pestañas de grupos">
+            <Tab label="Grupos Activos" value="active" />
+            <Tab label="Grupos Archivados" value="archived" />
+          </Tabs>
+        </Box>
 
         {isLoading && (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -220,13 +294,15 @@ function TeacherGroupsPage() {
 
         {!isLoading && !error && groups.length === 0 && (
           <Alert severity="info" sx={{ mt: 4 }}>
-            Aún no has creado ningún grupo. Haz clic en "Crear Grupo" para empezar.
+            {currentTab === 'active'
+              ? 'Aún no has creado ningún grupo activo. Haz clic en "Crear Grupo" para empezar.'
+              : 'No tienes grupos archivados.'}
           </Alert>
         )}
 
         {/* --- Lista de Grupos (Centrada y Compacta) --- */}
         {!isLoading && !error && groups.length > 0 && (
-          <Box sx={{ maxWidth: 'sm', mx: 'auto', mt: 3 }}>
+          <Box sx={{ maxWidth: 'sm', mx: 'auto', mt: 3 }}> {/* Ajusta el maxWidth según necesidad */}
             <List dense sx={{ width: '100%', p: 0 }}>
               {groups.map((group) => (
                 <Paper key={group._id} sx={{ mb: 2, width: '100%' }}>
@@ -239,26 +315,50 @@ function TeacherGroupsPage() {
                       primary={<Typography variant="h6">{group.nombre}</Typography>}
                       secondary={
                         <>
-                          <Typography sx={{ display: 'inline', mr: 1 }} component="span" variant="body2" color="text.primary"> {/* Añade mr para separar */}
+                          <Typography sx={{ display: 'inline', mr: 1 }} component="span" variant="body2" color="text.primary">
                             Código: {group.codigo_acceso}
                           </Typography>
-                          {/* Elimina el Divider si quieres los datos en la misma línea o ajusta según necesites */}
-                          {/* <Divider sx={{ my: 1 }} /> */}
-                          <Typography variant="body2" color="text.secondary" component="span"> {/* Usa component="span" para que quede en la misma línea */}
+                          <Typography variant="body2" color="text.secondary" component="span">
                             Estudiantes: {group.approvedStudentCount || 0}
-                         </Typography>
-                         {group.description && ( // Muestra descripción si existe
-                          <Typography variant="body2" color="text.secondary" sx={{ display: 'block', mt: 1, whiteSpace: 'normal' }}>
-                            {group.description}
                           </Typography>
-                         )}
-                      </>
-                    }
-                  />
-                  </ListItemButton>
-              </Paper>
-          ))}
-        </List>
+                          {group.description && (
+                            <Typography variant="body2" color="text.secondary" sx={{ display: 'block', mt: 1, whiteSpace: 'normal' }}>
+                              {group.description}
+                            </Typography>
+                          )}
+                        </>
+                      }
+                    />
+                    {currentTab === 'active' && (
+                      <ListItemSecondaryAction>
+                        <IconButton
+                          edge="end"
+                          aria-label="archive"
+                          onClick={() => handleOpenArchiveConfirm(group)}
+                          disabled={isArchiving}
+                          color="warning"
+                        >
+                          <ArchiveIcon />
+                        </IconButton>
+                      </ListItemSecondaryAction>
+                    )}
+                    {currentTab === 'archived' && (
+                      <ListItemSecondaryAction>
+                        <IconButton
+                          edge="end"
+                          aria-label="unarchive"
+                          onClick={() => handleOpenUnarchiveConfirm(group)}
+                          disabled={isUnarchiving}
+                          color="success" // Use a success color for restore
+                        >
+                          <RestoreIcon />
+                        </IconButton>
+                      </ListItemSecondaryAction>
+                    )}
+                  </ListItem> {/* Changed from ListItemButton to ListItem to accommodate ListItemSecondaryAction */}
+                </Paper>
+              ))}
+            </List>
           </Box>
         )}
       </Box>
@@ -274,7 +374,7 @@ function TeacherGroupsPage() {
         aria-labelledby="create-group-confirm-title"
         aria-describedby="create-group-confirm-description"
       >
-        <DialogTitle id="create-group-confirm-title">{"Confirmar Creación de Grupo"}</DialogTitle> {/* Título más específico */}
+        <DialogTitle id="create-group-confirm-title">{"Confirmar Creación de Grupo"}</DialogTitle>
         <DialogContent>
           <DialogContentText id="create-group-confirm-description">
             ¿Estás seguro de que deseas crear el grupo "{groupDataToCreate?.nombre}"?
@@ -283,11 +383,32 @@ function TeacherGroupsPage() {
         <DialogActions>
           <Button onClick={handleCloseCreateGroupConfirm} disabled={isCreatingGroup}>Cancelar</Button>
           <Button onClick={handleConfirmCreateGroup} color="primary" disabled={isCreatingGroup} autoFocus>
-            {isCreatingGroup ? 'Creando...' : 'Confirmar Creación'}
+            {isCreatingGroup ? 'Creando...' : 'Confirmar'}
           </Button>
         </DialogActions>
       </Dialog>
 
+      <ConfirmationModal
+        open={isArchiveConfirmOpen}
+        onClose={() => { setIsArchiveConfirmOpen(false); setGroupToArchive(null); }}
+        onConfirm={handleConfirmArchive}
+        title="Confirmar Archivar Grupo"
+        message={groupToArchive ? `¿Estás seguro de que quieres archivar el grupo "${groupToArchive.nombre}"? El grupo se ocultará de la lista principal y los estudiantes no podrán unirse a nuevos grupos. Podrás restaurarlo más tarde si esta funcionalidad está habilitada.` : ''}
+        confirmButtonText="Archivar"
+        cancelButtonText="Cancelar"
+        isActionInProgress={isArchiving}
+      />
+
+      <ConfirmationModal
+        open={isUnarchiveConfirmOpen}
+        onClose={() => { setIsUnarchiveConfirmOpen(false); setGroupToUnarchive(null); }}
+        onConfirm={handleConfirmUnarchive}
+        title="Confirmar Restaurar Grupo"
+        message={groupToUnarchive ? `¿Estás seguro de que quieres restaurar el grupo "${groupToUnarchive.nombre}"? El grupo volverá a la lista de grupos activos.` : ''}
+        confirmButtonText="Restaurar"
+        cancelButtonText="Cancelar"
+        isActionInProgress={isUnarchiving}
+      />
     </Container>
   );
 }
