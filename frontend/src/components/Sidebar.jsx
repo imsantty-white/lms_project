@@ -8,7 +8,7 @@ import Avatar from '@mui/material/Avatar';
 // Importa algunos iconos de ejemplo (puedes añadir más según necesites)
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import GroupIcon from '@mui/icons-material/Group';
-import SchoolIcon from '@mui/icons-material/School';
+// import SchoolIcon from '@mui/icons-material/School'; // Not used, can remove
 import SettingsIcon from '@mui/icons-material/Settings';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
@@ -33,42 +33,37 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
   // Define las opciones de navegación para cada rol
   const navLinks = {
     Estudiante: [
-      { text: 'My Dashboard', icon: <DashboardIcon />, path: '/dashboard-estudiante' },
-      { text: 'Mi Progreso', icon: <DonutLargeIcon />, path: '/student/progress' },
+      { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard-estudiante' },
+      { text: 'Mi Progreso Detallado', icon: <DonutLargeIcon />, path: '/student/progress' },
       { text: 'Mis Grupos', icon: <GroupsIcon />, path: '/student/groups' },
       { text: 'Mis Rutas de Aprendizaje', icon: <RouteIcon />, path: '/student/learning-paths' },
       { text: 'Unirse a un Grupo', icon: <GroupAddIcon />, path: '/join-group' }, 
     ],
     Docente: [
-      { text: 'My Dashboard', icon: <DashboardIcon />, path: '/dashboard-docente' },
+      { text: 'Teacher Dashboard', icon: <DashboardIcon />, path: '/teacher/dashboard' },
       { text: 'Mis Grupos', icon: <GroupIcon />, path: '/teacher/groups/' },
       { text: 'Actividades Asignadas', icon: <LibraryBooksIcon />, path: '/teacher/assignments' },
       { text: 'Banco de Contenido', icon: <AssignmentIcon />, path: '/content-bank' },
       { text: 'Gestion de Rutas', icon: <RouteIcon />, path: '/teacher/learning-paths' },
     ],
     Administrador: [
-      { text: 'My Dashboard', icon: <DashboardIcon />, path: '/dashboard-admin' },
+      { text: 'Admin Dashboard', icon: <DashboardIcon />, path: '/admin/dashboard' },
       { text: 'Gestión de Usuarios', icon: <PersonIcon />, path: '/admin/user-management' },
-      { text: 'Gestión de Grupos', icon: <GroupsIcon />, path: '/gestion-grupos-admin' },
-      { text: 'Configuración', icon: <SettingsIcon />, path: '/configuracion-admin' },
+      { text: 'Gestión de Grupos', icon: <GroupsIcon />, path: '/gestion-grupos-admin' }, // This path might need review
+      { text: 'Configuración', icon: <SettingsIcon />, path: '/configuracion-admin' }, // This path might need review
     ],
-    Common: [
-      { text: 'Mi Perfil', icon: <PersonIcon />, path: '/profile' },
-    ]
+    // Common links are not used per current implementation, but kept for reference
+    // Common: [
+    //   { text: 'Mi Perfil', icon: <PersonIcon />, path: '/profile' },
+    // ]
   };
 
-  // Obtiene los enlaces correspondientes al rol del usuario actual
-  // Si el rol del usuario no coincide con ninguna lista, mostramos un array vacío
   const currentUserLinks = navLinks[user?.userType] || [];
-  // const commonLinks = navLinks.Common || [];
-  // const linksToDisplay = [...currentUserLinks, ...commonLinks];
-  const linksToDisplay = [...currentUserLinks];
+  const linksToDisplay = [...currentUserLinks]; // Only role-specific links
 
-  // Si el usuario está logueado pero no tiene un userType válido definido para links, no mostrar sidebar o mostrar un mensaje
-  if (currentUserLinks.length === 0 && isAuthenticated) {
+  if (linksToDisplay.length === 0 && isAuthenticated) {
       console.warn(`No hay enlaces de navegación definidos para el tipo de usuario: ${user?.userType}`);
-      // Podrías renderizar un mensaje de "No hay navegación disponible para tu rol" si quieres
-       return null; // No mostramos el sidebar si no hay enlaces específicos para el rol
+       return null; 
   }
 
 
@@ -83,18 +78,18 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
         [`& .MuiDrawer-paper`]: {
           width: open ? width : 0,
           boxSizing: 'border-box',
-          marginTop: '64px',
-          height: 'calc(100% - 64px)',
+          marginTop: '64px', // Ensure it's below the Header
+          height: `calc(100% - 64px)`, // Adjust height to fill space below Header
           transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           overflowX: 'hidden',
-          borderRight: open ? undefined : 'none',
+          borderRight: open ? undefined : 'none', // No border when closed
         },
       }}
     >
       <Box
         sx={{
           opacity: open ? 1 : 0,
-          transition: 'opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1) 0.1s',
+          transition: 'opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1) 0.1s', // Fade content with drawer
           pointerEvents: open ? 'auto' : 'none',
           height: '100%',
           display: 'flex',
@@ -106,8 +101,7 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
             <ChevronLeftIcon />
           </IconButton>
         </Box>
-        <Box sx={{ overflow: 'auto' }}>
-          {/* Bloque de usuario: ahora clickeable y con avatar */}
+        <Box sx={{ overflowY: 'auto', overflowX: 'hidden' }}> {/* Ensure content scrolls vertically */}
           <Box
             sx={{ p: 2, textAlign: 'center', cursor: 'pointer' }}
             component={Link}
@@ -117,7 +111,7 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
             <Avatar sx={{ mx: 'auto', mb: 1, bgcolor: 'primary.main' }}>
               {`${(user?.nombre?.[0] || '')}${(user?.apellidos?.[0] || '')}`.toUpperCase()}
             </Avatar>
-            <Typography variant="h6">
+            <Typography variant="h6" component="div">
               {`${user?.nombre || ''} ${user?.apellidos || ''}`.trim() || 'Usuario'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
@@ -125,10 +119,9 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
             </Typography>
             <Divider sx={{ mt: 2 }} />
           </Box>
-          {/* Lista de enlaces de navegación */}
           <List>
-            {linksToDisplay.map((link, index) => (
-              <ListItem key={link.text} disablePadding>
+            {linksToDisplay.map((link) => ( // Removed index as key since path should be unique enough
+              <ListItem key={link.path} disablePadding> {/* Use path as key if text can repeat */}
                 <ListItemButton component={Link} to={link.path}>
                   <ListItemIcon>
                     {link.icon}

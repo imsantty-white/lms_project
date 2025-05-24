@@ -29,13 +29,14 @@ import StudentProgressPage from './pages/StudentProgressPage';
 import UserProfilePage from './pages/UserProfilePage';
 import TeacherDashboardPage from './pages/TeacherDashboardPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
-import ProfileCompletionBanner from './components/ProfileCompletionBanner'; // Import the banner
+import StudentDashboardPage from './pages/StudentDashboardPage'; // Import the new StudentDashboardPage
+import ProfileCompletionBanner from './components/ProfileCompletionBanner';
 
 import { getTheme } from './theme';
 
-// Componentes placeholder para los dashboards
+// Componentes placeholder para los dashboards (DashboardEstudiante will be replaced)
 const DashboardDocente = () => <div>Contenido del Dashboard del Docente</div>;
-const DashboardEstudiante = () => <div>Contenido del Dashboard del Estudiante</div>;
+// const DashboardEstudiante = () => <div>Contenido del Dashboard del Estudiante</div>; // Replaced
 const DashboardAdmin = () => <div>Contenido del Dashboard del Administrador</div>;
 
 
@@ -175,11 +176,11 @@ function App() {
                     element={<ProtectedRoute element={<DashboardDocente />} allowedRoles={['Docente', 'Administrador']} />}
                   />
                   <Route
-                    path="/dashboard-estudiante"
-                    element={<ProtectedRoute element={<DashboardEstudiante />} allowedRoles={['Estudiante', 'Administrador']} />}
+                    path="/dashboard-estudiante" // Path for the new Student Dashboard
+                    element={<ProtectedRoute element={<StudentDashboardPage />} allowedRoles={['Estudiante', 'Administrador']} />}
                   />
                    <Route
-                    path="/admin/dashboard" // New route for Admin Dashboard
+                    path="/admin/dashboard"
                     element={<ProtectedRoute element={<AdminDashboardPage />} allowedRoles={['Administrador']} />}
                   />
                    <Route
