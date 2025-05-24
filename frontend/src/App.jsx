@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { Box, CssBaseline, ThemeProvider } from '@mui/material';
-import { useAuth } from './contexts/AuthContext';
+import { useAuth, axiosInstance } from './contexts/AuthContext'; // Import axiosInstance
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -25,8 +25,11 @@ import TeacherAssignmentSubmissionsPage from './pages/TeacherAssignmentSubmissio
 import StudentLearningPathsPage from './pages/StudentLearningPathsPage';
 import StudentViewLearningPathPage from './pages/StudentViewLearningPathPage';
 import StudentTakeActivityPage from './pages/StudentTakeActivityPage';
-import StudentProgressPage from './pages/StudentProgressPage'; 
+import StudentProgressPage from './pages/StudentProgressPage';
 import UserProfilePage from './pages/UserProfilePage';
+import TeacherDashboardPage from './pages/TeacherDashboardPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
+import ProfileCompletionBanner from './components/ProfileCompletionBanner'; // Import the banner
 
 import { getTheme } from './theme';
 
@@ -41,8 +44,10 @@ const drawerWidth = 240;
 
 
 function App() {
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user, isAuthInitialized } = useAuth(); // Added user and isAuthInitialized
     const location = useLocation();
+    const [isProfileIncomplete, setIsProfileIncomplete] = useState(false);
+    const [bannerDismissed, setBannerDismissed] = useState(sessionStorage.getItem('profileBannerDismissed') === 'true');
 
     const shouldShowSidebar = isAuthenticated;
 
@@ -54,6 +59,51 @@ function App() {
 
     const [mode, setMode] = useState(() => localStorage.getItem('themeMode') || 'light');
     const theme = useMemo(() => getTheme(mode), [mode]);
+
+    useEffect(() => {
+        const checkProfileCompletion = async () => {
+            if (isAuthenticated && user && user._id) { // Ensure user object and _id is available
+                // Only check if banner hasn't been dismissed in this session
+                if (sessionStorage.getItem('profileBannerDismissed') === 'true') {
+                    setIsProfileIncomplete(false); // Keep it false if dismissed
+                    return;
+                }
+                try {
+                    // Use user._id from AuthContext for the API call
+                    const response = await axiosInstance.get(`/api/profile/my-profile`); 
+                    const profileData = response.data.user;
+                    
+                    // Define what fields make a profile "complete"
+                    // Example: nombre, apellidos, and biografia must exist. Add profileImage if needed.
+                    const isIncomplete = !profileData.nombre || !profileData.apellidos || !profileData.biografia;
+                    setIsProfileIncomplete(isIncomplete);
+                    if (isIncomplete) {
+                        // console.log("Profile is incomplete. Data:", profileData);
+                    } else {
+                        // console.log("Profile is complete.");
+                    }
+
+                } catch (error) {
+                    console.error('Error fetching user profile for completion check:', error);
+                    // Optionally, decide if an error means we show the banner or not
+                    // For now, let's assume an error means we don't show it to avoid bothering users
+                    setIsProfileIncomplete(false);
+                }
+            } else {
+                setIsProfileIncomplete(false); // Not authenticated, so no banner
+            }
+        };
+
+        if (isAuthInitialized) { // Only run after auth state is confirmed
+            checkProfileCompletion();
+        }
+    }, [isAuthenticated, user, isAuthInitialized, bannerDismissed]); // Re-check if auth state changes or banner is dismissed
+
+    const handleDismissBanner = () => {
+        sessionStorage.setItem('profileBannerDismissed', 'true');
+        setBannerDismissed(true);
+        setIsProfileIncomplete(false); // Ensure banner doesn't re-appear after dismissal logic
+    };
 
     // Cuando cambias el modo:
     const handleToggleMode = () => {
@@ -89,24 +139,37 @@ function App() {
 
           <Box
               component="main"
-               sx={{
+              sx={{
                   flexGrow: 1,
-                  // Elimina el margen izquierdo porque el drawer ya está ocupando ese espacio físicamente
                   ml: 0,
-                  // Ajusta el ancho para ocupar solo el espacio disponible
                   width: shouldShowSidebar && sidebarOpen ? `calc(100% - ${drawerWidth}px)` : '100%',
                   transition: 'width 0.3s ease',
                   overflowX: 'hidden',
-                  overflowY: location.pathname === '/' ? 'hidden' : 'auto',
-                  px: 2, // Puedes mantener o ajustar el padding según necesites
-                  py: 2,
+                  // Adjust py to make space for banner if it's shown globally here
+                  // However, it's better to render the banner inside this Box but before Routes
+                  // So the banner is part of the scrollable content area.
                   boxSizing: 'border-box',
               }}
           >
+            {/* Conditionally render the banner here */}
+            {isProfileIncomplete && !bannerDismissed && location.pathname !== '/profile' && (
+                 <ProfileCompletionBanner onDismiss={handleDismissBanner} />
+            )}
+            <Box sx={{ 
+                px: 2, 
+                py: isProfileIncomplete && !bannerDismissed && location.pathname !== '/profile' ? 1 : 2, // Reduce top padding if banner is shown
+                height: '100%', // Ensure this box can scroll if content overflows
+                overflowY: location.pathname === '/' ? 'hidden' : 'auto',
+              }}
+            >
                <Routes>
                   <Route path="/" element={<HomePage />} />
 
                   {/* Rutas Protegidas */}
+                  <Route
+                    path="/teacher/dashboard" // New route for Teacher Dashboard
+                    element={<ProtectedRoute element={<TeacherDashboardPage />} allowedRoles={['Docente', 'Administrador']} />}
+                  />
                   <Route
                     path="/dashboard-docente"
                     element={<ProtectedRoute element={<DashboardDocente />} allowedRoles={['Docente', 'Administrador']} />}
@@ -116,7 +179,11 @@ function App() {
                     element={<ProtectedRoute element={<DashboardEstudiante />} allowedRoles={['Estudiante', 'Administrador']} />}
                   />
                    <Route
-                    path="/dashboard-admin"
+                    path="/admin/dashboard" // New route for Admin Dashboard
+                    element={<ProtectedRoute element={<AdminDashboardPage />} allowedRoles={['Administrador']} />}
+                  />
+                   <Route
+                    path="/dashboard-admin" // This is a placeholder, will be replaced or removed
                     element={<ProtectedRoute element={<DashboardAdmin />} allowedRoles={['Administrador']} />}
                   />
                   <Route

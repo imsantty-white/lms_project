@@ -71,10 +71,11 @@ const submissionRoutes = require('./routes/submissionRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const progressRoutes = require('./routes/progressRoutes');
 const activityRoutes = require('./routes/activityRoutes');
-const notificationRoutes = require('./routes/notificationRoutes'); // Import notification routes
+const notificationRoutes = require('./routes/notificationRoutes');
 const profileRoutes = require('./routes/profileRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes'); // Import dashboard routes
 
-app.use('/api/auth', authRoutes); // Monta las rutas de autenticación bajo el prefijo /api/auth
+app.use('/api/auth', authRoutes);
 
 // Usar rutas de administración
 // Todas las rutas en adminRoutes.js se prefijarán con /api/admin
@@ -107,8 +108,11 @@ app.use('/api/activities', activityRoutes);
 app.use('/api/notifications', notificationRoutes);
 
 // Usar rutas de perfil
-// Todas las rutas en profileRoutes.js se prefijarán con /api/profile
 app.use('/api/profile', profileRoutes);
+
+// Usar rutas de dashboard
+// Todas las rutas en dashboardRoutes.js se prefijarán con /api/dashboard
+app.use('/api/dashboard', dashboardRoutes);
 
 // Ruta de prueba simple
 app.get('/', (req, res) => {
