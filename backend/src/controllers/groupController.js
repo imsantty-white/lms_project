@@ -419,10 +419,19 @@ const getMyApprovedGroups = async (req, res) => {
 // Acceso:  Privado/Docente
 const getMyOwnedGroups = async (req, res) => {
   try {
-    const docenteId = new mongoose.Types.ObjectId(req.user._id); 
+    const docenteId = new mongoose.Types.ObjectId(req.user._id);
+    const { status } = req.query; // Get status from query parameters
+
+    const matchCriteria = { docente_id: docenteId };
+
+    if (status === 'archived') {
+      matchCriteria.activo = false;
+    } else { // Default to active if status is 'active', undefined, or any other value
+      matchCriteria.activo = true;
+    }
 
     const groupsWithStudentCount = await Group.aggregate([
-      { $match: { docente_id: docenteId, activo: true } },
+      { $match: matchCriteria },
       {
         $lookup: {
           from: 'memberships',
@@ -930,4 +939,61 @@ module.exports = {
   getGroupById,
   getGroupMemberships,
   removeMembershipById, // Added new controller function
+};
+
+// @desc    Restaurar un grupo archivado (marcarlo como activo)
+// @route   PUT /api/groups/:groupId/restore
+// @access  Privado/Docente
+const restoreGroup = async (req, res) => {
+  const { groupId } = req.params;
+  const docenteId = req.user._id;
+
+  // Validación básica del ID del grupo
+  if (!mongoose.Types.ObjectId.isValid(groupId)) {
+    return res.status(400).json({ message: 'ID de grupo inválido' });
+  }
+
+  try {
+    // Buscar el grupo por ID y verificar que pertenece al docente autenticado
+    // No filtramos por activo: true aquí, ya que queremos encontrarlo incluso si está archivado.
+    const group = await Group.findOne({ _id: groupId, docente_id: docenteId });
+
+    if (!group) {
+      // Si no encuentra el grupo con ese ID Y que pertenezca a este docente
+      return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece.' });
+    }
+
+    // Si el grupo ya está activo, simplemente devolverlo o un mensaje específico
+    if (group.activo) {
+      return res.status(200).json({ message: 'El grupo ya está activo.', group });
+    }
+
+    // Restaurar el grupo
+    group.activo = true;
+    await group.save();
+
+    res.status(200).json({ message: 'Grupo restaurado exitosamente.', group });
+
+  } catch (error) {
+    console.error('Error restaurando grupo:', error);
+    res.status(500).json({ message: 'Error interno del servidor al restaurar el grupo.', error: error.message });
+  }
+};
+
+module.exports = {
+  createGroup,
+  requestJoinGroup,
+  getMyJoinRequests,
+  respondJoinRequest,
+  getGroupStudents,
+  getMyApprovedGroups,
+  updateGroup,
+  deleteGroup, // This is actually archiveGroup now
+  restoreGroup, // Added restoreGroup
+  removeStudentFromGroup,
+  getMyOwnedGroups,
+  getMyMembershipsWithStatus,
+  getGroupById,
+  getGroupMemberships,
+  removeMembershipById,
 };

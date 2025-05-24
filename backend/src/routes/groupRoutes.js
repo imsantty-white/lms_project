@@ -9,7 +9,8 @@ const {
   getMyJoinRequests, respondJoinRequest, getGroupById,
   getGroupStudents, getMyApprovedGroups, getMyMembershipsWithStatus,
   updateGroup, deleteGroup, removeStudentFromGroup, getMyOwnedGroups,
-  removeMembershipById // Added removeMembershipById
+  removeMembershipById, // Added removeMembershipById
+  restoreGroup, // Added restoreGroup
 } = require('../controllers/groupController');
 
 /**
@@ -243,5 +244,8 @@ router.delete('/:groupId/students/:studentId', authorize('Docente'), removeStude
 
 // Route for teachers to remove a specific membership by its ID from a group
 router.delete('/:groupId/memberships/:membershipId', protect, authorize('Docente'), removeMembershipById);
+
+// Route for teachers to restore an archived group
+router.put('/:groupId/restore', protect, authorize(['Docente']), restoreGroup);
 
 module.exports = router;

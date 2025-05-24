@@ -7,6 +7,7 @@ const {
     getMyOwnedGroups,
     getGroupById,
     requestJoinGroup,
+    restoreGroup, // Import restoreGroup
 } = require('../src/controllers/groupController');
 
 // Mock models
@@ -218,6 +219,67 @@ describe('Group Controller - Soft Delete and Fetching', () => {
             expect(Group.findOne).toHaveBeenCalledWith({ codigo_acceso: mockAccessCode.toUpperCase(), activo: true });
             expect(mockRes.status).toHaveBeenCalledWith(404);
             expect(mockRes.json).toHaveBeenCalledWith({ message: 'Grupo no encontrado con ese código de acceso' });
+        });
+    });
+
+    describe('restoreGroup', () => {
+        it('should successfully restore an archived group', async () => {
+            const mockGroupId = new mongoose.Types.ObjectId().toString();
+            const mockArchivedGroup = {
+                _id: mockGroupId,
+                docente_id: mockReq.user._id,
+                activo: false,
+                save: jest.fn().mockResolvedValue(true),
+            };
+            Group.findOne.mockResolvedValue(mockArchivedGroup);
+            mockReq.params.groupId = mockGroupId;
+
+            await restoreGroup(mockReq, mockRes);
+
+            expect(Group.findOne).toHaveBeenCalledWith({ _id: mockGroupId, docente_id: mockReq.user._id });
+            expect(mockArchivedGroup.activo).toBe(true);
+            expect(mockArchivedGroup.save).toHaveBeenCalledTimes(1);
+            expect(mockRes.status).toHaveBeenCalledWith(200);
+            expect(mockRes.json).toHaveBeenCalledWith({ message: 'Grupo restaurado exitosamente.', group: mockArchivedGroup });
+        });
+
+        it('should return 404 if group to restore is not found or not owned', async () => {
+            const mockGroupId = new mongoose.Types.ObjectId().toString();
+            Group.findOne.mockResolvedValue(null);
+            mockReq.params.groupId = mockGroupId;
+
+            await restoreGroup(mockReq, mockRes);
+
+            expect(Group.findOne).toHaveBeenCalledWith({ _id: mockGroupId, docente_id: mockReq.user._id });
+            expect(mockRes.status).toHaveBeenCalledWith(404);
+            expect(mockRes.json).toHaveBeenCalledWith({ message: 'Grupo no encontrado o no te pertenece.' });
+        });
+
+        it('should return 200 if group is already active', async () => {
+            const mockGroupId = new mongoose.Types.ObjectId().toString();
+            const mockActiveGroup = {
+                _id: mockGroupId,
+                docente_id: mockReq.user._id,
+                activo: true,
+                save: jest.fn(), // Should not be called
+            };
+            Group.findOne.mockResolvedValue(mockActiveGroup);
+            mockReq.params.groupId = mockGroupId;
+
+            await restoreGroup(mockReq, mockRes);
+
+            expect(Group.findOne).toHaveBeenCalledWith({ _id: mockGroupId, docente_id: mockReq.user._id });
+            expect(mockActiveGroup.save).not.toHaveBeenCalled();
+            expect(mockRes.status).toHaveBeenCalledWith(200);
+            expect(mockRes.json).toHaveBeenCalledWith({ message: 'El grupo ya está activo.', group: mockActiveGroup });
+        });
+        
+        it('should return 400 if groupId is invalid', async () => {
+            mockReq.params.groupId = 'invalid-id';
+            await restoreGroup(mockReq, mockRes);
+
+            expect(mockRes.status).toHaveBeenCalledWith(400);
+            expect(mockRes.json).toHaveBeenCalledWith({ message: 'ID de grupo inválido' });
         });
     });
 });
