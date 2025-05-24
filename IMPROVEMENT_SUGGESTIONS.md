@@ -4,7 +4,7 @@ This document outlines potential improvements and new functionalities that could
 
 ## Backend Enhancements
 
-1.  **Advanced Data Integrity for Deletions:**
+1.  (APPLIED)**Advanced Data Integrity for Deletions:**
     *   **Current State:** Deletion of entities like Groups is prevented if related data (e.g., memberships) exists.
     *   **Suggestion:** Implement a soft-delete mechanism (marking items as inactive) or an archival system. This would preserve data history and allow for restoration if needed, providing a better user experience than outright prevention of deletion. For example, a teacher might want to "archive" an old group rather than delete it permanently.
 
@@ -20,7 +20,7 @@ This document outlines potential improvements and new functionalities that could
     *   **Current State:** Basic security measures (mongoSanitize, JWT auth) are in place.
     *   **Suggestion:** Implement rate limiting on APIs to prevent abuse. Conduct a more thorough security review, considering common web vulnerabilities (OWASP Top 10).
 
-5.  **Refine API Responses for Complex Objects:**
+5.  (APPLIED)**Refine API Responses for Complex Objects:**
     *   **Current State:** Some API responses, especially for nested structures like learning paths, return deeply populated objects.
     *   **Suggestion:** While `.select()` has been used for optimization, consider if dedicated Data Transfer Objects (DTOs) or more tailored view models for API responses could further streamline what's sent to the client, especially for read-heavy operations.
 
