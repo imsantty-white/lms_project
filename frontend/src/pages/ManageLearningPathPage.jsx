@@ -29,7 +29,8 @@ import {
   FormControl, 
   InputLabel,
   Chip,
-  Divider
+  Divider,
+  Skeleton // Import Skeleton
   // Importa componentes adicionales si los necesitas (ej: para el modal de asignación)
 } from '@mui/material';
 
@@ -59,6 +60,44 @@ import ModuleItem from '../pages/components/ModuleItem';
 // ThemeItem and AssignmentItem will be used by ModuleItem
 
 
+import React, { useCallback, useEffect, useState, useReducer } from 'react'; // Added useReducer
+
+// --- BEGIN Reducer and Initial State for Module Modals ---
+const initialModuleModalState = {
+  isCreateModuleModalOpen: false,
+  isEditModuleModalOpen: false,
+  isDeleteModuleConfirmOpen: false,
+  moduleToEdit: null, // Stores the module data for editing
+  moduleIdToDelete: null, // Stores the ID of the module to delete
+  isCreatingModule: false,
+  isUpdatingModule: false,
+  isDeletingModule: false,
+  // moduleDataToCreate is handled by its own useState because it's set by form submission
+};
+
+function moduleModalReducer(state, action) {
+  switch (action.type) {
+    case 'OPEN_CREATE_MODULE_MODAL':
+      return { ...state, isCreateModuleModalOpen: true };
+    case 'CLOSE_CREATE_MODULE_MODAL':
+      return { ...state, isCreateModuleModalOpen: false }; // moduleDataToCreate reset is handled in the handler
+    case 'OPEN_EDIT_MODULE_MODAL':
+      return { ...state, isEditModuleModalOpen: true, moduleToEdit: action.payload };
+    case 'CLOSE_EDIT_MODULE_MODAL':
+      return { ...state, isEditModuleModalOpen: false, moduleToEdit: null };
+    case 'OPEN_DELETE_MODULE_CONFIRM':
+      return { ...state, isDeleteModuleConfirmOpen: true, moduleIdToDelete: action.payload };
+    case 'CLOSE_DELETE_MODULE_CONFIRM':
+      return { ...state, isDeleteModuleConfirmOpen: false, moduleIdToDelete: null };
+    case 'SET_MODULE_ACTION_LOADING':
+      return { ...state, [action.payload.actionType]: action.payload.isLoading };
+    default:
+      throw new Error(`Unhandled action type: ${action.type}`);
+  }
+}
+// --- END Reducer and Initial State for Module Modals ---
+
+
 function ManageLearningPathPage() {
   const { pathId } = useParams();
   // *** Obtén isAuthInitialized del hook useAuth ***
@@ -83,10 +122,13 @@ function ManageLearningPathPage() {
 
 
   // --- ESTADOS PARA MODALES Y OPERACIONES (mantener) ---
-  const [isCreateModuleModalOpen, setIsCreateModuleModalOpen] = useState(false);
+  // Module Modal States managed by useReducer
+  const [moduleModalState, dispatchModuleModal] = useReducer(moduleModalReducer, initialModuleModalState);
+
+  // State for the confirmation dialog of module creation (can be refactored later if needed)
   const [isCreateModuleConfirmOpen, setIsCreateModuleConfirmOpen] = useState(false);
   const [moduleDataToCreate, setModuleDataToCreate] = useState(null);
-  const [isCreatingModule, setIsCreatingModule] = useState(false);
+  // isCreatingModule is now in moduleModalState.isCreatingModule
 
   const [isCreateThemeModalOpen, setIsCreateThemeModalOpen] = useState(false);
   const [isCreateThemeConfirmOpen, setIsCreateThemeConfirmOpen] = useState(false);
@@ -100,9 +142,7 @@ function ManageLearningPathPage() {
 
   const [isNavigateToContentCreationConfirmOpen, setIsNavigateToContentCreationConfirmOpen] = useState(false);
 
-  const [isDeleteModuleConfirmOpen, setIsDeleteModuleConfirmOpen] = useState(false);
-  const [moduleIdToDelete, setModuleIdToDelete] = useState(null);
-  const [isDeletingModule, setIsDeletingModule] = useState(false);
+  // isDeleteModuleConfirmOpen, moduleIdToDelete, isDeletingModule are in moduleModalState
 
   const [isDeleteThemeConfirmOpen, setIsDeleteThemeConfirmOpen] = useState(false);
   const [themeIdToDelete, setThemeIdToDelete] = useState(null);
@@ -112,9 +152,7 @@ function ManageLearningPathPage() {
   const [assignmentIdToDelete, setAssignmentIdToDelete] = useState(null);
   const [isDeletingAssignment, setIsDeletingAssignment] = useState(false);
 
-  const [isEditModuleModalOpen, setIsEditModuleModalOpen] = useState(false);
-  const [moduleDataToEdit, setModuleDataToEdit] = useState(null);
-  const [isUpdatingModule, setIsUpdatingModule] = useState(false);
+  // isEditModuleModalOpen, moduleDataToEdit, isUpdatingModule are in moduleModalState
 
   const [isEditThemeModalOpen, setIsEditThemeModalOpen] = useState(false);
   const [themeDataToEdit, setThemeDataToEdit] = useState(null);
@@ -196,13 +234,13 @@ function ManageLearningPathPage() {
           });
 
           // Encuentra el label legible del nuevo estado para el toast
-          const _newStatusLabel = ASSIGNMENT_STATUS_OPTIONS.find(o => o.value === newStatus)?.label || newStatus;
-          //toast.success(`Estado de "<span class="math-inline">\{assignmentName\}" actualizado a "</span>{newStatusLabel}"`);
+          const newStatusLabel = ASSIGNMENT_STATUS_OPTIONS.find(o => o.value === newStatus)?.label || newStatus;
+          toast.success(`Estado de "${pendingStatusChange.assignmentName}" en tema "${pendingStatusChange.themeName}" actualizado a "${newStatusLabel}"!`);
 
       } catch (error) {
           console.error('Error al cambiar estado de asignación:', error.response?.data || error.message);
           const errorMessage = error.response?.data?.message || 'Error al cambiar el estado.';
-          toast.error(errorMessage);
+          toast.error(`Error al cambiar estado de "${pendingStatusChange.assignmentName}": ${errorMessage}`);
       } finally {
           setUpdatingAssignmentStatus(null); // Oculta el spinner de carga
           setPendingStatusChange({ assignmentId: null, newStatus: '', assignmentName: '', themeName: '' }); // Resetear el estado pendiente
@@ -285,8 +323,25 @@ function ManageLearningPathPage() {
   if (isLoading) {
     return (
       <Container>
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-          <CircularProgress />
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h4">
+            <Skeleton width="60%" />
+          </Typography>
+          
+          <Skeleton variant="rectangular" width="100%" height={118} sx={{ mt: 2, mb: 3 }} />
+          
+          <Typography variant="h5" gutterBottom sx={{ mt: 4 }}>
+            <Skeleton width="40%" />
+          </Typography>
+          
+          <Skeleton variant="rectangular" width="100%" height={56} sx={{ mb: 1 }} />
+          <Skeleton variant="rectangular" width="100%" height={56} sx={{ mb: 1 }} />
+          <Skeleton variant="rectangular" width="100%" height={56} sx={{ mb: 1 }} />
+          
+          {/* Skeletons for action buttons at the bottom */}
+          <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
+            <Skeleton variant="rounded" width={150} height={36} />
+          </Stack>
         </Box>
       </Container>
     );
@@ -317,23 +372,85 @@ function ManageLearningPathPage() {
 
   // --- Lógica para Modales y Operaciones (actualiza disabled para todos) ---
   // Combina todos los estados de operación para un disabled global (mantener)
-  const isAnyOperationInProgress = isLoading || isCreatingModule || isCreatingTheme || isCreatingAssignment || isDeletingModule || isDeletingTheme || isDeletingAssignment || isUpdatingModule || isUpdatingTheme || isUpdatingAssignment;
+  const isAnyOperationInProgress = isLoading || moduleModalState.isCreatingModule || isCreatingTheme || isCreatingAssignment || moduleModalState.isDeletingModule || isDeletingTheme || isDeletingAssignment || moduleModalState.isUpdatingModule || isUpdatingTheme || isUpdatingAssignment;
 
 
   // Lógica Crear Módulo
-  const handleOpenCreateModuleModal = () => { if (isAnyOperationInProgress) return; setIsCreateModuleModalOpen(true); };
-  const handleCloseCreateModuleModal = (event, reason) => { if (reason && (reason === 'backdropClick' || reason === 'escapeKeyDown')) { return; } setIsCreateModuleModalOpen(false); setModuleDataToCreate(null); };
-  const handleModuleFormSubmit = (formData) => { setModuleDataToCreate(formData); setIsCreateModuleConfirmOpen(true); };
+  const handleOpenCreateModuleModal = () => { if (isAnyOperationInProgress) return; dispatchModuleModal({ type: 'OPEN_CREATE_MODULE_MODAL' }); };
+  const handleCloseCreateModuleModal = (event, reason) => { if (reason && (reason === 'backdropClick' || reason === 'escapeKeyDown')) { return; } dispatchModuleModal({ type: 'CLOSE_CREATE_MODULE_MODAL' }); setModuleDataToCreate(null); };
+  const handleModuleFormSubmit = (formData) => { setModuleDataToCreate(formData); setIsCreateModuleConfirmOpen(true); }; // Confirmation step remains separate for now
   const handleCloseCreateModuleConfirm = () => { setIsCreateModuleConfirmOpen(false); setModuleDataToCreate(null); };
   const handleConfirmCreateModule = async () => {
-    if (!moduleDataToCreate || !pathId) { toast.error('No se pudo crear el módulo. Datos incompletos.'); handleCloseCreateModuleConfirm(); handleCloseCreateModuleModal(); return; }
-    setIsCreatingModule(true); try {
-      // *** Usar axiosInstance.post en lugar de axios.post ***
-      const _response = await axiosInstance.post(`/api/learning-paths/${pathId}/modules`, moduleDataToCreate); // <-- Modificado
-      toast.success('Módulo creado con éxito!');
-      await fetchLearningPathStructure(); // Recargar la estructura
-      handleCloseCreateModuleConfirm(); handleCloseCreateModuleModal();
-    } catch (err) { console.error('Error creating module:', err.response ? err.response.data : err.message); const errorMessage = err.response && err.response.data && err.response.data.message ? err.response.data.message : 'Error al intentar crear el módulo.'; toast.error(errorMessage); } finally { setIsCreatingModule(false); }
+    if (!moduleDataToCreate || !pathId) {
+      toast.error('No se pudo crear el módulo. Datos incompletos.');
+      handleCloseCreateModuleConfirm();
+      dispatchModuleModal({ type: 'CLOSE_CREATE_MODULE_MODAL' });
+      return;
+    }
+
+    dispatchModuleModal({ type: 'SET_MODULE_ACTION_LOADING', payload: { actionType: 'isCreatingModule', isLoading: true } });
+    handleCloseCreateModuleConfirm(); // Close confirmation dialog immediately
+
+    const tempId = `temp-${Date.now()}`;
+    const optimisticModule = {
+      _id: tempId,
+      nombre: moduleDataToCreate.nombre,
+      descripcion: moduleDataToCreate.descripcion,
+      orden: (learningPath.modules?.length || 0) + 1, // Provisional order
+      themes: [],
+      isOptimistic: true, // Temporary flag
+    };
+
+    // Optimistic UI Update
+    setLearningPath(prevLearningPath => {
+      const newLearningPath = JSON.parse(JSON.stringify(prevLearningPath));
+      if (!newLearningPath.modules) {
+        newLearningPath.modules = [];
+      }
+      newLearningPath.modules.push(optimisticModule);
+      return newLearningPath;
+    });
+    
+    dispatchModuleModal({ type: 'CLOSE_CREATE_MODULE_MODAL' }); // Close the form modal
+
+    try {
+      const response = await axiosInstance.post(`/api/learning-paths/${pathId}/modules`, moduleDataToCreate);
+      const actualModule = response.data; // Backend returns the created module with actual _id and orden
+
+      // Update UI with actual module from backend
+      setLearningPath(prevLearningPath => {
+        const newLearningPath = JSON.parse(JSON.stringify(prevLearningPath));
+        const moduleIndex = newLearningPath.modules.findIndex(m => m._id === tempId);
+        if (moduleIndex !== -1) {
+          newLearningPath.modules[moduleIndex] = actualModule;
+        } else {
+          // If not found (shouldn't happen if optimistic add worked), add it anyway or re-fetch
+           newLearningPath.modules.push(actualModule); // Fallback, ideally re-sort or fetch
+        }
+        // Ensure modules are sorted by 'orden' if the backend might change it or if order is critical
+        newLearningPath.modules.sort((a, b) => a.orden - b.orden);
+        return newLearningPath;
+      });
+
+      toast.success(`Módulo "${actualModule.nombre}" creado con éxito!`);
+      // No need to call fetchLearningPathStructure() if optimistic update is successful and complete
+      // await fetchLearningPathStructure(); 
+    } catch (err) {
+      console.error('Error creating module:', err.response ? err.response.data : err.message);
+      const errorMessage = err.response && err.response.data && err.response.data.message ? err.response.data.message : 'Error al intentar crear el módulo.';
+      toast.error(`Error al crear módulo "${moduleDataToCreate.nombre}": ${errorMessage}`);
+
+      // Rollback UI Update on error
+      setLearningPath(prevLearningPath => {
+        const newLearningPath = JSON.parse(JSON.stringify(prevLearningPath));
+        newLearningPath.modules = newLearningPath.modules.filter(m => m._id !== tempId);
+        return newLearningPath;
+      });
+    } finally {
+      dispatchModuleModal({ type: 'SET_MODULE_ACTION_LOADING', payload: { actionType: 'isCreatingModule', isLoading: false } });
+      // Reset moduleDataToCreate as it's handled by its own useState
+      setModuleDataToCreate(null); 
+    }
   };
 
 
@@ -346,11 +463,16 @@ function ManageLearningPathPage() {
     if (!themeDataToCreate || !selectedModuleIdForTheme) { toast.error('No se pudo crear el tema. Datos incompletos.'); handleCloseCreateThemeConfirm(); handleCloseCreateThemeModal(); return; }
     setIsCreatingTheme(true); try {
       // *** Usar axiosInstance.post en lugar de axios.post ***
-      const _response = await axiosInstance.post(`/api/learning-paths/modules/${selectedModuleIdForTheme}/themes`, themeDataToCreate); // <-- Modificado
-      toast.success('Tema creado con éxito!');
+      const response = await axiosInstance.post(`/api/learning-paths/modules/${selectedModuleIdForTheme}/themes`, themeDataToCreate); // <-- Modificado
+      const createdTheme = response.data;
+      toast.success(`Tema "${createdTheme.nombre}" creado con éxito!`);
       await fetchLearningPathStructure(); // Recargar la estructura
       handleCloseCreateThemeConfirm(); handleCloseCreateThemeModal();
-    } catch (err) { console.error('Error creating theme:', err.response ? err.response.data : err.message); const errorMessage = err.response && err.response.data && err.response.data.message ? err.response.data.message : 'Error al intentar crear el tema.'; toast.error(errorMessage); } finally { setIsCreatingTheme(false); }
+    } catch (err) { 
+        console.error('Error creating theme:', err.response ? err.response.data : err.message); 
+        const errorMessage = err.response && err.response.data && err.response.data.message ? err.response.data.message : 'Error al intentar crear el tema.'; 
+        toast.error(`Error al crear tema "${themeDataToCreate.nombre}": ${errorMessage}`); 
+    } finally { setIsCreatingTheme(false); }
   };
 
 
@@ -363,14 +485,16 @@ function ManageLearningPathPage() {
     setIsCreatingAssignment(true); try {
       // *** Usar axiosInstance.post en lugar de axios.post ***
       const response = await axiosInstance.post(`/api/learning-paths/themes/${selectedThemeIdForAssignment}/assign-content`, assignmentData); // <-- Modificado
-      const _newAssignment = response.data;
-      toast.success('Contenido asignado con éxito!');
+      const newAssignment = response.data;
+      const assignmentTitle = newAssignment.activity_id?.title || newAssignment.resource_id?.title || 'Contenido sin título';
+      toast.success(`Contenido "${assignmentTitle}" asignado a "${selectedThemeNameForAdd}"!`);
       await fetchLearningPathStructure(); // Recargar la estructura para ver el nuevo contenido
       handleCloseAddContentAssignmentModal(); // Cierra el modal si todo fue bien
     } catch (err) {
          console.error('Error creating assignment:', err.response ? err.response.data : err.message);
+         const assignmentTitleAttempt = assignmentData.activity_id?.title || assignmentData.resource_id?.title || 'este contenido';
          const errorMessage = err.response?.data?.message || 'Error al intentar asignar el contenido.';
-         toast.error(errorMessage);
+         toast.error(`Error al asignar "${assignmentTitleAttempt}" al tema "${selectedThemeNameForAdd}": ${errorMessage}`);
          // No cerramos el modal aquí en caso de error para que el usuario vea el mensaje y pueda reintentar o cancelar
      } finally {
          setIsCreatingAssignment(false);
@@ -390,31 +514,106 @@ function ManageLearningPathPage() {
 
 
   // --- Lógica para Eliminar Módulo ---
-  const handleOpenDeleteModuleConfirm = (moduleId) => { if (isAnyOperationInProgress) return; setModuleIdToDelete(moduleId); setIsDeleteModuleConfirmOpen(true); };
-  const handleCloseDeleteModuleConfirm = () => { setIsDeleteModuleConfirmOpen(false); setModuleIdToDelete(null); };
+  const handleOpenDeleteModuleConfirm = (moduleId) => { if (isAnyOperationInProgress) return; dispatchModuleModal({ type: 'OPEN_DELETE_MODULE_CONFIRM', payload: moduleId }); };
+  const handleCloseDeleteModuleConfirm = () => { dispatchModuleModal({ type: 'CLOSE_DELETE_MODULE_CONFIRM' }); };
   const handleDeleteModule = async () => {
-    if (!moduleIdToDelete) { toast.error('No se especificó el módulo a eliminar.'); handleCloseDeleteModuleConfirm(); return; }
-    setIsDeletingModule(true); try {
-      // *** Usar axiosInstance.delete en lugar de axios.delete ***
-      await axiosInstance.delete(`/api/learning-paths/modules/${moduleIdToDelete}`); // <-- Modificado
-      toast.success('Módulo eliminado con éxito!');
+    const moduleId = moduleModalState.moduleIdToDelete;
+    if (!moduleId) { toast.error('No se especificó el módulo a eliminar.'); dispatchModuleModal({ type: 'CLOSE_DELETE_MODULE_CONFIRM' }); return; }
+    
+    const moduleToDelete = learningPath.modules.find(m => m._id === moduleId);
+    const moduleName = moduleToDelete ? moduleToDelete.nombre : 'este módulo';
+
+    dispatchModuleModal({ type: 'SET_MODULE_ACTION_LOADING', payload: { actionType: 'isDeletingModule', isLoading: true } });
+    try {
+      await axiosInstance.delete(`/api/learning-paths/modules/${moduleId}`);
+      toast.success(`Módulo "${moduleName}" eliminado con éxito!`);
       await fetchLearningPathStructure(); // Recargar la estructura
-      handleCloseDeleteModuleConfirm();
-    } catch (err) { console.error('Error deleting module:', err.response ? err.response.data : err.message); const errorMessage = err.response && err.response.data && err.response.data.message ? err.response.data.message : 'Error al intentar eliminar el módulo.'; toast.error(errorMessage); } finally { setIsDeletingModule(false); }
+      dispatchModuleModal({ type: 'CLOSE_DELETE_MODULE_CONFIRM' });
+    } catch (err) { 
+      console.error('Error deleting module:', err.response ? err.response.data : err.message); 
+      const errorMessage = err.response && err.response.data && err.response.data.message ? err.response.data.message : `Error al intentar eliminar el módulo "${moduleName}".`; 
+      toast.error(errorMessage); 
+    } finally { 
+      dispatchModuleModal({ type: 'SET_MODULE_ACTION_LOADING', payload: { actionType: 'isDeletingModule', isLoading: false } });
+    }
   };
 
   // --- Lógica para Eliminar Tema ---
   const handleOpenDeleteThemeConfirm = (themeId) => { if (isAnyOperationInProgress) return; setThemeIdToDelete(themeId); setIsDeleteThemeConfirmOpen(true); };
   const handleCloseDeleteThemeConfirm = () => { setIsDeleteThemeConfirmOpen(false); setThemeIdToDelete(null); };
   const handleDeleteTheme = async () => {
-    if (!themeIdToDelete) { toast.error('No se especificó el tema a eliminar.'); handleCloseDeleteThemeConfirm(); return; }
-    setIsDeletingTheme(true); try {
-      // *** Usar axiosInstance.delete en lugar de axios.delete ***
-      await axiosInstance.delete(`/api/learning-paths/themes/${themeIdToDelete}`); // <-- Modificado
-      toast.success('Tema eliminado con éxito!');
-      await fetchLearningPathStructure(); // Recargar la estructura
+    if (!themeIdToDelete) {
+      toast.error('No se especificó el tema a eliminar.');
       handleCloseDeleteThemeConfirm();
-    } catch (err) { console.error('Error deleting theme:', err.response ? err.response.data : err.message); const errorMessage = err.response && err.response.data && err.response.data.message ? err.response.data.message : 'Error al intentar eliminar el tema.'; toast.error(errorMessage); } finally { setIsDeletingTheme(false); }
+      return;
+    }
+
+    let originalTheme = null;
+    let parentModuleId = null;
+    let originalThemeIndex = -1;
+
+    // Find the theme and its context for potential rollback
+    learningPath.modules.forEach(module => {
+      const themeIndex = module.themes.findIndex(t => t._id === themeIdToDelete);
+      if (themeIndex !== -1) {
+        // Use deep clone for originalTheme to prevent issues if it's modified elsewhere before rollback
+        originalTheme = JSON.parse(JSON.stringify(module.themes[themeIndex]));
+        parentModuleId = module._id;
+        originalThemeIndex = themeIndex;
+      }
+    });
+
+    if (!originalTheme) {
+      toast.error("Error: Tema no encontrado localmente para eliminación optimista.");
+      setIsDeletingTheme(false); // Ensure loading state is reset
+      handleCloseDeleteThemeConfirm();
+      return;
+    }
+
+    // Optimistic UI Update
+    setLearningPath(prevLearningPath => {
+      const newLearningPath = JSON.parse(JSON.stringify(prevLearningPath));
+      const module = newLearningPath.modules.find(m => m._id === parentModuleId);
+      if (module) {
+        module.themes = module.themes.filter(t => t._id !== themeIdToDelete);
+      }
+      return newLearningPath;
+    });
+
+    handleCloseDeleteThemeConfirm(); // Close modal immediately
+    setIsDeletingTheme(true); // Set loading state for API call
+
+    try {
+      await axiosInstance.delete(`/api/learning-paths/themes/${themeIdToDelete}`);
+      toast.success(`Tema "${originalTheme.nombre}" eliminado con éxito!`);
+      // fetchLearningPathStructure(); // Not needed if optimistic update is reliable
+    } catch (err) {
+      console.error('Error deleting theme:', err.response ? err.response.data : err.message);
+      const errorMessage = err.response?.data?.message || `Error al intentar eliminar el tema "${originalTheme.nombre}".`;
+      toast.error(errorMessage);
+
+      // Rollback UI Update on error
+      if (originalTheme && parentModuleId !== null && originalThemeIndex !== -1) {
+        setLearningPath(prevLearningPath => {
+          const newLearningPath = JSON.parse(JSON.stringify(prevLearningPath));
+          const module = newLearningPath.modules.find(m => m._id === parentModuleId);
+          if (module) {
+            // Re-insert the theme at its original position or at the end
+            module.themes.splice(originalThemeIndex, 0, originalTheme);
+            // Optionally re-sort if order is critical and splice isn't enough
+            // module.themes.sort((a, b) => a.orden - b.orden); 
+          }
+          return newLearningPath;
+        });
+      } else {
+        // If rollback data is missing, force a full refresh to correct state
+        toast.info("Se recomienda recargar la página para asegurar la consistencia de los datos.");
+        // Optionally, trigger fetchLearningPathStructure() here as a last resort if rollback failed badly
+        // await fetchLearningPathStructure(); 
+      }
+    } finally {
+      setIsDeletingTheme(false);
+    }
   };
 
   // --- Lógica para Eliminar Asignación de Contenido ---
@@ -426,37 +625,61 @@ function ManageLearningPathPage() {
       // *** Usar axiosInstance.delete en lugar de axios.delete ***
       // NOTA: Revisa la ruta DELETE en tu backend. Anteriormente modificamos la ruta para borrar assignments con /api/content-assignments/:assignmentId
       // Si esa es la ruta correcta ahora, úsala aquí. Si esta ruta '/api/learning-paths/assignments/:assignmentId' sigue siendo la que usas, mantenla.
-      await axiosInstance.delete(`/api/learning-paths/assignments/${assignmentIdToDelete}`); // <-- Modificado (verifica la ruta)
-      toast.success('Asignación eliminada con éxito!');
+      
+      // For specific toast, find assignment details before deleting
+      let assignmentTitle = 'esta asignación';
+      let parentThemeName = '';
+      if (learningPath && learningPath.modules) {
+        for (const module of learningPath.modules) {
+          if (module.themes) {
+            for (const theme of module.themes) {
+              const assignment = theme.assignments.find(a => a._id === assignmentIdToDelete);
+              if (assignment) {
+                assignmentTitle = assignment.activity_id?.title || assignment.resource_id?.title || 'esta asignación';
+                parentThemeName = theme.nombre;
+                break;
+              }
+            }
+          }
+          if (parentThemeName) break;
+        }
+      }
+
+      await axiosInstance.delete(`/api/learning-paths/assignments/${assignmentIdToDelete}`);
+      toast.success(`Asignación "${assignmentTitle}" eliminada del tema "${parentThemeName}"!`);
       await fetchLearningPathStructure(); // Recargar la estructura
       handleCloseDeleteAssignmentConfirm();
-    } catch (err) { console.error('Error deleting assignment:', err.response ? err.response.data : err.message); const errorMessage = err.response && err.response.data && err.response.data.message ? err.response.data.message : 'Error al intentar eliminar la asignación.'; toast.error(errorMessage); } finally { setIsDeletingAssignment(false); }
+    } catch (err) { 
+        const assignmentTitle = 'esta asignación'; // Fallback title
+        console.error('Error deleting assignment:', err.response ? err.response.data : err.message); 
+        const errorMessage = err.response && err.response.data && err.response.data.message ? err.response.data.message : `Error al intentar eliminar "${assignmentTitle}".`; 
+        toast.error(errorMessage); 
+    } finally { setIsDeletingAssignment(false); }
   };
 
   // --- Lógica para Editar Módulo ---
-  const handleOpenEditModuleModal = (moduleData) => { if (isAnyOperationInProgress) return; setModuleDataToEdit(moduleData); setIsEditModuleModalOpen(true); };
-  const handleCloseEditModuleModal = (event, reason) => { // Asegúrate de aceptar 'reason'
+  const handleOpenEditModuleModal = (moduleData) => { if (isAnyOperationInProgress) return; dispatchModuleModal({ type: 'OPEN_EDIT_MODULE_MODAL', payload: moduleData }); };
+  const handleCloseEditModuleModal = (event, reason) => { 
       if (reason && (reason === 'backdropClick' || reason === 'escapeKeyDown')) {
-          return; // No cierres el modal
+          return; 
       }
-      setIsEditModuleModalOpen(false); // Actualiza el estado para cerrar el modal
-      // ... cualquier otra limpieza de estado ...
+      dispatchModuleModal({ type: 'CLOSE_EDIT_MODULE_MODAL' });
   };
   const handleUpdateModuleFormSubmit = async (updatedData) => {
-    if (!updatedData?._id) { toast.error('No se pudo actualizar el módulo. ID no proporcionado.'); handleCloseEditModuleModal(); return; } // Cerrar si no hay ID
-    setIsUpdatingModule(true); try {
-      // *** Usar axiosInstance.put en lugar de axios.put ***
-      await axiosInstance.put(`/api/learning-paths/modules/${updatedData._id}`, updatedData); // <-- Modificado
-      toast.success('Módulo actualizado con éxito!');
+    if (!updatedData?._id) { toast.error('No se pudo actualizar el módulo. ID no proporcionado.'); dispatchModuleModal({ type: 'CLOSE_EDIT_MODULE_MODAL' }); return; } 
+    dispatchModuleModal({ type: 'SET_MODULE_ACTION_LOADING', payload: { actionType: 'isUpdatingModule', isLoading: true } });
+    try {
+      const response = await axiosInstance.put(`/api/learning-paths/modules/${updatedData._id}`, updatedData); 
+      const updatedModuleData = response.data; // Assuming backend returns updated module
+      toast.success(`Módulo "${updatedModuleData.nombre}" actualizado con éxito!`);
       await fetchLearningPathStructure(); // Recargar la estructura
-      handleCloseEditModuleModal(); // Cerrar modal en éxito
+      dispatchModuleModal({ type: 'CLOSE_EDIT_MODULE_MODAL' }); 
     } catch (err) {
          console.error('Error updating module:', err.response ? err.response.data : err.message);
-         const errorMessage = err.response?.data?.message || 'Error al intentar actualizar el módulo.';
+         const errorMessage = err.response?.data?.message || `Error al intentar actualizar el módulo "${updatedData.nombre}".`;
          toast.error(errorMessage);
-         // No cerramos el modal aquí en caso de error
      } finally {
-         setIsUpdatingModule(false);
+         dispatchModuleModal({ type: 'SET_MODULE_ACTION_LOADING', payload: { actionType: 'isUpdatingModule', isLoading: false } });
      }
   };
 
@@ -473,13 +696,14 @@ function ManageLearningPathPage() {
     if (!updatedData?._id) { toast.error('No se pudo actualizar el tema. ID no proporcionado.'); handleCloseEditThemeModal(); return; } // Cerrar si no hay ID
     setIsUpdatingTheme(true); try {
       // *** Usar axiosInstance.put en lugar de axios.put ***
-      await axiosInstance.put(`/api/learning-paths/themes/${updatedData._id}`, updatedData); // <-- Modificado
-      toast.success('Tema actualizado con éxito!');
+      const response = await axiosInstance.put(`/api/learning-paths/themes/${updatedData._id}`, updatedData); // <-- Modificado
+      const updatedThemeData = response.data;
+      toast.success(`Tema "${updatedThemeData.nombre}" actualizado con éxito!`);
       await fetchLearningPathStructure(); // Recargar la estructura
       handleCloseEditThemeModal(); // Cerrar modal en éxito
     } catch (err) {
          console.error('Error updating theme:', err.response ? err.response.data : err.message);
-         const errorMessage = err.response?.data?.message || 'Error al intentar actualizar el tema.';
+         const errorMessage = err.response?.data?.message || `Error al intentar actualizar el tema "${updatedData.nombre}".`;
          toast.error(errorMessage);
          // No cerramos el modal aquí en caso de error
      } finally {
@@ -511,7 +735,8 @@ function ManageLearningPathPage() {
   // y luego llamar a esta función padre al tener éxito.
   const handleAssignmentUpdateSuccess = (updatedAssignmentData) => {
     console.log("Asignación actualizada exitosamente (desde el padre):", updatedAssignmentData);
-    toast.success('Asignación actualizada correctamente!');
+    const assignmentTitle = updatedAssignmentData.activity_id?.title || updatedAssignmentData.resource_id?.title || 'La asignación';
+    toast.success(`"${assignmentTitle}" actualizada correctamente!`);
     // Recargar toda la estructura de la ruta para ver los cambios
     fetchLearningPathStructure(); // Llama a la función que usa axiosInstance.get
     handleCloseEditAssignmentModal(); // Cierra el modal
@@ -644,9 +869,9 @@ function ManageLearningPathPage() {
         {/* --- Modales y Diálogos --- */}
 
         {/* Modal para Crear Módulo */}
-        <CreateModuleModal open={isCreateModuleModalOpen} onClose={handleCloseCreateModuleModal} onSubmit={handleModuleFormSubmit} isCreating={isCreatingModule} />
-        {/* Diálogo de Confirmación Módulo */}
-        <Dialog open={isCreateModuleConfirmOpen} onClose={handleCloseCreateModuleConfirm} aria-labelledby="create-module-confirm-title" aria-describedby="create-module-confirm-description"> <DialogTitle id="create-module-confirm-title">{"Confirmar Creación de Módulo"}</DialogTitle> <DialogContent> <DialogContentText id="create-module-confirm-description"> ¿Estás seguro de que deseas crear el módulo "{moduleDataToCreate?.nombre}" en esta ruta? </DialogContentText> </DialogContent> <DialogActions> <Button onClick={handleCloseCreateModuleConfirm} disabled={isCreatingModule}>Cancelar</Button> <Button onClick={handleConfirmCreateModule} color="primary" disabled={isCreatingModule} autoFocus> {isCreatingModule ? 'Creando...' : 'Confirmar Creación'} </Button> </DialogActions> </Dialog>
+        <CreateModuleModal open={moduleModalState.isCreateModuleModalOpen} onClose={handleCloseCreateModuleModal} onSubmit={handleModuleFormSubmit} isCreating={moduleModalState.isCreatingModule} />
+        {/* Diálogo de Confirmación Módulo Creación (still uses useState for now) */}
+        <Dialog open={isCreateModuleConfirmOpen} onClose={handleCloseCreateModuleConfirm} aria-labelledby="create-module-confirm-title" aria-describedby="create-module-confirm-description"> <DialogTitle id="create-module-confirm-title">{"Confirmar Creación de Módulo"}</DialogTitle> <DialogContent> <DialogContentText id="create-module-confirm-description"> ¿Estás seguro de que deseas crear el módulo "{moduleDataToCreate?.nombre}" en esta ruta? </DialogContentText> </DialogContent> <DialogActions> <Button onClick={handleCloseCreateModuleConfirm} disabled={moduleModalState.isCreatingModule}>Cancelar</Button> <Button onClick={handleConfirmCreateModule} color="primary" disabled={moduleModalState.isCreatingModule} autoFocus> {moduleModalState.isCreatingModule ? 'Creando...' : 'Confirmar Creación'} </Button> </DialogActions> </Dialog>
 
 
         {/* Modal para Crear Tema */}
@@ -669,7 +894,7 @@ function ManageLearningPathPage() {
 
         {/* Diálogo de Confirmación para Eliminar Módulo */}
         <Dialog
-          open={isDeleteModuleConfirmOpen}
+          open={moduleModalState.isDeleteModuleConfirmOpen}
           onClose={handleCloseDeleteModuleConfirm}
           aria-labelledby="delete-module-confirm-title"
           aria-describedby="delete-module-confirm-description"
@@ -682,9 +907,9 @@ function ManageLearningPathPage() {
             </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseDeleteModuleConfirm} disabled={isAnyOperationInProgress}>Cancelar</Button>
-          <Button onClick={handleDeleteModule} color="error" disabled={isAnyOperationInProgress} autoFocus>
-            {isDeletingModule ? 'Eliminando...' : 'Confirmar Eliminación'}
+          <Button onClick={handleCloseDeleteModuleConfirm} disabled={isAnyOperationInProgress || moduleModalState.isDeletingModule}>Cancelar</Button>
+          <Button onClick={handleDeleteModule} color="error" disabled={isAnyOperationInProgress || moduleModalState.isDeletingModule} autoFocus>
+            {moduleModalState.isDeletingModule ? 'Eliminando...' : 'Confirmar Eliminación'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -762,11 +987,11 @@ function ManageLearningPathPage() {
 
       {/* Modal para Editar Módulo */}
       <EditModuleModal
-        open={isEditModuleModalOpen}
+        open={moduleModalState.isEditModuleModalOpen}
         onClose={handleCloseEditModuleModal}
         onSubmit={handleUpdateModuleFormSubmit}
-        initialData={moduleDataToEdit}
-        isSaving={isUpdatingModule}
+        initialData={moduleModalState.moduleToEdit}
+        isSaving={moduleModalState.isUpdatingModule}
       />
 
       {/* Modal para Editar Tema */}
