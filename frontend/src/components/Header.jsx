@@ -92,15 +92,23 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
     }
   };
 
+  // Fetch notifications when user is authenticated and component mounts
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      fetchNotifications();
+    }
+    // eslint-disable-next-line
+  }, [isAuthenticated, user]);
+
   useEffect(() => {
     if (socket) {
       const handleNewNotification = (newNotification) => {
         console.log('New notification received via WebSocket:', newNotification);
-        setNotifications(prevNotifications => [newNotification, ...prevNotifications].slice(0, 10)); // Keep list to 10
-        if (!newNotification.isRead) { // Only increment if the new notification is unread
-          setUnreadCount(prevCount => prevCount + 1);
-        }
-        // Optional: Show toast
+        // Vuelve a consultar las notificaciones para mantener el contador y la lista sincronizados
+        fetchNotifications();
+        // Si prefieres solo actualizar el estado localmente, puedes dejar la lógica anterior:
+        // setNotifications(prevNotifications => [newNotification, ...prevNotifications].slice(0, 10));
+        // if (!newNotification.isRead) setUnreadCount(prevCount => prevCount + 1);
       };
 
       socket.on('new_notification', handleNewNotification);
@@ -109,7 +117,7 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
         socket.off('new_notification', handleNewNotification);
       };
     }
-  }, [socket]);
+  }, [socket]); // No olvides incluir fetchNotifications si lo defines fuera del componente
   
   // Fetch initial unread count when user is authenticated
   useEffect(() => {

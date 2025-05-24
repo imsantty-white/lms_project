@@ -11,10 +11,10 @@ export const SocketProvider = ({ children }) => {
   const { user } = useAuth(); // Get user from AuthContext
 
   useEffect(() => {
-    if (user && user.id) {
+    if (user && user._id) { // <-- Cambia de user.id a user._id
       const newSocket = io(import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000', {
-        query: { userId: user.id }, // Send userId for room joining on backend
-        transports: ['websocket'] // Explicitly use websockets
+        query: { userId: user._id }, // <-- Cambia aquí también
+        transports: ['websocket']
       });
       setSocket(newSocket);
 
