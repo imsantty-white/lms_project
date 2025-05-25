@@ -1,6 +1,8 @@
 // src/controllers/adminController.js
 
 const User = require('../models/UserModel'); // Necesitamos el modelo de Usuario para gestionar usuarios
+const Group = require('../models/GroupModel'); // Necesitamos el modelo de Grupo para gestionar grupos
+const Membership = require('../models/MembershipModel'); // Necesitamos el modelo de Membresía para contar miembros
 const mongoose = require('mongoose'); // Para validar ObjectIds
 
 // @desc    Obtener la lista de docentes pendientes de aprobación
@@ -247,5 +249,131 @@ module.exports = {
     approveDocente,
     getAllUsers,
     getUserById,
-    updateUserStatus
+    updateUserStatus,
+    getAllGroupsForAdmin, // Exportar la nueva función
+    archiveGroupAsAdmin,
+    restoreGroupAsAdmin
+};
+
+// @desc    Obtener la lista completa de todos los grupos (para Admin)
+// @route   GET /api/admin/groups
+// @access  Privado/Admin
+const getAllGroupsForAdmin = async (req, res) => {
+    try {
+        // Obtener todos los grupos y poblar la información del docente
+        const groups = await Group.find({})
+            .populate('docente_id', 'nombre apellidos email') // Popula los datos del docente
+            .lean(); // Convierte los documentos de Mongoose a objetos JavaScript planos
+
+        // Para cada grupo, contar los miembros aprobados
+        const groupsWithMemberCounts = await Promise.all(
+            groups.map(async (group) => {
+                const approvedMemberCount = await Membership.countDocuments({
+                    grupo_id: group._id,
+                    estado_solicitud: 'Aprobado', // Solo contar miembros cuya solicitud ha sido aprobada
+                });
+                return {
+                    ...group, // Mantener toda la información original del grupo
+                    approvedMemberCount, // Añadir el conteo de miembros aprobados
+                };
+            })
+        );
+
+        res.status(200).json({
+            success: true,
+            count: groupsWithMemberCounts.length, // Número total de grupos encontrados
+            data: groupsWithMemberCounts, // Array de grupos con la información del docente y conteo de miembros
+        });
+    } catch (error) {
+        console.error('Error al obtener todos los grupos para admin:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error interno del servidor al obtener los grupos.',
+            error: error.message,
+        });
+    }
+};
+
+// @desc    Archivar un grupo (Admin)
+// @route   PUT /api/admin/groups/:groupId/archive
+// @access  Privado/Admin
+const archiveGroupAsAdmin = async (req, res) => {
+    const { groupId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(groupId)) {
+        return res.status(400).json({ success: false, message: 'ID de grupo inválido.' });
+    }
+
+    try {
+        const group = await Group.findById(groupId);
+
+        if (!group) {
+            return res.status(404).json({ success: false, message: 'Grupo no encontrado.' });
+        }
+
+        if (!group.activo) {
+            return res.status(400).json({ success: false, message: 'El grupo ya está archivado.' });
+        }
+
+        group.activo = false;
+        await group.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Grupo archivado correctamente.',
+            data: group,
+        });
+    } catch (error) {
+        console.error('Error al archivar grupo (admin):', error);
+        if (error.name === 'CastError') {
+            return res.status(400).json({ success: false, message: 'ID de grupo con formato inválido.' });
+        }
+        res.status(500).json({
+            success: false,
+            message: 'Error interno del servidor al archivar el grupo.',
+            error: error.message,
+        });
+    }
+};
+
+// @desc    Restaurar un grupo archivado (Admin)
+// @route   PUT /api/admin/groups/:groupId/restore
+// @access  Privado/Admin
+const restoreGroupAsAdmin = async (req, res) => {
+    const { groupId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(groupId)) {
+        return res.status(400).json({ success: false, message: 'ID de grupo inválido.' });
+    }
+
+    try {
+        const group = await Group.findById(groupId);
+
+        if (!group) {
+            return res.status(404).json({ success: false, message: 'Grupo no encontrado.' });
+        }
+
+        if (group.activo) {
+            return res.status(400).json({ success: false, message: 'El grupo ya está activo.' });
+        }
+
+        group.activo = true;
+        await group.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Grupo restaurado correctamente.',
+            data: group,
+        });
+    } catch (error) {
+        console.error('Error al restaurar grupo (admin):', error);
+        if (error.name === 'CastError') {
+            return res.status(400).json({ success: false, message: 'ID de grupo con formato inválido.' });
+        }
+        res.status(500).json({
+            success: false,
+            message: 'Error interno del servidor al restaurar el grupo.',
+            error: error.message,
+        });
+    }
 };

@@ -16,6 +16,7 @@ import TeacherManageGroupPage from './pages/TeacherManageGroupPage';
 import TeacherContentBankPage from './pages/TeacherContentBankPage';
 
 import AdminUserManagementPage from './pages/AdminUserManagementPage';
+import AdminGroupManagementPage from './pages/AdminGroupManagementPage'; // Import the new page
 
 import TeacherLearningPathsPage from './pages/TeacherLearningPathsPage';
 import ManageLearningPathPage from './pages/ManageLearningPathPage';
@@ -152,6 +153,10 @@ function App() {
                   <Route
                     path="/admin/user-management"
                     element={<ProtectedRoute element={<AdminUserManagementPage />} allowedRoles={['Administrador']} />}
+                  />
+                  <Route
+                    path="/admin/groups" // Add new route for Admin Group Management
+                    element={<ProtectedRoute element={<AdminGroupManagementPage />} allowedRoles={['Administrador']} />}
                   />
                   <Route
                     path="/content-bank"
