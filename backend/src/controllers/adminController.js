@@ -244,16 +244,6 @@ const updateUserStatus = async (req, res) => {
 };
 
 
-module.exports = {
-    getPendingDocentes,
-    approveDocente,
-    getAllUsers,
-    getUserById,
-    updateUserStatus,
-    getAllGroupsForAdmin, // Exportar la nueva función
-    deleteGroupAsAdmin
-};
-
 // @desc    Obtener la lista completa de todos los grupos (para Admin)
 // @route   GET /api/admin/groups
 // @access  Privado/Admin
@@ -376,4 +366,16 @@ const deleteGroupAsAdmin = async (req, res) => {
             error: error.message,
         });
     }
+};
+
+
+
+module.exports = {
+    getPendingDocentes,
+    approveDocente,
+    getAllUsers,
+    getUserById,
+    updateUserStatus,
+    getAllGroupsForAdmin, // Exportar la nueva función
+    deleteGroupAsAdmin
 };

@@ -825,24 +825,6 @@ const getGroupMemberships = async (req, res, next) => {
 };
 
 
-// ... exportación de todas las funciones del controlador ...
-
-module.exports = {
-  createGroup,
-  requestJoinGroup,
-  getMyJoinRequests,
-  respondJoinRequest,
-  getGroupStudents,
-  getMyApprovedGroups,
-  updateGroup,
-  deleteGroup,
-  removeStudentFromGroup,
-  getMyOwnedGroups,
-  getMyMembershipsWithStatus,
-  getGroupById,
-  getGroupMemberships
-};
-
 // @desc    Eliminar una membresía de estudiante de un grupo por ID de membresía
 // @route   DELETE /api/groups/:groupId/memberships/:membershipId
 // @access  Privado/Docente
