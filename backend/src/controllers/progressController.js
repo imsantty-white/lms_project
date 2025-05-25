@@ -84,9 +84,16 @@ const updateThemeProgress = async (req, res) => {
                 learning_path_id: learningPathId,
                 group_id: groupId, // Usamos el ID del grupo obtenido antes
                 path_status: 'En Progreso', // Al iniciar el progreso (primer tema), la ruta pasa a 'En Progreso'
-                completed_themes: [] // Inicializamos el array de temas completados/vistos
+                completed_themes: [], // Inicializamos el array de temas completados/vistos
+                completed_modules: [] // Inicializamos el array de módulos completados
             });
         } else {
+            // --- Prevent Updates if Path is Completed ---
+            if (progress.path_status === 'Completado') {
+                return res.status(403).json({ message: 'La ruta de aprendizaje ya está completada y no se puede modificar.' });
+            }
+            // --- End Prevent Updates if Path is Completed ---
+
              // Si el documento de progreso ya existe, y el estado de la ruta era 'No Iniciado', lo cambiamos a 'En Progreso'
              if (progress.path_status === 'No Iniciado') {
                  progress.path_status = 'En Progreso';
@@ -100,7 +107,7 @@ const updateThemeProgress = async (req, res) => {
         const themeEntryIndex = progress.completed_themes.findIndex(entry => entry.theme_id.equals(themeId));
 
          // Bandera para saber si el estado del tema cambió A 'Completado' en esta actualización (antes no lo estaba)
-         let themeStatusJustCompleted = false;
+         let themeJustCompleted = false; // Renamed for clarity
 
 
         if (themeEntryIndex > -1) {
@@ -118,7 +125,7 @@ const updateThemeProgress = async (req, res) => {
 
                 // Verificar si el estado cambió A 'Completado' en esta acción (antes no lo estaba)
                  if (previousStatus !== 'Completado' && status === 'Completado') {
-                      themeStatusJustCompleted = true;
+                      themeJustCompleted = true;
                  }
             }
             // Si el estado actual es 'Completado' y el nuevo es 'Visto', simplemente no hacemos nada.
@@ -128,7 +135,7 @@ const updateThemeProgress = async (req, res) => {
             // Si no existe una entrada para este tema, añadimos una nueva al array
              // Si es una nueva entrada y el estado es 'Completado', marcamos la bandera
              if (status === 'Completado') {
-                  themeStatusJustCompleted = true;
+                  themeJustCompleted = true;
              }
             progress.completed_themes.push({
                 theme_id: themeId,
@@ -140,57 +147,85 @@ const updateThemeProgress = async (req, res) => {
 
 
         // --- Guardar el Documento de Progreso con la actualización del tema (Guardado intermedio) ---
-        // Guardamos los cambios del tema antes de verificar el estado de la ruta completa.
-        // Si la ruta se marca como completada, se guardará de nuevo.
         await progress.save();
         // --- Fin Guardar (intermedio) ---
 
+        let moduleStatusChangedToCompleted = false;
 
-        // --- Implementar Lógica de Completado de Ruta Automático ---
-        // Esta verificación solo se realiza si un tema acaba de ser marcado como 'Completado' en esta petición
+        // --- Implementar Lógica de Completado de Módulo ---
+        if (themeJustCompleted && theme.module_id) { // Asegurarse que el tema tiene un módulo asociado
+            const parentModuleId = theme.module_id._id;
+
+            // Obtener todos los temas que pertenecen a este módulo
+            const themesInModule = await Theme.find({ module_id: parentModuleId }).select('_id');
+            const allThemeIdsInModule = themesInModule.map(t => t._id.toString());
+
+            // Obtener los IDs de los temas 'Completado' por el estudiante DENTRO DE ESTE MÓDULO
+            const completedThemeIdsByStudentInModule = progress.completed_themes
+                .filter(entry => entry.status === 'Completado' && allThemeIdsInModule.includes(entry.theme_id.toString()))
+                .map(entry => entry.theme_id.toString());
+
+            // Verificar si todos los temas del módulo están completados
+            const allThemesInModuleCompleted = allThemeIdsInModule.length > 0 &&
+                                               completedThemeIdsByStudentInModule.length === allThemeIdsInModule.length &&
+                                               allThemeIdsInModule.every(tId => completedThemeIdsByStudentInModule.includes(tId));
+
+            if (allThemesInModuleCompleted) {
+                const moduleEntryIndex = progress.completed_modules.findIndex(entry => entry.module_id.equals(parentModuleId));
+                const previousModuleStatus = moduleEntryIndex > -1 ? progress.completed_modules[moduleEntryIndex].status : null;
+
+                if (moduleEntryIndex > -1) {
+                    // Si la entrada para el módulo ya existe, la actualizamos
+                    progress.completed_modules[moduleEntryIndex].status = 'Completado';
+                    progress.completed_modules[moduleEntryIndex].completion_date = new Date();
+                } else {
+                    // Si no existe una entrada para este módulo, añadimos una nueva
+                    progress.completed_modules.push({
+                        module_id: parentModuleId,
+                        status: 'Completado',
+                        completion_date: new Date()
+                    });
+                }
+                if (previousModuleStatus !== 'Completado') {
+                    moduleStatusChangedToCompleted = true;
+                }
+                await progress.save(); // Guardar progreso después de actualizar el módulo
+                console.log(`Módulo ${parentModuleId} marcado como completado para estudiante ${studentId}`);
+            }
+        }
+        // --- Fin Lógica de Completado de Módulo ---
+
+
+        // --- Actualizar Lógica de Completado de Ruta Automático ---
+        // Esta verificación se realiza si un tema acaba de ser marcado como 'Completado' O un módulo acaba de cambiar a 'Completado'
         // Y si la ruta no estaba ya marcada como 'Completado' anteriormente
-        if (themeStatusJustCompleted && progress.path_status !== 'Completado') {
+        if ((themeJustCompleted || moduleStatusChangedToCompleted) && progress.path_status !== 'Completado') {
+            // 1. Obtener todos los IDs de todos los módulos que pertenecen a esta ruta de aprendizaje
+            const modulesInPath = await Module.find({ learning_path_id: learningPathId }).select('_id');
+            const allModuleIdsInPath = modulesInPath.map(m => m._id.toString());
 
-            // 1. Obtener todos los IDs de todos los temas que pertenecen a esta ruta de aprendizaje
-            // (Necesitamos saber cuántos temas totales hay y cuáles son sus IDs)
-            const modulesInPath = await Module.find({ learning_path_id: learningPathId }).select('_id'); // Obtiene IDs de módulos de la ruta
-            const moduleIds = modulesInPath.map(m => m._id); // Extrae los IDs como array
-            // Busca todos los temas que pertenecen a esos módulos
-            const themesInPath = await Theme.find({ module_id: { $in: moduleIds } }).select('_id');
-            const allThemeIdsInPath = themesInPath.map(t => t._id.toString()); // Extrae los IDs de temas y los convierte a string para comparar fácilmente
+            // 2. Obtener los IDs de los módulos que el estudiante SÍ ha marcado como 'Completado'
+            const completedModuleIdsByStudent = progress.completed_modules
+                .filter(entry => entry.status === 'Completado')
+                .map(entry => entry.module_id.toString());
 
-            // 2. Obtener los IDs de los temas que el estudiante SÍ ha marcado como 'Completado' en su progreso actual
-            // Es importante usar el documento de progreso DESPUÉS de la actualización del tema, para que incluya el último tema completado.
-            const completedThemeIdsByStudent = progress.completed_themes
-                .filter(entry => entry.status === 'Completado') // Filtra solo las entradas marcadas como 'Completado'
-                .map(entry => entry.theme_id.toString()); // Extrae los IDs de los temas completados como string
+            // 3. Comparar los conjuntos de IDs: ¿Todos los módulos de la ruta están en la lista de módulos 'Completado' del estudiante?
+            const allModulesInPathCompletedByStudent = allModuleIdsInPath.length > 0 &&
+                                                       completedModuleIdsByStudent.length === allModuleIdsInPath.length &&
+                                                       allModuleIdsInPath.every(moduleId => completedModuleIdsByStudent.includes(moduleId));
 
-            // 3. Comparar los conjuntos de IDs: ¿Todos los temas de la ruta están en la lista de temas 'Completado' del estudiante?
-            // Esto se cumple si:
-            // - La ruta tiene temas definidos (para evitar marcar como completo una ruta vacía).
-            // - El número de temas completados por el estudiante es igual al número total de temas en la ruta.
-            // - Cada ID de tema en la lista total de temas está presente en la lista de temas completados por el estudiante.
-            const allThemesInPathCompletedByStudent = allThemeIdsInPath.length > 0 && // Asegurarse de que la ruta tiene temas
-                                                       completedThemeIdsByStudent.length === allThemeIdsInPath.length && // El número de temas completados coincide con el total
-                                                       allThemeIdsInPath.every(themeId => completedThemeIdsByStudent.includes(themeId)); // Cada tema total está en la lista de completados
-
-
-            // 4. Si TODOS los temas de la ruta están completados por el estudiante
-            if (allThemesInPathCompletedByStudent) {
-                // Actualizar el estado general de la ruta a 'Completado' y registrar la fecha de finalización
+            // 4. Si TODOS los módulos de la ruta están completados por el estudiante
+            if (allModulesInPathCompletedByStudent) {
                 progress.path_status = 'Completado';
                 progress.path_completion_date = new Date();
-
-                // Guardar el documento de progreso nuevamente para persistir el estado de 'Completado' de la ruta
                 await progress.save();
                 console.log(`Ruta de aprendizaje ${learningPathId} marcada como completada automáticamente para estudiante ${studentId}`);
-                // Opcional: Podrías añadir lógica aquí para dar una insignia, enviar una notificación, etc.
             }
         }
         // --- Fin Lógica de Completado de Ruta Automático ---
 
 
-        // Responde con el documento de progreso (potencialmente actualizado de nuevo si la ruta se marcó como completada)
+        // Responde con el documento de progreso (potencialmente actualizado)
         res.status(200).json(progress);
 
     } catch (error) {

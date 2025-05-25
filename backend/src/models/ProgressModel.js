@@ -23,6 +23,24 @@ const themeCompletionSchema = new mongoose.Schema({
     // El progreso en Actividades se rastrea a través del modelo Submission.
 });
 
+// Sub-esquema para rastrear la finalización de módulos individuales
+const moduleCompletionSchema = new mongoose.Schema({
+    module_id: { // El módulo específico que se está rastreando
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Module', // Referencia al modelo Module
+        required: [true, 'La finalización del módulo debe referenciar un módulo válido']
+    },
+    completion_date: { // Fecha y hora en que el módulo fue marcado como completado
+        type: Date,
+        default: Date.now
+    },
+    status: { // Estado dentro del módulo (ej: 'En Progreso', 'Completado')
+        type: String,
+        enum: ['En Progreso', 'Completado'], // Puedes ajustar los estados según necesites
+        default: 'En Progreso' // Por defecto, al registrar un módulo, se marca como 'En Progreso'
+    }
+});
+
 
 const progressSchema = new mongoose.Schema({
     student_id: { // El estudiante cuyo progreso se está rastreando
@@ -49,6 +67,9 @@ const progressSchema = new mongoose.Schema({
     // Campo para rastrear los temas que el estudiante ha marcado como completados o vistos
     // Es un array de referencias a temas con una fecha asociada
     completed_themes: [themeCompletionSchema],
+
+    // Campo para rastrear los módulos que el estudiante ha marcado como completados
+    completed_modules: [moduleCompletionSchema],
 
     // Fecha en que la ruta de aprendizaje completa fue marcada como completada por el estudiante (si aplica)
     path_completion_date: {
