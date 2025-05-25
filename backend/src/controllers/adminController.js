@@ -251,7 +251,8 @@ module.exports = {
     getUserById,
     updateUserStatus,
     getAllGroupsForAdmin, // Exportar la nueva función
-    deleteGroupAsAdmin
+    archiveGroupAsAdmin,
+    restoreGroupAsAdmin
 };
 
 // @desc    Obtener la lista completa de todos los grupos (para Admin)
@@ -271,23 +272,9 @@ const getAllGroupsForAdmin = async (req, res) => {
                     grupo_id: group._id,
                     estado_solicitud: 'Aprobado', // Solo contar miembros cuya solicitud ha sido aprobada
                 });
-                // Calcular días archivado si el grupo está inactivo y tiene fecha de archivo
-                let daysArchived = null;
-                if (group.activo === false && group.archivedAt) {
-                    const now = new Date();
-                    const archivedDate = new Date(group.archivedAt);
-                    // Asegurarse que archivedDate es válida antes de calcular
-                    if (!isNaN(archivedDate.getTime())) {
-                        daysArchived = Math.floor((now - archivedDate) / (1000 * 60 * 60 * 24));
-                    } else {
-                        console.warn(`Fecha 'archivedAt' inválida para el grupo ID: ${group._id}`);
-                    }
-                }
-
                 return {
                     ...group, // Mantener toda la información original del grupo
                     approvedMemberCount, // Añadir el conteo de miembros aprobados
-                    daysArchived, // Añadir los días que el grupo ha estado archivado
                 };
             })
         );
@@ -295,7 +282,7 @@ const getAllGroupsForAdmin = async (req, res) => {
         res.status(200).json({
             success: true,
             count: groupsWithMemberCounts.length, // Número total de grupos encontrados
-            data: groupsWithMemberCounts, // Array de grupos con la información del docente, conteo de miembros y días archivado
+            data: groupsWithMemberCounts, // Array de grupos con la información del docente y conteo de miembros
         });
     } catch (error) {
         console.error('Error al obtener todos los grupos para admin:', error);
@@ -307,13 +294,12 @@ const getAllGroupsForAdmin = async (req, res) => {
     }
 };
 
-// @desc    Eliminar permanentemente un grupo (Admin)
-// @route   DELETE /api/admin/groups/:groupId
+// @desc    Archivar un grupo (Admin)
+// @route   PUT /api/admin/groups/:groupId/archive
 // @access  Privado/Admin
-const deleteGroupAsAdmin = async (req, res) => {
+const archiveGroupAsAdmin = async (req, res) => {
     const { groupId } = req.params;
 
-    // Validar ObjectId
     if (!mongoose.Types.ObjectId.isValid(groupId)) {
         return res.status(400).json({ success: false, message: 'ID de grupo inválido.' });
     }
@@ -321,58 +307,72 @@ const deleteGroupAsAdmin = async (req, res) => {
     try {
         const group = await Group.findById(groupId);
 
-        // Verificar si el grupo existe
         if (!group) {
             return res.status(404).json({ success: false, message: 'Grupo no encontrado.' });
         }
 
-        // Verificar condiciones de eliminación
-        if (group.activo === true) {
-            return res.status(400).json({
-                success: false,
-                message: 'El grupo no está archivado y no puede ser eliminado permanentemente.',
-            });
+        if (!group.activo) {
+            return res.status(400).json({ success: false, message: 'El grupo ya está archivado.' });
         }
 
-        if (!group.archivedAt) {
-            return res.status(400).json({
-                success: false,
-                message: 'El grupo no tiene fecha de archivación, no se puede determinar la elegibilidad para eliminación.',
-            });
-        }
-
-        const daysArchived = Math.floor((new Date() - new Date(group.archivedAt)) / (1000 * 60 * 60 * 24));
-
-        if (daysArchived <= 15) {
-            return res.status(403).json({ // 403 Forbidden
-                success: false,
-                message: `El grupo debe estar archivado por más de 15 días para ser eliminado permanentemente. Actualmente: ${daysArchived} días.`,
-            });
-        }
-
-        // Iniciar una sesión de Mongoose para transacciones si es posible/necesario,
-        // aunque para dos operaciones separadas podría no ser estrictamente necesario si la consistencia eventual es aceptable.
-        // Para este caso, se procederá sin transacción explícita por simplicidad.
-
-        // Eliminar membresías asociadas
-        await Membership.deleteMany({ grupo_id: groupId });
-
-        // Eliminar el grupo
-        await Group.findByIdAndDelete(groupId);
+        group.activo = false;
+        await group.save();
 
         res.status(200).json({
             success: true,
-            message: 'Grupo eliminado permanentemente junto con sus membresías.',
+            message: 'Grupo archivado correctamente.',
+            data: group,
         });
-
     } catch (error) {
-        console.error('Error al eliminar grupo (admin):', error);
-        if (error.name === 'CastError') { // Aunque ya validamos ObjectId, es buena práctica mantenerlo por si acaso
+        console.error('Error al archivar grupo (admin):', error);
+        if (error.name === 'CastError') {
             return res.status(400).json({ success: false, message: 'ID de grupo con formato inválido.' });
         }
         res.status(500).json({
             success: false,
-            message: 'Error interno del servidor al eliminar el grupo.',
+            message: 'Error interno del servidor al archivar el grupo.',
+            error: error.message,
+        });
+    }
+};
+
+// @desc    Restaurar un grupo archivado (Admin)
+// @route   PUT /api/admin/groups/:groupId/restore
+// @access  Privado/Admin
+const restoreGroupAsAdmin = async (req, res) => {
+    const { groupId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(groupId)) {
+        return res.status(400).json({ success: false, message: 'ID de grupo inválido.' });
+    }
+
+    try {
+        const group = await Group.findById(groupId);
+
+        if (!group) {
+            return res.status(404).json({ success: false, message: 'Grupo no encontrado.' });
+        }
+
+        if (group.activo) {
+            return res.status(400).json({ success: false, message: 'El grupo ya está activo.' });
+        }
+
+        group.activo = true;
+        await group.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Grupo restaurado correctamente.',
+            data: group,
+        });
+    } catch (error) {
+        console.error('Error al restaurar grupo (admin):', error);
+        if (error.name === 'CastError') {
+            return res.status(400).json({ success: false, message: 'ID de grupo con formato inválido.' });
+        }
+        res.status(500).json({
+            success: false,
+            message: 'Error interno del servidor al restaurar el grupo.',
             error: error.message,
         });
     }

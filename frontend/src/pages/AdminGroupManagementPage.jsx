@@ -18,8 +18,7 @@ import {
   Chip,
   Link,
   Button,
-  Stack,
-  TextField // Added TextField
+  Stack
 } from '@mui/material';
 import { useAuth, axiosInstance } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
@@ -28,7 +27,7 @@ import { toast } from 'react-toastify';
 import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
 import GroupIcon from '@mui/icons-material/Group'; // Icon for groups
-import ConfirmationModal from '../components/ConfirmationModal'; // Re-added for delete functionality
+import ConfirmationModal from '../components/ConfirmationModal'; // Import ConfirmationModal
 
 function AdminGroupManagementPage() {
     const { user, isAuthenticated, isAuthInitialized } = useAuth();
@@ -39,12 +38,11 @@ function AdminGroupManagementPage() {
     const hasShownListSuccessToast = useRef(false);
 
     // State for modal and actions
-    const [actionLoading, setActionLoading] = useState({}); 
-    
-    // State for Delete Modal
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [groupToDelete, setGroupToDelete] = useState(null);
-    const [deleteConfirmName, setDeleteConfirmName] = useState('');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalAction, setModalAction] = useState(() => () => {});
+    const [modalMessage, setModalMessage] = useState('');
+    const [currentGroupId, setCurrentGroupId] = useState(null);
+    const [actionLoading, setActionLoading] = useState({});
 
 
     useEffect(() => {
@@ -87,39 +85,67 @@ function AdminGroupManagementPage() {
         }
     }, [isAuthenticated, user, isAuthInitialized]);
 
-    // Modal Helper Function, Archive Handler, Restore Handler removed
-
-    // --- Delete Modal Functions ---
-    const openDeleteModal = (group) => {
-        setGroupToDelete(group);
-        setDeleteConfirmName('');
-        setIsDeleteModalOpen(true);
+    // --- Modal Helper Function ---
+    const openConfirmationModal = (groupId, actionType) => {
+        setCurrentGroupId(groupId);
+        const groupName = groups.find(g => g._id === groupId)?.nombre_grupo || 'este grupo';
+        if (actionType === 'archive') {
+            setModalMessage(`¿Estás seguro que deseas archivar el grupo "${groupName}"?`);
+            setModalAction(() => () => handleArchiveGroup(groupId));
+        } else if (actionType === 'restore') {
+            setModalMessage(`¿Estás seguro que deseas restaurar el grupo "${groupName}"?`);
+            setModalAction(() => () => handleRestoreGroup(groupId));
+        }
+        setIsModalOpen(true);
     };
 
-    const handleDeleteGroup = async () => {
-        if (!groupToDelete || !isAuthenticated || user?.tipo_usuario !== 'Administrador') {
-            toast.error('Acción no permitida o grupo no seleccionado.');
+    // --- Handler for Archiving Group ---
+    const handleArchiveGroup = async (groupId) => {
+        if (!isAuthenticated || user?.tipo_usuario !== 'Administrador') {
+            toast.error('No tienes permiso para realizar esta acción.');
             return;
         }
-
-        setActionLoading(prev => ({ ...prev, [groupToDelete._id]: true }));
+        setActionLoading(prev => ({ ...prev, [groupId]: true }));
         try {
-            await axiosInstance.delete(`/api/admin/groups/${groupToDelete._id}`);
-            setGroups(prevGroups => prevGroups.filter(g => g._id !== groupToDelete._id));
-            toast.success(`Grupo "${groupToDelete.nombre}" eliminado permanentemente.`);
-            setIsDeleteModalOpen(false);
-            setGroupToDelete(null);
+            const response = await axiosInstance.put(`/api/admin/groups/${groupId}/archive`);
+            const updatedGroup = response.data.data;
+            setGroups(prevGroups =>
+                prevGroups.map(g => (g._id === updatedGroup._id ? updatedGroup : g))
+            );
+            toast.success(response.data.message || 'Grupo archivado correctamente.');
         } catch (err) {
-            console.error(`Error al eliminar grupo ${groupToDelete._id}:`, err.response ? err.response.data : err.message);
-            const errorMessage = err.response?.data?.message || 'Error al eliminar el grupo.';
+            console.error(`Error al archivar grupo ${groupId}:`, err.response ? err.response.data : err.message);
+            const errorMessage = err.response?.data?.message || 'Error al archivar el grupo.';
             toast.error(errorMessage);
-            // Optionally, keep modal open on error or close it
-            // setIsDeleteModalOpen(false); 
         } finally {
-            setActionLoading(prev => ({ ...prev, [groupToDelete._id]: false }));
+            setActionLoading(prev => ({ ...prev, [groupId]: false }));
+            setIsModalOpen(false);
         }
     };
 
+    // --- Handler for Restoring Group ---
+    const handleRestoreGroup = async (groupId) => {
+        if (!isAuthenticated || user?.tipo_usuario !== 'Administrador') {
+            toast.error('No tienes permiso para realizar esta acción.');
+            return;
+        }
+        setActionLoading(prev => ({ ...prev, [groupId]: true }));
+        try {
+            const response = await axiosInstance.put(`/api/admin/groups/${groupId}/restore`);
+            const updatedGroup = response.data.data;
+            setGroups(prevGroups =>
+                prevGroups.map(g => (g._id === updatedGroup._id ? updatedGroup : g))
+            );
+            toast.success(response.data.message || 'Grupo restaurado correctamente.');
+        } catch (err) {
+            console.error(`Error al restaurar grupo ${groupId}:`, err.response ? err.response.data : err.message);
+            const errorMessage = err.response?.data?.message || 'Error al restaurar el grupo.';
+            toast.error(errorMessage);
+        } finally {
+            setActionLoading(prev => ({ ...prev, [groupId]: false }));
+            setIsModalOpen(false);
+        }
+    };
 
     if (!isAuthInitialized || isLoading) {
         return (
@@ -169,14 +195,13 @@ function AdminGroupManagementPage() {
                                 <TableCell>Código de Acceso</TableCell>
                                 <TableCell align="center">Miembros (Aprobados)</TableCell>
                                 <TableCell align="center">Estado</TableCell>
-                                <TableCell align="center">Días Archivado</TableCell>
                                 <TableCell align="center">Acciones</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {groups.map((group) => (
                                 <TableRow key={group._id}>
-                                    <TableCell>{group.nombre}</TableCell>
+                                    <TableCell>{group.nombre_grupo}</TableCell>
                                     <TableCell>
                                         {group.docente_id ? `${group.docente_id.nombre} ${group.docente_id.apellidos}` : 'Sistema/N/A'}
                                     </TableCell>
@@ -190,20 +215,28 @@ function AdminGroupManagementPage() {
                                         />
                                     </TableCell>
                                     <TableCell align="center">
-                                        {group.activo === false && group.daysArchived !== null ? `${group.daysArchived} día(s)` : (group.activo ? 'No Archivado' : '-')}
-                                    </TableCell>
-                                    <TableCell align="center">
                                         <Stack direction="row" spacing={1} justifyContent="center">
-                                            {group.activo === false && group.daysArchived > 15 && (
+                                            {group.activo ? (
                                                 <Button
-                                                    variant="contained"
-                                                    color="error"
+                                                    variant="outlined"
+                                                    color="warning"
                                                     size="small"
-                                                    onClick={() => openDeleteModal(group)}
+                                                    onClick={() => openConfirmationModal(group._id, 'archive')}
                                                     disabled={actionLoading[group._id]}
                                                     startIcon={actionLoading[group._id] ? <CircularProgress size={16} color="inherit" /> : null}
                                                 >
-                                                    {actionLoading[group._id] ? 'Eliminando...' : 'Eliminar'}
+                                                    {actionLoading[group._id] ? 'Archivando...' : 'Archivar'}
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    variant="outlined"
+                                                    color="success"
+                                                    size="small"
+                                                    onClick={() => openConfirmationModal(group._id, 'restore')}
+                                                    disabled={actionLoading[group._id]}
+                                                    startIcon={actionLoading[group._id] ? <CircularProgress size={16} color="inherit" /> : null}
+                                                >
+                                                    {actionLoading[group._id] ? 'Restaurando...' : 'Restaurar'}
                                                 </Button>
                                             )}
                                         </Stack>
@@ -214,49 +247,20 @@ function AdminGroupManagementPage() {
                     </Table>
                 </TableContainer>
 
-                {/* Delete Confirmation Modal */}
-                {groupToDelete && (
-                    <ConfirmationModal
-                        open={isDeleteModalOpen}
-                        onClose={() => {
-                            setIsDeleteModalOpen(false);
-                            setGroupToDelete(null);
-                        }}
-                        onConfirm={handleDeleteGroup}
-                        title={`Confirmar Eliminación Permanente del Grupo: "${groupToDelete.nombre}"`}
-                        message={
-                            <Box>
-                                <Typography variant="body1" color="error" gutterBottom>
-                                    <strong>¡Advertencia!</strong> Esta acción es irreversible y eliminará permanentemente el grupo y todas sus membresías asociadas.
-                                </Typography>
-                                <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>
-                                    Para confirmar, por favor escribe el nombre del grupo: <strong>{groupToDelete.nombre}</strong>
-                                </Typography>
-                                <TextField
-                                    autoFocus
-                                    margin="dense"
-                                    id="delete-confirm-name"
-                                    label="Nombre del Grupo"
-                                    type="text"
-                                    fullWidth
-                                    variant="standard"
-                                    value={deleteConfirmName}
-                                    onChange={(e) => setDeleteConfirmName(e.target.value)}
-                                    sx={{ mb: 2 }}
-                                />
-                            </Box>
+                <ConfirmationModal
+                    open={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    onConfirm={() => {
+                        if (modalAction) {
+                            modalAction();
                         }
-                        confirmText="Confirmar Eliminación"
-                        cancelText="Cancelar"
-                        confirmButtonProps={{ 
-                            color: "error", 
-                            disabled: deleteConfirmName !== groupToDelete.nombre || actionLoading[groupToDelete._id]
-                        }}
-                        cancelButtonProps={{
-                            disabled: actionLoading[groupToDelete._id]
-                        }}
-                    />
-                )}
+                        // setIsModalOpen(false); // Action handlers will close it
+                    }}
+                    title="Confirmar Acción"
+                    message={modalMessage}
+                    confirmText="Sí, Confirmar"
+                    cancelText="Cancelar"
+                />
             </Box>
         </Container>
     );

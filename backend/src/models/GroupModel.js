@@ -36,10 +36,6 @@ const groupSchema = new mongoose.Schema({
   limite_estudiantes: { // Para futuras limitaciones
     type: Number,
     default: 0 // 0 podría significar sin límite por defecto, o puedes poner un valor inicial
-  },
-  archivedAt: { // Fecha en que el grupo fue archivado
-    type: Date,
-    default: null
   }
   // Podrías añadir más campos aquí si los necesitas para el grupo (ej: descripción)
 }, {
