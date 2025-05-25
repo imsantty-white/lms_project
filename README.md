@@ -1,6 +1,6 @@
 # LMS Project
 
-Sistema de Gestión de Aprendizaje (LMS, Sin Nombre) — Backend
+Sistema de Gestión de Aprendizaje (LMS, Sin Nombre)
 
 ## Descripción
 
@@ -17,6 +17,20 @@ Este repositorio contiene el backend de un Sistema de Gestión de Aprendizaje (L
 - **Calificación automática y manual**
 - **Seguimiento del progreso** de los estudiantes
 - **Documentación interactiva de la API** con Swagger
+
+## Funcionalidades del Frontend
+
+- **Interfaz de usuario en React** con Material UI (MUI) y Vite
+- **Paneles diferenciados** para Administrador, Docente y Estudiante
+- **Gestión visual de rutas de aprendizaje**: creación, edición, asignación de módulos, temas y actividades
+- **Banco de contenido**: creación, edición y reutilización de recursos y actividades
+- **Asignación de actividades** a temas con configuración avanzada (fechas, intentos, tiempo, puntaje)
+- **Visualización y calificación de entregas** de estudiantes (incluye retroalimentación)
+- **Seguimiento visual del progreso** para estudiantes y docentes
+- **Gestión de grupos**: solicitudes, aprobación/rechazo, invitaciones y remoción de miembros
+- **Sistema de notificaciones** (en desarrollo)
+- **Soporte para modo claro/oscuro**
+- **Validaciones avanzadas** en formularios y feedback visual con Toasts
 
 ## Tecnologías utilizadas
 
@@ -81,8 +95,5 @@ backend/
 - El archivo `.env` está en `.gitignore` y **no debe subirse al repositorio**.
 - Se utiliza `express-mongo-sanitize` para proteger contra NoSQL Injection.
 
-## Próximamente
-
-- **Frontend** en React (u otra tecnología) para la interfaz de usuario.
 
 ---
