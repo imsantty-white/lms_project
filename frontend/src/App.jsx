@@ -88,20 +88,27 @@ function App() {
           )}
 
           <Box
-              component="main"
-               sx={{
-                  flexGrow: 1,
-                  // Elimina el margen izquierdo porque el drawer ya está ocupando ese espacio físicamente
-                  ml: 0,
-                  // Ajusta el ancho para ocupar solo el espacio disponible
-                  width: shouldShowSidebar && sidebarOpen ? `calc(100% - ${drawerWidth}px)` : '100%',
-                  transition: 'width 0.3s ease',
-                  overflowX: 'hidden',
-                  overflowY: location.pathname === '/' ? 'hidden' : 'auto',
-                  px: 2, // Puedes mantener o ajustar el padding según necesites
-                  py: 2,
-                  boxSizing: 'border-box',
-              }}
+            component="main"
+            sx={{
+              flexGrow: 1,
+              ml: 0,
+              width: shouldShowSidebar && sidebarOpen ? `calc(100% - ${drawerWidth}px)` : '100%',
+              transition: 'width 0.3s ease',
+              overflowX: 'hidden',
+              overflowY: location.pathname === '/' ? 'hidden' : 'auto',
+              // SOLO SIN PADDING NI FONDO EN LA HOME
+              ...(location.pathname === '/' ? {
+                px: 0,
+                py: 0,
+                background: 'none',
+                boxShadow: 'none',
+              } : {
+                px: 2,
+                py: 2,
+                background: (theme) => theme.palette.background.default,
+              }),
+              boxSizing: 'border-box',
+            }}
           >
                <Routes>
                   <Route path="/" element={<HomePage />} />
@@ -192,12 +199,15 @@ function App() {
 
         </Box>
 
-        <ToastContainer 
-        position="bottom-right" 
-        autoClose={2000} hideProgressBar={true} 
-        newestOnTop={false} closeOnClick rtl={false} 
-        pauseOnFocusLoss draggable pauseOnHover 
-        />
+        {/* Solo muestra ToastContainer si NO estás en la HomePage */}
+          {location.pathname !== '/' && (
+            <ToastContainer 
+              position="bottom-right" 
+              autoClose={2000} hideProgressBar={true} 
+              newestOnTop={false} closeOnClick rtl={false} 
+              pauseOnFocusLoss draggable pauseOnHover 
+            />
+          )}
 
       </Box>
     </ThemeProvider>

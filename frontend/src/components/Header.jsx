@@ -227,17 +227,7 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
             >
               {`${user?.nombre || ''} ${user?.apellidos || ''}`.trim() || user?.email || 'Usuario'}
             </Typography>
-            {/* Botón modo día/noche */}
-            <IconButton
-              color="inherit"
-              onClick={onToggleMode}
-              sx={{
-                ml: 1,
-                color: mode === 'dark' ? '#fff' : '#222',
-              }}
-            >
-              {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
-            </IconButton>
+            
             {/* Botón de cierre de sesión */}
             <IconButton
               color="inherit"
@@ -252,6 +242,17 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
             </IconButton>
           </Box>
         )}
+        {/* Botón modo día/noche */}
+            <IconButton
+              color="inherit"
+              onClick={onToggleMode}
+              sx={{
+                ml: 1,
+                color: mode === 'dark' ? '#fff' : '#222',
+              }}
+            >
+              {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
+            </IconButton>
       </Toolbar>
     </AppBar>
   );
