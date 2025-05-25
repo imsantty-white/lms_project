@@ -3,6 +3,7 @@ import { useAuth, axiosInstance } from '../contexts/AuthContext';
 import {
   Container, Box, Typography, LinearProgress, Paper, List, ListItem, ListItemText, Chip, Divider, CircularProgress, Alert
 } from '@mui/material';
+import LockIcon from '@mui/icons-material/Lock'; // Importar LockIcon
 
 function StudentProgressPage() {
   const { user, isAuthenticated, isAuthInitialized } = useAuth();
@@ -10,8 +11,10 @@ function StudentProgressPage() {
   const [selectedPath, setSelectedPath] = useState(null);
   const [progress, setProgress] = useState(null);
   const [activities, setActivities] = useState([]);
-  const [loading, setLoading] = useState(false); // Cambiar a false inicialmente
-  const [loadingPaths, setLoadingPaths] = useState(false); // Para la carga de rutas
+  const [selectedPathStructure, setSelectedPathStructure] = useState(null); // Nuevo estado para la estructura
+  const [loading, setLoading] = useState(false); 
+  const [loadingPaths, setLoadingPaths] = useState(false);
+  const [loadingStructure, setLoadingStructure] = useState(false); // Nuevo estado de carga
 
   // Traducción optimizada de estados
   const STATUS_TRANSLATIONS = {
@@ -47,28 +50,56 @@ function StudentProgressPage() {
     }
   }, [isAuthenticated]);
 
-  // 2. Cuando el estudiante selecciona una ruta, cargar progreso y actividades
+  // 2. Cuando el estudiante selecciona una ruta, cargar progreso, actividades y estructura
   useEffect(() => {
     if (selectedPath) {
       setLoading(true);
-      setProgress(null); // Limpiar datos anteriores
+      setLoadingStructure(true); // Iniciar carga de estructura
+      setProgress(null); 
       setActivities([]);
+      setSelectedPathStructure(null); // Limpiar estructura anterior
       
       Promise.all([
         axiosInstance.get(`/api/progress/my/${selectedPath._id}`),
-        axiosInstance.get(`/api/learning-paths/${selectedPath._id}/activities/student`) 
-      ]).then(([progressRes, activitiesRes]) => {
-        setProgress(progressRes.data.progress);
-        setActivities(activitiesRes.data.activities);
+        axiosInstance.get(`/api/learning-paths/${selectedPath._id}/activities/student`),
+        axiosInstance.get(`/api/learning-paths/${selectedPath._id}/structure`) // Nueva llamada
+      ]).then(([progressRes, activitiesRes, structureRes]) => {
+        setProgress(progressRes.data.progress || null); // Asegurar que progress sea null si no viene
+        setActivities(activitiesRes.data.activities || []);
+        setSelectedPathStructure(structureRes.data || null); // Guardar estructura
       }).catch(error => {
-        console.error('Error loading progress and activities:', error);
-        // Opcional: mostrar mensaje de error
+        console.error('Error loading progress, activities, or structure:', error);
+        // Opcional: mostrar mensaje de error unificado o específico
+        if (error.response && error.response.config.url.includes('/structure')) {
+          setSelectedPathStructure(null); // Asegurar que la estructura quede null en error
+        }
       }).finally(() => {
         setLoading(false);
+        setLoadingStructure(false); // Finalizar carga de estructura
       });
     }
   }, [selectedPath]);
 
+  const getModuleStatus = (moduleId, moduleThemes) => {
+    if (!progress) return 'No Iniciado'; // Si no hay progreso, todo está no iniciado
+
+    const completedModule = progress.completed_modules?.find(m => m.module_id === moduleId && m.status === 'Completado');
+    if (completedModule) {
+      return 'Completado';
+    }
+
+    if (progress.completed_themes && moduleThemes) {
+      const moduleThemeIds = moduleThemes.map(t => t._id);
+      const hasCompletedThemeInModule = progress.completed_themes.some(ct => moduleThemeIds.includes(ct.theme_id) && ct.status === 'Completado');
+      const hasSeenThemeInModule = progress.completed_themes.some(ct => moduleThemeIds.includes(ct.theme_id)); // Visto o Completado
+
+      if (hasCompletedThemeInModule || hasSeenThemeInModule) { // Considerar 'En Progreso' si un tema está visto o completado
+        return 'En Progreso';
+      }
+    }
+    return 'No Iniciado';
+  };
+  
   // Mostrar loading solo si la autenticación no ha sido inicializada
   if (!isAuthInitialized) {
     return (
@@ -110,88 +141,136 @@ function StudentProgressPage() {
         )}
       </Box>
 
-      {/* Mostrar loading solo cuando se está cargando el progreso de una ruta específica */}
-      {loading && (
+      {/* Mostrar loading solo cuando se está cargando el progreso o estructura de una ruta específica */}
+      {(loading || loadingStructure) && selectedPath && (
         <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
           <CircularProgress />
         </Box>
       )}
 
-      {/* Mostrar progreso solo si hay una ruta seleccionada y no está cargando */}
-      {selectedPath && !loading && progress && (
-        <Paper sx={{ p: 3, mb: 3 }}>
-          <Typography variant="h6">Progreso en la Ruta</Typography>
-          <LinearProgress
-            variant="determinate"
-            value={progress.completed_themes.length / progress.total_themes * 100}
-            sx={{ height: 10, borderRadius: 5, my: 2 }}
-          />
-          <Typography>
-            {progress.completed_themes.length} de {progress.total_themes} temas completados
-          </Typography>
-        </Paper>
-      )}
+      {/* Mostrar contenido de la ruta seleccionada solo si no está cargando y hay datos */}
+      {selectedPath && !loading && !loadingStructure && (
+        <>
+          {/* Estado General de la Ruta y Progreso de Módulos */}
+          {progress && selectedPathStructure && (
+            <Paper sx={{ p: 3, mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <Typography variant="h6" sx={{ mr: 1 }}>
+                  Progreso en la Ruta: {selectedPath.nombre}
+                </Typography>
+                <Chip
+                  label={translateStatus(progress.path_status || 'No Iniciado')}
+                  color={progress.path_status === 'Completado' ? 'success' : progress.path_status === 'En Progreso' ? 'warning' : 'default'}
+                />
+                {progress.path_status === 'Completado' && (
+                  <LockIcon color="action" sx={{ ml: 1 }} />
+                )}
+              </Box>
 
-      {/* Mostrar actividades solo si hay una ruta seleccionada y no está cargando */}
-      {selectedPath && !loading && (
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="h6" gutterBottom>Actividades</Typography>
-          {activities.length > 0 ? (
-            <List>
-              {activities.map(act => (
-                <React.Fragment key={act._id}>
-                  <ListItem>
-                    <ListItemText
-                      primary={act.title}
-                      secondary={
-                        <>
-                          <Typography variant="body2">Estado: {translateStatus(act.status)}</Typography>
-                          <Typography variant="body2">
-                            Calificación: {act.lastSubmission?.calificacion !== undefined
-                              ? act.lastSubmission.calificacion
-                              : 'Pendiente'}
-                          </Typography>
-                        </>
-                      }
-                    />
-                    <Chip
-                        label={
-                            !act.lastSubmission
-                            ? 'Pendiente de entrega'
-                            : act.lastSubmission.estado_envio === 'Calificado'
-                                ? 'Calificado'
-                                : 'Pendiente de calificar'
-                        }
-                        color={
-                            !act.lastSubmission
-                            ? 'default'
-                            : act.lastSubmission.estado_envio === 'Calificado'
-                                ? 'success'
-                                : 'warning'
-                        }
-                        />
-                  </ListItem>
-                  <Divider />
-                </React.Fragment>
-              ))}
-            </List>
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              No hay actividades disponibles para esta ruta.
-            </Typography>
+              <LinearProgress
+                variant="determinate"
+                value={
+                  (selectedPathStructure.modules?.length > 0 && progress.completed_modules?.length > 0)
+                    ? (progress.completed_modules.filter(m => m.status === 'Completado').length / selectedPathStructure.modules.length) * 100
+                    : 0
+                }
+                sx={{ height: 10, borderRadius: 5, my: 2 }}
+              />
+              <Typography>
+                {(progress.completed_modules?.filter(m => m.status === 'Completado').length || 0)} de {selectedPathStructure.modules?.length || 0} módulos completados
+              </Typography>
+            </Paper>
           )}
-        </Paper>
-      )}
 
-      {/* Mensaje cuando no hay ruta seleccionada */}
-      {!selectedPath && !loadingPaths && learningPaths.length > 0 && (
+          {/* Detalle de Progreso por Módulo */}
+          {selectedPathStructure && progress && selectedPathStructure.modules && selectedPathStructure.modules.length > 0 && (
+            <Paper sx={{ p: 3, mb: 3 }}>
+              <Typography variant="h6" gutterBottom>Progreso por Módulo</Typography>
+              <List>
+                {selectedPathStructure.modules.map((module) => (
+                  <React.Fragment key={module._id}>
+                    <ListItem>
+                      <ListItemText primary={module.nombre} />
+                      <Chip
+                        label={translateStatus(getModuleStatus(module._id, module.themes))}
+                        color={
+                          getModuleStatus(module._id, module.themes) === 'Completado' ? 'success' :
+                          getModuleStatus(module._id, module.themes) === 'En Progreso' ? 'warning' : 'default'
+                        }
+                      />
+                    </ListItem>
+                    <Divider />
+                  </React.Fragment>
+                ))}
+              </List>
+            </Paper>
+          )}
+           {/* Si no hay módulos en la estructura pero hay ruta */}
+           {selectedPathStructure && (!selectedPathStructure.modules || selectedPathStructure.modules.length === 0) && progress && (
+             <Alert severity="info" sx={{ mb: 2}}>Esta ruta de aprendizaje no tiene módulos definidos aún.</Alert>
+           )}
+
+
+          {/* Mostrar actividades solo si hay una ruta seleccionada y no está cargando */}
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>Actividades</Typography>
+            {activities.length > 0 ? (
+              <List>
+                {activities.map(act => (
+                  <React.Fragment key={act._id}>
+                    <ListItem>
+                      <ListItemText
+                        primary={act.title}
+                        secondary={
+                          <>
+                            <Typography variant="body2">Estado: {translateStatus(act.status)}</Typography>
+                            <Typography variant="body2">
+                              Calificación: {act.lastSubmission?.calificacion !== undefined
+                                ? act.lastSubmission.calificacion
+                                : 'Pendiente'}
+                            </Typography>
+                          </>
+                        }
+                      />
+                      <Chip
+                          label={
+                              !act.lastSubmission
+                              ? 'Pendiente de entrega'
+                              : act.lastSubmission.estado_envio === 'Calificado'
+                                  ? 'Calificado'
+                                  : 'Pendiente de calificar'
+                          }
+                          color={
+                              !act.lastSubmission
+                              ? 'default'
+                              : act.lastSubmission.estado_envio === 'Calificado'
+                                  ? 'success'
+                                  : 'warning'
+                          }
+                          />
+                    </ListItem>
+                    <Divider />
+                  </React.Fragment>
+                ))}
+              </List>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                No hay actividades disponibles para esta ruta.
+              </Typography>
+            )}
+          </Paper>
+        </>
+      )}
+      
+      {/* Mensaje cuando no hay ruta seleccionada y no se está cargando la lista de rutas */}
+      {!selectedPath && !loadingPaths && learningPaths.length > 0 && !loading && !loadingStructure && (
         <Alert severity="info">
           Selecciona una ruta de aprendizaje para ver tu progreso.
         </Alert>
       )}
 
-      {/* Mensaje cuando no hay rutas asignadas */}
-      {!loadingPaths && learningPaths.length === 0 && (
+      {/* Mensaje cuando no hay rutas asignadas y no se está cargando la lista de rutas */}
+      {!loadingPaths && learningPaths.length === 0 && !loading && (
         <Alert severity="info">
           No tienes rutas de aprendizaje asignadas.
         </Alert>
