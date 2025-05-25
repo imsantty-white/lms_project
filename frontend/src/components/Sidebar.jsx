@@ -49,7 +49,7 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
     Administrador: [
       { text: 'Stats', icon: <DashboardIcon />, path: '/dashboard-admin' },
       { text: 'Gestión de Usuarios', icon: <PersonIcon />, path: '/admin/user-management' },
-      { text: 'Gestión de Grupos', icon: <GroupsIcon />, path: '/gestion-grupos-admin' },
+      { text: 'Gestión de Grupos', icon: <GroupsIcon />, path: '/admin/groups' }, // Updated path
       { text: 'Configuración del Sistema', icon: <SettingsIcon />, path: '/admin/config' },
     ],
     Common: [

@@ -9,7 +9,10 @@ const {
   approveDocente,
   getAllUsers,
   getUserById,
-  updateUserStatus
+  updateUserStatus,
+  getAllGroupsForAdmin,
+  archiveGroupAsAdmin,
+  restoreGroupAsAdmin
 } = require('../controllers/adminController');
 
 // Aplica protección y autorización a todas las rutas de este router
@@ -165,5 +168,81 @@ router.get('/users/:userId', getUserById);
  *         description: No autorizado
  */
 router.put('/users/:userId/status', updateUserStatus);
+
+/**
+ * @swagger
+ * /api/admin/groups:
+ *   get:
+ *     summary: Obtener la lista completa de todos los grupos
+ *     tags: [Administración]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de grupos
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Group'
+ *       401:
+ *         description: No autorizado
+ */
+router.get('/groups', getAllGroupsForAdmin);
+
+/**
+ * @swagger
+ * /api/admin/groups/{groupId}/archive:
+ *   put:
+ *     summary: Archivar un grupo (solo Admin)
+ *     tags: [Administración]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del grupo a archivar
+ *     responses:
+ *       200:
+ *         description: Grupo archivado correctamente
+ *       404:
+ *         description: Grupo no encontrado
+ *       400:
+ *         description: ID de grupo inválido
+ *       401:
+ *         description: No autorizado
+ */
+router.put('/groups/:groupId/archive', archiveGroupAsAdmin);
+
+/**
+ * @swagger
+ * /api/admin/groups/{groupId}/restore:
+ *   put:
+ *     summary: Restaurar un grupo archivado (solo Admin)
+ *     tags: [Administración]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del grupo a restaurar
+ *     responses:
+ *       200:
+ *         description: Grupo restaurado correctamente
+ *       404:
+ *         description: Grupo no encontrado
+ *       400:
+ *         description: ID de grupo inválido
+ *       401:
+ *         description: No autorizado
+ */
+router.put('/groups/:groupId/restore', restoreGroupAsAdmin);
 
 module.exports = router;
