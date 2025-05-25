@@ -651,6 +651,7 @@ const deleteGroup = async (req, res) => {
 
       // --- Soft Delete: Marcar el grupo como inactivo ---
       group.activo = false;
+      group.archivedAt = new Date(); // Set archive date
       await group.save(); // Guardar el cambio en la base de datos
 
       // La verificación de relatedMembershipCount ya no es necesaria para impedir la operación.
@@ -954,6 +955,7 @@ const restoreGroup = async (req, res) => {
 
     // Restaurar el grupo
     group.activo = true;
+    group.archivedAt = null; // Clear archive date
     await group.save();
 
     res.status(200).json({ message: 'Grupo restaurado exitosamente.', group });
