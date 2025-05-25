@@ -11,8 +11,7 @@ const {
   getUserById,
   updateUserStatus,
   getAllGroupsForAdmin,
-  archiveGroupAsAdmin,
-  restoreGroupAsAdmin
+  deleteGroupAsAdmin
 } = require('../controllers/adminController');
 
 // Aplica protección y autorización a todas las rutas de este router
@@ -193,9 +192,9 @@ router.get('/groups', getAllGroupsForAdmin);
 
 /**
  * @swagger
- * /api/admin/groups/{groupId}/archive:
- *   put:
- *     summary: Archivar un grupo (solo Admin)
+ * /api/admin/groups/{groupId}:
+ *   delete:
+ *     summary: Eliminar permanentemente un grupo (solo Admin)
  *     tags: [Administración]
  *     security:
  *       - bearerAuth: []
@@ -205,44 +204,28 @@ router.get('/groups', getAllGroupsForAdmin);
  *         required: true
  *         schema:
  *           type: string
- *         description: ID del grupo a archivar
+ *         description: ID del grupo a eliminar permanentemente
  *     responses:
  *       200:
- *         description: Grupo archivado correctamente
- *       404:
- *         description: Grupo no encontrado
+ *         description: Grupo eliminado permanentemente junto con sus membresías.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
  *       400:
- *         description: ID de grupo inválido
- *       401:
- *         description: No autorizado
- */
-router.put('/groups/:groupId/archive', archiveGroupAsAdmin);
-
-/**
- * @swagger
- * /api/admin/groups/{groupId}/restore:
- *   put:
- *     summary: Restaurar un grupo archivado (solo Admin)
- *     tags: [Administración]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: groupId
- *         required: true
- *         schema:
- *           type: string
- *         description: ID del grupo a restaurar
- *     responses:
- *       200:
- *         description: Grupo restaurado correctamente
+ *         description: ID de grupo inválido, o el grupo no cumple las condiciones para eliminación (e.g., no archivado, archivado por menos de 15 días).
+ *       403:
+ *         description: El grupo no cumple con el requisito de tiempo de archivado (más de 15 días).
  *       404:
- *         description: Grupo no encontrado
- *       400:
- *         description: ID de grupo inválido
- *       401:
- *         description: No autorizado
+ *         description: Grupo no encontrado.
+ *       500:
+ *         description: Error interno del servidor.
  */
-router.put('/groups/:groupId/restore', restoreGroupAsAdmin);
+router.delete('/groups/:groupId', deleteGroupAsAdmin);
 
 module.exports = router;
