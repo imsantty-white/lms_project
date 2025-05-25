@@ -62,10 +62,10 @@ const LoginModal = forwardRef(({ open, onClose }, ref) => {
           // Redirección basada en el tipo de usuario
           switch (result.userType) {
             case 'Docente':
-              navigate('/dashboard-docente');
+              navigate('/teacher/panel');
               break;
             case 'Estudiante':
-              navigate('/dashboard-estudiante');
+              navigate('/student/panel');
               break;
             case 'Administrador':
               navigate('/dashboard-admin');

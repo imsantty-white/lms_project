@@ -27,14 +27,17 @@ import StudentViewLearningPathPage from './pages/StudentViewLearningPathPage';
 import StudentTakeActivityPage from './pages/StudentTakeActivityPage';
 import StudentProgressPage from './pages/StudentProgressPage'; 
 import UserProfilePage from './pages/UserProfilePage';
+import StudentPanel from './pages/StudentPanel';
+import TeacherPanel from './pages/TeacherPanel';
 
 import { getTheme } from './theme';
 
-// Componentes placeholder para los dashboards
-const DashboardDocente = () => <div>Contenido del Dashboard del Docente</div>;
-const DashboardEstudiante = () => <div>Contenido del Dashboard del Estudiante</div>;
-const DashboardAdmin = () => <div>Contenido del Dashboard del Administrador</div>;
-
+// Componentes placeholder para dashboard administrador (sin funcionalidad específica aún)
+const DashboardAdmin = () => <div>Aqui se deberia mostrar todas las Stats, diagramas del sistema </div>;
+const ConfiguracionAdmin = () => <div>Aqui se deberia mostrar la configuracion del sistema, 
+                                       <div> como las limitaciones para los planes y suscripciones</div>
+                                        de los usuarios, etc. (modelo de negocio sin funcionalidad) </div>;
+                                    
 
 // Define el ancho del sidebar
 const drawerWidth = 240;
@@ -119,12 +122,12 @@ function App() {
 
                   {/* Rutas Protegidas */}
                   <Route
-                    path="/dashboard-docente"
-                    element={<ProtectedRoute element={<DashboardDocente />} allowedRoles={['Docente', 'Administrador']} />}
+                    path="/teacher/panel"
+                    element={<ProtectedRoute element={<TeacherPanel />} allowedRoles={['Docente', 'Administrador']} />}
                   />
                   <Route
-                    path="/dashboard-estudiante"
-                    element={<ProtectedRoute element={<DashboardEstudiante />} allowedRoles={['Estudiante', 'Administrador']} />}
+                    path="/student/panel"
+                    element={<ProtectedRoute element={<StudentPanel />} allowedRoles={['Estudiante', 'Administrador']} />}
                   />
                    <Route
                     path="/dashboard-admin"
@@ -194,8 +197,11 @@ function App() {
                     path="/profile/:userId"
                     element={<ProtectedRoute element={<UserProfilePage />} allowedRoles={['Estudiante', 'Docente', 'Administrador']} />}
                   />
-
-                  {/* Puedes añadir una ruta para manejar 404 - Página no encontrada */}
+                  <Route
+                    path="/admin/config"
+                    element={<ProtectedRoute element={<ConfiguracionAdmin />} allowedRoles={['Administrador']} />}
+                  />
+                  {/* Rutas de ejemplo para el futuro */}
                   {/* <Route path="*" element={<div>404 Not Found</div>} /> */}
                 </Routes>
 

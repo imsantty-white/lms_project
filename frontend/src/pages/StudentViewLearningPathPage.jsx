@@ -431,7 +431,7 @@ function StudentViewLearningPathPage() {
               </DialogContentText>
             </DialogContent>
             <DialogActions>
-              <Button onClick={handleCloseLinkConfirm}>Cancelar</Button>
+              <Button onClick={handleCloseLinkConfirm} color='secondary'>Cancelar</Button>
               <Button onClick={handleConfirmOpenLink} variant="contained" autoFocus>
                 Abrir Enlace
               </Button>

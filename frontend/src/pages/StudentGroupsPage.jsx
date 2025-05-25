@@ -89,6 +89,7 @@ function StudentGroupsPage() {
     <Container>
       <Box sx={{ mt: 4 }}>
         <PageHeader title="Mis Grupos" />
+        <Typography variant="body1" color="text.secondary">Mira todos los grupos donde ya eres parte y  a los que pronto puedes unirte.</Typography>
 
         {/* Removed custom loading/error/empty rendering, will use EmptyState or direct rendering */}
         
@@ -114,8 +115,13 @@ function StudentGroupsPage() {
         )}
 
         {!isLoading && !error && groups.length > 0 && (
-          // Consider removing the alignItems: 'center' and maxWidth if the list should be wider
-          <List sx={{ mt: 3, width: '100%' }}> 
+          <List
+              sx={{
+                mt: 3,
+                display: "flex",
+              }}
+            >
+ 
             {groups.map((group) => {
               const statusInfo = getStatusDisplay(group.student_status);
 

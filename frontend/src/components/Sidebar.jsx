@@ -33,24 +33,24 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
   // Define las opciones de navegación para cada rol
   const navLinks = {
     Estudiante: [
-      { text: 'My Dashboard', icon: <DashboardIcon />, path: '/dashboard-estudiante' },
+      { text: 'Inicio', icon: <DashboardIcon />, path: '/student/panel' },
       { text: 'Mi Progreso', icon: <DonutLargeIcon />, path: '/student/progress' },
       { text: 'Mis Grupos', icon: <GroupsIcon />, path: '/student/groups' },
       { text: 'Mis Rutas de Aprendizaje', icon: <RouteIcon />, path: '/student/learning-paths' },
       { text: 'Unirse a un Grupo', icon: <GroupAddIcon />, path: '/join-group' }, 
     ],
     Docente: [
-      { text: 'My Dashboard', icon: <DashboardIcon />, path: '/dashboard-docente' },
+      { text: 'Inicio', icon: <DashboardIcon />, path: '/teacher/panel' },
       { text: 'Mis Grupos', icon: <GroupIcon />, path: '/teacher/groups/' },
       { text: 'Actividades Asignadas', icon: <LibraryBooksIcon />, path: '/teacher/assignments' },
       { text: 'Banco de Contenido', icon: <AssignmentIcon />, path: '/content-bank' },
-      { text: 'Rutas de Aprendizaje', icon: <RouteIcon />, path: '/teacher/learning-paths' },
+      { text: 'Gestionar Mis Rutas de Aprendizaje', icon: <RouteIcon />, path: '/teacher/learning-paths' },
     ],
     Administrador: [
-      { text: 'My Dashboard', icon: <DashboardIcon />, path: '/dashboard-admin' },
+      { text: 'Stats', icon: <DashboardIcon />, path: '/dashboard-admin' },
       { text: 'Gestión de Usuarios', icon: <PersonIcon />, path: '/admin/user-management' },
       { text: 'Gestión de Grupos', icon: <GroupsIcon />, path: '/gestion-grupos-admin' },
-      { text: 'Configuración', icon: <SettingsIcon />, path: '/configuracion-admin' },
+      { text: 'Configuración del Sistema', icon: <SettingsIcon />, path: '/admin/config' },
     ],
     Common: [
       { text: 'Mi Perfil', icon: <PersonIcon />, path: '/profile' },
