@@ -25,9 +25,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 const modalStyle = {
   width: { xs: '90%', sm: 400 },
   bgcolor: 'background.paper',
-  boxShadow: 24,
+  boxShadow: 8,
   p: 4,
-  borderRadius: 4,
+  borderRadius: 2,
   maxHeight: '90vh', // Limita la altura del modal
   overflowY: 'auto', // Permite scroll si el contenido es muy largo
   outline: 'none', // Importante para accesibilidad
@@ -160,7 +160,7 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.1 }}
             >
               <Stack
                 direction="row"
@@ -168,8 +168,8 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
                 alignItems="center"
                 sx={{ mb: 3 }} // Aumentamos el margen inferior
               >
-                <Typography id="register-modal-title" variant="h5" component="h2" gutterBottom>
-                  Registrarse
+                <Typography id="register-modal-title" variant="h5" component="h2" gutterBottom sx={{  textShadow: '1px 1px 2px rgba(0, 0, 0, 0.7)' }}>
+                  Sign Up
                 </Typography>
                 <IconButton onClick={onClose} aria-label="cerrar modal de registro">
                   <CloseIcon />
@@ -177,7 +177,8 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
               </Stack>
 
               <Stack spacing={2}> {/* Espaciado consistente */}
-                <FormControl fullWidth required disabled={isLoading} variant="outlined">
+                <FormControl fullWidth required disabled={isLoading} variant="outlined"
+                >
                   <InputLabel id="user-type-label">¿ Qué eres ?</InputLabel>
                   <Select
                     labelId="user-type-label"
@@ -185,12 +186,14 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
                     label="Tipo Usuario" // El 'label' es necesario para el variant "outlined"
                     value={userType}
                     onChange={(e) => setUserType(e.target.value)}
+                    size="small"
+                    sx={{borderRadius: '24px',}}
                   >
                     <MenuItem value="Estudiante">Estudiante</MenuItem>
                     <MenuItem value="Docente">Docente</MenuItem>
                   </Select>
                 </FormControl>
-                
+                <Divider sx={{ mt: 4, borderBottom: '1px dotted' }} />
                 <TextField
                   label="Nombre(s)"
                   fullWidth
@@ -200,6 +203,8 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
                   disabled={isLoading}
                   variant="outlined" // Diseño outlined
                   autoComplete="given-name" // Sugerencia de autocompletado
+                  size="small"
+                  InputProps={{sx: { borderRadius: '24px',},}}
                 />
                 <TextField
                   label="Apellidos"
@@ -210,6 +215,8 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
                   disabled={isLoading}
                   variant="outlined"
                   autoComplete="family-name" // Sugerencia de autocompletado
+                  size="small"
+                  InputProps={{sx: { borderRadius: '24px',},}}
                 />
                 <TextField
                   label="Email"
@@ -221,11 +228,14 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
                   disabled={isLoading}
                   variant="outlined"
                   autoComplete="email"
+                  size="small"
+                  InputProps={{sx: { borderRadius: '24px',},}}
                 />
-                <Divider sx={{ mt: 3, borderBottom: '2px dashed ' }} />
+                <Divider sx={{ mt: 4, borderBottom: '1px dotted' }} />
                 <TextField
                   label="Contraseña"
                   type="password"
+                  size="small"
                   fullWidth
                   required
                   value={password}
@@ -233,10 +243,12 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
                   disabled={isLoading}
                   variant="outlined"
                   autoComplete="new-password" // Para una nueva contraseña
+                  InputProps={{sx: { borderRadius: '24px',},}}
                 />
                 <TextField
                   label="Confirmar Contraseña"
                   type="password"
+                  size="small"
                   fullWidth
                   required
                   value={confirmPassword}
@@ -246,6 +258,7 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
                   error={passwordMatchError} // Activa el estado de error de Material-UI
                   helperText={passwordMatchError ? 'Las contraseñas no coinciden' : ''} // Texto de ayuda
                   autoComplete="new-password" // Para confirmar nueva contraseña
+                  InputProps={{sx: { borderRadius: '24px',},}}
                 />
                 
                 <Button
@@ -254,7 +267,7 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
                   type="submit"
                   fullWidth
                   disabled={isLoading} // Deshabilita el botón durante la carga
-                  sx={{ mt: 2 }} // Margen superior
+                  sx={{ mt: 3 }} // Margen superior
                 >
                   {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Crear Cuenta'}
                 </Button>

@@ -20,7 +20,7 @@ import { useNavigate } from 'react-router-dom';
 const modalStyle = {
   width: { xs: '90%', sm: 400 },
   bgcolor: 'background.paper',
-  boxShadow: 24,
+  boxShadow: 8,
   p: 4,
   borderRadius: 4,
   outline: 'none', // Importante para accesibilidad y evitar el borde de foco por defecto
@@ -119,7 +119,7 @@ const LoginModal = forwardRef(({ open, onClose }, ref) => {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.1 }}
             >
               <Stack
                 direction="row"
@@ -127,7 +127,7 @@ const LoginModal = forwardRef(({ open, onClose }, ref) => {
                 alignItems="center"
                 sx={{ mb: 3 }} // Aumentamos el margen inferior para más espacio
               >
-                <Typography id="login-modal-title" variant="h5" component="h2" gutterBottom>
+                <Typography id="login-modal-title" variant="h5" component="h2" gutterBottom sx={{  textShadow: '1px 1px 2px rgba(0, 0, 0, 0.7)' }}> 
                   Iniciar Sesión
                 </Typography>
                 <IconButton onClick={onClose} aria-label="cerrar modal">
@@ -145,6 +145,7 @@ const LoginModal = forwardRef(({ open, onClose }, ref) => {
                   onChange={(e) => setEmail(e.target.value)}
                   variant="outlined" // Usamos el diseño outlined
                   autoComplete="email" // Sugerencia de autocompletado
+                   InputProps={{sx: { borderRadius: '24px',},}}
                 />
                 <TextField
                   label="Contraseña"
@@ -155,6 +156,7 @@ const LoginModal = forwardRef(({ open, onClose }, ref) => {
                   onChange={(e) => setPassword(e.target.value)}
                   variant="outlined" // Usamos el diseño outlined
                   autoComplete="current-password" // Sugerencia de autocompletado
+                   InputProps={{sx: { borderRadius: '24px',},}}
                 />
                 <Button
                   variant="contained"

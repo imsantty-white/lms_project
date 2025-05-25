@@ -44,7 +44,7 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
       { text: 'Mis Grupos', icon: <GroupIcon />, path: '/teacher/groups/' },
       { text: 'Actividades Asignadas', icon: <LibraryBooksIcon />, path: '/teacher/assignments' },
       { text: 'Banco de Contenido', icon: <AssignmentIcon />, path: '/content-bank' },
-      { text: 'Gestion de Rutas', icon: <RouteIcon />, path: '/teacher/learning-paths' },
+      { text: 'Rutas de Aprendizaje', icon: <RouteIcon />, path: '/teacher/learning-paths' },
     ],
     Administrador: [
       { text: 'My Dashboard', icon: <DashboardIcon />, path: '/dashboard-admin' },

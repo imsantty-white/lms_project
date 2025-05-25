@@ -77,7 +77,11 @@ function App() {
           onToggleMode={handleToggleMode}
         />
 
-        <Box sx={{ display: 'flex', flexGrow: 1, pt: '64px' }}>
+        <Box sx={{ 
+          display: 'flex', 
+          flexGrow: 1, 
+          pt: location.pathname === '/' ? 0 : '64px' // <-- Cambia aquí
+        }}>
 
           {shouldShowSidebar && sidebarOpen && (
             <Sidebar

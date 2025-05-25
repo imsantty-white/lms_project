@@ -143,7 +143,7 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
       elevation={0}
       sx={{
         background: 'rgba(255,255,255,0)', // Fondo blanco semitransparente
-        backdropFilter: 'blur(8px)',         // Efecto de desenfoque
+        //backdropFilter: 'blur(2px)',         // Efecto de desenfoque
         boxShadow: 'none',
         color: '#222',
         zIndex: (theme) => theme.zIndex.drawer + 1, // Para que quede sobre el sidebar
@@ -168,7 +168,7 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
         <Typography
           variant="h6"
           component={Link}
-          to="/"
+          //to="/"
           sx={{
             textDecoration: 'none',
             color: 'primary',
