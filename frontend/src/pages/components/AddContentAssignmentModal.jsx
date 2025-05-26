@@ -81,6 +81,15 @@ function AddContentAssignmentDialog({ open, onClose, onSubmitAssignment, onReque
   const [searchTerm, setSearchTerm] = useState('');
   const [errors, setErrors] = useState({});
 
+  // Derived booleans for conditional rendering and validation
+  const isActivity = selectedContent?._isActivity;
+  const activitySubType = selectedContent?.type;
+
+  const allowsPoints = isActivity && (activitySubType === 'Quiz' || activitySubType === 'Cuestionario' || activitySubType === 'Trabajo');
+  const allowsAttempts = isActivity && (activitySubType === 'Quiz' || activitySubType === 'Cuestionario' || activitySubType === 'Trabajo');
+  const allowsTimeLimit = isActivity && (activitySubType === 'Quiz' || activitySubType === 'Cuestionario');
+
+
   // --- Efecto para cargar el banco de contenido al abrir el modal ---
   useEffect(() => {
     if (open) { // Cargar solo si el modal está abierto
@@ -178,53 +187,56 @@ function AddContentAssignmentDialog({ open, onClose, onSubmitAssignment, onReque
 
 
     // Lógica de validación condicional basada en el tipo de contenido/actividad seleccionado
-    const isActivity = selectedContent?._isActivity;
-    const activitySubType = selectedContent?.type;
+    const isActivity = selectedContent?._isActivity; // Re-declarar para el scope de la función, o usar las de fuera si prefieres
+    const activitySubType = selectedContent?.type; // Re-declarar para el scope de la función
 
-    // Ajusta esto si 'Trabajo' también requiere puntos
-    const requiresPoints = isActivity && (activitySubType === 'Quiz' || activitySubType === 'Cuestionario');
-    // Ajusta esto si otros tipos de actividad permiten intentos o tiempo límite
-    const allowsAttemptsOrTime = isActivity && (activitySubType === 'Quiz' || activitySubType === 'Cuestionario');
+    // Usar las variables booleanas definidas a nivel de componente para consistencia
+    // Estas variables ya están definidas fuera de esta función, pero si prefieres
+    // puedes re-evaluarlas aquí o pasarlas como argumentos si la función se moviera.
+    // Por ahora, asumimos que las variables del scope del componente son accesibles.
 
-
-    // Validación de Puntos Máximos (tu lógica existente)
-    if (requiresPoints) {
+    // Validación de Puntos Máximos
+    if (allowsPoints) { // Usa la nueva variable `allowsPoints`
       if (puntosMaximos.trim() === '' || isNaN(puntosMaximos) || parseFloat(puntosMaximos.trim()) < 0) {
         newErrors.puntosMaximos = 'Es obligatorio y debe ser un número no negativo para este tipo de actividad.';
       }
     } else {
+      // Si no requiere puntos pero se provee uno, validar que sea no negativo
       if (puntosMaximos.trim() !== '' && (isNaN(puntosMaximos) || parseFloat(puntosMaximos.trim()) < 0)) {
         newErrors.puntosMaximos = 'Si proporcionas puntos, deben ser un número no negativo.';
       }
     }
 
-    // Validación de Intentos Permitidos (tu lógica existente)
-    if (allowsAttemptsOrTime) {
+    // Validación de Intentos Permitidos
+    if (allowsAttempts) { // Usa la nueva variable `allowsAttempts`
+      // Si se proporcionan intentos, deben ser un número entero no negativo.
+      // Si el campo está vacío, no se considera un error aquí, a menos que sea obligatorio.
+      // (La obligatoriedad se puede manejar con una comprobación adicional si es necesario)
       if (intentosPermitidos.trim() !== '' && (isNaN(intentosPermitidos) || parseInt(intentosPermitidos.trim(), 10) < 0 || !Number.isInteger(parseFloat(intentosPermitidos.trim())))) {
         newErrors.intentosPermitidos = 'Debe ser un número entero no negativo.';
       }
     } else {
+      // Si el tipo de contenido no permite intentos, pero se proporciona un valor
       if (intentosPermitidos.trim() !== '' ) {
-           if (isNaN(intentosPermitidos) || parseInt(intentosPermitidos.trim(), 10) < 0 || !Number.isInteger(parseFloat(intentosPermitidos.trim()))) {
-               newErrors.intentosPermitidos = 'Si proporcionas intentos, deben ser un número entero no negativo.';
-           }
+           newErrors.intentosPermitidos = 'Este tipo de contenido no permite configurar intentos.';
        }
     }
 
     // Validación de Tiempo Límite
-    if (allowsAttemptsOrTime) {
-      if (tiempoLimite.trim() !== '' && (isNaN(tiempoLimite) || parseInt(tiempoLimite.trim(), 10) <= 0 || !Number.isInteger(parseFloat(tiempoLimite.trim())))) { // *** CAMBIADO < 0 a <= 0 ***
-        newErrors.tiempoLimite = 'Es obligatorio y debe ser un número entero positivo en minutos.'; // *** Mensaje ajustado ***
-      } else if (tiempoLimite.trim() === '') {
-        // Considerar si tiempoLimite es obligatorio para Quiz/Cuestionario. Si sí:
-        // newErrors.tiempoLimite = 'El tiempo límite es obligatorio para este tipo de actividad.';
+    if (allowsTimeLimit) { // Usa la nueva variable `allowsTimeLimit`
+      // Si se proporciona tiempo límite, debe ser un número entero positivo.
+      // Si el campo está vacío, no se considera un error aquí, a menos que sea obligatorio.
+      if (tiempoLimite.trim() !== '' && (isNaN(tiempoLimite) || parseInt(tiempoLimite.trim(), 10) <= 0 || !Number.isInteger(parseFloat(tiempoLimite.trim())))) {
+        newErrors.tiempoLimite = 'Debe ser un número entero positivo en minutos.';
       }
+      // Considerar si tiempoLimite es obligatorio para Quiz/Cuestionario. Si sí, añadir:
+      // else if (tiempoLimite.trim() === '') {
+      //   newErrors.tiempoLimite = 'El tiempo límite es obligatorio para este tipo de actividad.';
+      // }
     } else {
+      // Si el tipo de contenido no permite tiempo límite, pero se proporciona un valor
        if (tiempoLimite.trim() !== '' ) {
-            // Si proporcionas tiempo límite para un tipo que no lo permite
-            if (isNaN(tiempoLimite) || parseInt(tiempoLimite.trim(), 10) < 0 || !Number.isInteger(parseFloat(tiempoLimite.trim()))) {
-                newErrors.tiempoLimite = 'Si proporcionas tiempo límite, debe ser un número entero no negativo.'; // Mensaje genérico
-            }
+            newErrors.tiempoLimite = 'Este tipo de contenido no permite configurar tiempo límite.';
         }
     }
 
@@ -255,7 +267,7 @@ function AddContentAssignmentDialog({ open, onClose, onSubmitAssignment, onReque
       puntos_maximos: puntosMaximos.trim() !== '' ? parseFloat(puntosMaximos.trim()) : undefined,
       intentos_permitidos: intentosPermitidos.trim() !== '' ? parseInt(intentosPermitidos.trim(), 10) : undefined,
       // Asegurarse de enviar tiempo_limite como número, pero solo si aplica y se proporcionó
-      tiempo_limite: (selectedContent?._isActivity && (selectedContent.type === 'Quiz' || selectedContent.type === 'Cuestionario') && tiempoLimite.trim() !== '')
+      tiempo_limite: (allowsTimeLimit && tiempoLimite.trim() !== '')
         ? parseInt(tiempoLimite.trim(), 10)
         : undefined // Envía undefined si no aplica o está vacío
     };
@@ -381,10 +393,11 @@ function AddContentAssignmentDialog({ open, onClose, onSubmitAssignment, onReque
                   />
                 </Grid>
 
+                {/* Conditional rendering for Puntos Maximos, Intentos, Tiempo Limite */}
                 {selectedContent?._isActivity && (
                   <>
-                    {/* Campo Puntos Máximos (mantener tu lógica de visualización) */}
-                     { (selectedContent.type === 'Quiz' || selectedContent.type === 'Cuestionario' || selectedContent.type === 'Trabajo') && ( // Asumo que Trabajo también puede tener puntos
+                    {/* Campo Puntos Máximos */}
+                     { allowsPoints && (
                       <Grid item xs={12} sm={6}>
                         <TextField
                           label="Puntos Máximos"
@@ -401,39 +414,38 @@ function AddContentAssignmentDialog({ open, onClose, onSubmitAssignment, onReque
                      )}
 
 
-                    {/* Campos solo para Quiz/Cuestionario (Intentos y Tiempo) - Mantener tu lógica de visualización */}
-                    {(selectedContent.type === 'Quiz' || selectedContent.type === 'Cuestionario') && (
-                      <>
-                        {/* Campo Intentos Permitidos */}
-                        <Grid item xs={12} sm={6}>
-                          <TextField
-                            label="Intentos Permitidos"
-                            type="number"
-                            fullWidth
-                            value={intentosPermitidos}
-                            onChange={(e) => setIntentosPermitidos(e.target.value)}
-                            InputProps={{ inputProps: { min: 0, step: 1 } }}
-                            error={!!errors.intentosPermitidos}
-                            helperText={errors.intentosPermitidos}
-                            disabled={isAssigning || !selectedContent}
-                          />
-                        </Grid>
-                        {/* Campo Tiempo Límite */}
-                        <Grid item xs={12} sm={6}>
-                          <TextField
-                            label="Tiempo Límite (min)"
-                            type="number"
-                            fullWidth
-                            value={tiempoLimite}
-                            onChange={(e) => setTiempoLimite(e.target.value)}
-                            // min={0} es para permitir 0 intentos, pero tiempo debe ser positivo
-                            InputProps={{ inputProps: { min: 0, step: 1 } }} // Min 0 aquí, validación > 0 en validateForm
-                            error={!!errors.tiempoLimite}
-                            helperText={errors.tiempoLimite}
-                            disabled={isAssigning || !selectedContent}
-                          />
-                        </Grid>
-                      </>
+                    {/* Campo Intentos Permitidos */}
+                    {allowsAttempts && (
+                      <Grid item xs={12} sm={allowsTimeLimit ? 6 : 12}> {/* Ocupa todo el ancho si tiempoLimite no se muestra */}
+                        <TextField
+                          label="Intentos Permitidos"
+                          type="number"
+                          fullWidth
+                          value={intentosPermitidos}
+                          onChange={(e) => setIntentosPermitidos(e.target.value)}
+                          InputProps={{ inputProps: { min: 0, step: 1 } }}
+                          error={!!errors.intentosPermitidos}
+                          helperText={errors.intentosPermitidos}
+                          disabled={isAssigning || !selectedContent}
+                        />
+                      </Grid>
+                    )}
+
+                    {/* Campo Tiempo Límite */}
+                    {allowsTimeLimit && (
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          label="Tiempo Límite (min)"
+                          type="number"
+                          fullWidth
+                          value={tiempoLimite}
+                          onChange={(e) => setTiempoLimite(e.target.value)}
+                          InputProps={{ inputProps: { min: 1, step: 1 } }} // Tiempo límite debe ser al menos 1
+                          error={!!errors.tiempoLimite}
+                          helperText={errors.tiempoLimite}
+                          disabled={isAssigning || !selectedContent}
+                        />
+                      </Grid>
                     )}
                   </>
                 )}

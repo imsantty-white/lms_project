@@ -9,6 +9,7 @@ import {
   Alert,
   // FormHelperText // Might not be needed if errors are displayed directly in TextField helperText
 } from '@mui/material';
+import ReactQuill from 'react-quill'; // Import ReactQuill
 import { axiosInstance } from '../../contexts/AuthContext'; // Ajusta la ruta si es necesario
 import { toast } from 'react-toastify';
 import GenericFormModal from '../../components/GenericFormModal'; // Ajusta la ruta
@@ -218,18 +219,23 @@ function EditResourceModal({ open, onClose, resourceId, onUpdateSuccess }) {
             disabled={isSaving} // Should still be disabled if saving
           />
           {originalResourceType === 'Contenido' && (
-            <TextField
-              label="Cuerpo del Contenido"
-              fullWidth
-              multiline
-              rows={6}
+            <ReactQuill
+              theme="snow"
               value={contentBody}
-              onChange={(e) => setContentBody(e.target.value)}
-              error={!!errors.contentBody}
-              helperText={errors.contentBody}
-              disabled={isSaving}
-              required
+              onChange={setContentBody} // Passes the HTML string directly
+              readOnly={isSaving || isLoading} // Disable if saving or initial data is loading
+              placeholder="Edita el contenido del recurso aquí..."
+              // modules and formats can be customized if needed
+              style={{ minHeight: '200px', marginBottom: '16px' }} // Optional: for basic styling
             />
+            // The error display for contentBody needs to be handled differently,
+            // as ReactQuill doesn't have a direct helperText prop like TextField.
+            // One option is to display errors.contentBody below the editor.
+          )}
+          {errors.contentBody && originalResourceType === 'Contenido' && (
+            <Box sx={{ color: 'error.main', fontSize: '0.75rem', mt: -1, ml: 1.75 }}> {/* Adjust styling as needed */}
+              {errors.contentBody}
+            </Box>
           )}
           {(originalResourceType === 'Enlace' || originalResourceType === 'Video-Enlace') && (
             <TextField

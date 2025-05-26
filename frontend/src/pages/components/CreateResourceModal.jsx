@@ -9,6 +9,7 @@ import {
   Select,
 } from '@mui/material';
 import { toast } from 'react-toastify';
+import ReactQuill from 'react-quill'; // Import ReactQuill
 import GenericFormModal from '../../components/GenericFormModal'; // Ajusta la ruta
 
 function CreateResourceModal({ open, onClose, onSubmit, isCreating }) {
@@ -136,16 +137,16 @@ function CreateResourceModal({ open, onClose, onSubmit, isCreating }) {
           rows={2}
         />
         {type === 'Contenido' && (
-          <TextField
-            label="Contenido del Recurso"
-            variant="outlined"
+          <ReactQuill
+            theme="snow"
             value={contentBody}
-            onChange={(e) => setContentBody(e.target.value)}
-            fullWidth
-            multiline
-            rows={4}
-            required
-            disabled={isCreating}
+            onChange={setContentBody} // React-Quill's onChange directly provides the HTML content string
+            placeholder="Escribe el contenido del recurso aquí..."
+            style={{ minHeight: '200px', marginBottom: '16px' }} // Optional: for basic styling
+            // modules and formats can be customized if needed
+            // modules={{ toolbar: [ /* toolbar options */ ] }}
+            // formats={[ /* format options */ ]}
+            readOnly={isCreating} // Disable editor when isCreating is true
           />
         )}
         {type === 'Enlace' && (
