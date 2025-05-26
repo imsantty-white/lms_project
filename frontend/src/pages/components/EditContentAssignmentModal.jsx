@@ -176,11 +176,22 @@ function EditContentAssignmentModal({ open, onClose, assignmentId, themeName, on
 
     const associatedContentItemType = contentItem?.type;
 
+    // Determine if the activity type requires points
     const requiresPoints = contentItem && (
       associatedContentItemType === 'Quiz' || 
-      associatedContentItemType === 'Cuestionario'
+      associatedContentItemType === 'Cuestionario' ||
+      associatedContentItemType === 'Trabajo' // Trabajo can also have points
     );
-    const allowsAttemptsOrTime = contentItem && (
+
+    // Determine if the activity type allows attempts
+    const activityAllowsAttempts = contentItem && (
+      associatedContentItemType === 'Quiz' || 
+      associatedContentItemType === 'Cuestionario' ||
+      associatedContentItemType === 'Trabajo' // Trabajo allows attempts
+    );
+
+    // Determine if the activity type allows a time limit
+    const activityAllowsTimeLimit = contentItem && (
       associatedContentItemType === 'Quiz' || 
       associatedContentItemType === 'Cuestionario'
     );
@@ -197,20 +208,28 @@ function EditContentAssignmentModal({ open, onClose, assignmentId, themeName, on
     // Validación de Intentos Permitidos
     if (intentosPermitidos.trim() !== '') {
       if (isNaN(intentosPermitidos) || parseInt(intentosPermitidos.trim(), 10) < 0 || !Number.isInteger(parseFloat(intentosPermitidos.trim()))) {
-        newErrors.intentosPermitidos = allowsAttemptsOrTime
-          ? 'Debe ser un número entero no negativo.'
-          : 'Si proporcionas intentos, deben ser un número entero no negativo.';
+        if (activityAllowsAttempts) {
+          newErrors.intentosPermitidos = 'Debe ser un número entero no negativo.';
+        } else {
+          // This case implies a non-activity or an activity type that doesn't support attempts, yet a value was entered.
+          newErrors.intentosPermitidos = 'Si proporcionas intentos, deben ser un número entero no negativo.';
+        }
       }
     }
+    // For 'Trabajo', 'Quiz', 'Cuestionario', intentosPermitidos is optional. So, no error if it's empty.
 
     // Validación de Tiempo Límite
     if (tiempoLimite.trim() !== '') {
-      if (isNaN(tiempoLimite) || parseInt(tiempoLimite.trim(), 10) < 0 || !Number.isInteger(parseFloat(tiempoLimite.trim()))) {
-        newErrors.tiempoLimite = allowsAttemptsOrTime
-          ? 'Debe ser un número entero no negativo.'
-          : 'Si proporcionas tiempo límite, debe ser un número entero no negativo.';
+      if (isNaN(tiempoLimite) || parseInt(tiempoLimite.trim(), 10) <= 0 || !Number.isInteger(parseFloat(tiempoLimite.trim()))) { // Tiempo límite debe ser > 0
+        if (activityAllowsTimeLimit) {
+          newErrors.tiempoLimite = 'Debe ser un número entero positivo en minutos.';
+        } else {
+          // This case implies a non-activity or an activity type that doesn't support time limit, yet a value was entered.
+          newErrors.tiempoLimite = 'Si proporcionas tiempo límite, debe ser un número entero positivo en minutos.';
+        }
       }
     }
+    // For 'Quiz', 'Cuestionario', tiempoLimite is optional. So, no error if it's empty.
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -261,7 +280,9 @@ function EditContentAssignmentModal({ open, onClose, assignmentId, themeName, on
 
   // Controlar qué campos se muestran en el formulario de edición
   const rendersPointsField = contentItem && ['Quiz', 'Cuestionario', 'Trabajo'].includes(associatedContentItemType);
-  const rendersAttemptsAndTimeFields = contentItem && ['Quiz', 'Cuestionario'].includes(associatedContentItemType);
+  // ** UPDATED ** Separate variables for attempts and time limit fields
+  const rendersAttemptsField = contentItem && ['Quiz', 'Cuestionario', 'Trabajo'].includes(associatedContentItemType);
+  const rendersTimeLimitField = contentItem && ['Quiz', 'Cuestionario'].includes(associatedContentItemType);
 
   // Función para formatear el tipo de contenido para mostrar
   const getContentTypeLabel = () => {
@@ -502,7 +523,7 @@ function EditContentAssignmentModal({ open, onClose, assignmentId, themeName, on
                 </Box>
 
                 {/* Sección de configuraciones adicionales (condicional) */}
-                {(rendersPointsField || rendersAttemptsAndTimeFields) && (
+                {(rendersPointsField || rendersAttemptsField || rendersTimeLimitField) && ( // Adjusted condition
                   <Box sx={{ mb: 2 }}>
                     <Typography variant="subtitle1" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                       <EmojiEventsIcon fontSize="small" color="secondary" />
@@ -512,7 +533,8 @@ function EditContentAssignmentModal({ open, onClose, assignmentId, themeName, on
                     <Grid container spacing={2}>
                       {/* Campo de puntos */}
                       {rendersPointsField && (
-                        <Grid item xs={12} sm={rendersAttemptsAndTimeFields ? 4 : 12}>
+                        // Adjust sm prop based on whether other fields are rendered
+                        <Grid item xs={12} sm={(rendersAttemptsField || rendersTimeLimitField) ? 4 : 12}>
                           <TextField
                             label="Puntos Máximos"
                             type="number"
@@ -531,44 +553,46 @@ function EditContentAssignmentModal({ open, onClose, assignmentId, themeName, on
                         </Grid>
                       )}
                       
-                      {/* Campos de intentos y tiempo */}
-                      {rendersAttemptsAndTimeFields && (
-                        <>
-                          <Grid item xs={12} sm={rendersPointsField ? 4 : 6}>
-                            <TextField
-                              label="Intentos Permitidos"
-                              type="number"
-                              fullWidth
-                              value={intentosPermitidos}
-                              onChange={(e) => setIntentosPermitidos(e.target.value)}
-                              error={!!errors.intentosPermitidos}
-                              helperText={errors.intentosPermitidos}
-                              InputProps={{ 
-                                inputProps: { min: 0, step: 1 },
-                                startAdornment: <LoopIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
-                              }}
-                              variant="outlined"
-                              size="medium"
-                            />
-                          </Grid>
-                          <Grid item xs={12} sm={rendersPointsField ? 4 : 6}>
-                            <TextField
-                              label="Tiempo Límite (minutos)"
-                              type="number"
-                              fullWidth
-                              value={tiempoLimite}
-                              onChange={(e) => setTiempoLimite(e.target.value)}
-                              error={!!errors.tiempoLimite}
-                              helperText={errors.tiempoLimite}
-                              InputProps={{ 
-                                inputProps: { min: 0, step: 1 },
-                                startAdornment: <TimerIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
-                              }}
-                              variant="outlined"
-                              size="medium"
-                            />
-                          </Grid>
-                        </>
+                      {/* Campo Intentos Permitidos */}
+                      {rendersAttemptsField && (
+                        <Grid item xs={12} sm={rendersPointsField ? (rendersTimeLimitField ? 4 : 8) : (rendersTimeLimitField ? 6 : 12)}>
+                          <TextField
+                            label="Intentos Permitidos"
+                            type="number"
+                            fullWidth
+                            value={intentosPermitidos}
+                            onChange={(e) => setIntentosPermitidos(e.target.value)}
+                            error={!!errors.intentosPermitidos}
+                            helperText={errors.intentosPermitidos}
+                            InputProps={{ 
+                              inputProps: { min: 0, step: 1 },
+                              startAdornment: <LoopIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                            }}
+                            variant="outlined"
+                            size="medium"
+                          />
+                        </Grid>
+                      )}
+                      
+                      {/* Campo Tiempo Límite */}
+                      {rendersTimeLimitField && (
+                        <Grid item xs={12} sm={rendersPointsField ? (rendersAttemptsField ? 4 : 8) : (rendersAttemptsField ? 6 : 12)}>
+                          <TextField
+                            label="Tiempo Límite (minutos)"
+                            type="number"
+                            fullWidth
+                            value={tiempoLimite}
+                            onChange={(e) => setTiempoLimite(e.target.value)}
+                            error={!!errors.tiempoLimite}
+                            helperText={errors.tiempoLimite}
+                            InputProps={{ 
+                              inputProps: { min: 1, step: 1 }, // Tiempo límite debe ser al menos 1 si se provee
+                              startAdornment: <TimerIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                            }}
+                            variant="outlined"
+                            size="medium"
+                          />
+                        </Grid>
                       )}
                     </Grid>
                   </Box>
@@ -578,7 +602,8 @@ function EditContentAssignmentModal({ open, onClose, assignmentId, themeName, on
                 <Alert severity="info" variant="outlined" sx={{ mt: 2 }}>
                   Las fechas de inicio y fin definen el período en que los estudiantes pueden acceder al contenido.
                   {rendersPointsField && " Los puntos máximos determinan la calificación total posible."}
-                  {rendersAttemptsAndTimeFields && " Los intentos y el tiempo límite establecen restricciones para la realización de la actividad."}
+                  {(rendersAttemptsField || rendersTimeLimitField) && " Los intentos y el tiempo límite establecen restricciones para la realización de la actividad."} 
+                  {/* Adjusted message to reflect either can be present */}
                 </Alert>
                 
               </Stack>

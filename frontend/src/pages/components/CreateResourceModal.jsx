@@ -10,6 +10,7 @@ import {
 } from '@mui/material';
 import { toast } from 'react-toastify';
 import GenericFormModal from '../../components/GenericFormModal'; // Ajusta la ruta
+import TipTapEditor from '../../components/TipTapEditor'; // Import TipTapEditor
 
 function CreateResourceModal({ open, onClose, onSubmit, isCreating }) {
   const [type, setType] = useState('');
@@ -136,16 +137,11 @@ function CreateResourceModal({ open, onClose, onSubmit, isCreating }) {
           rows={2}
         />
         {type === 'Contenido' && (
-          <TextField
-            label="Contenido del Recurso"
-            variant="outlined"
+          <TipTapEditor
             value={contentBody}
-            onChange={(e) => setContentBody(e.target.value)}
-            fullWidth
-            multiline
-            rows={4}
-            required
+            onChange={(newContent) => setContentBody(newContent)}
             disabled={isCreating}
+            placeholder="Escribe el contenido del recurso aquí..."
           />
         )}
         {type === 'Enlace' && (
