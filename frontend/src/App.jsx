@@ -26,10 +26,11 @@ import TeacherAssignmentSubmissionsPage from './pages/TeacherAssignmentSubmissio
 import StudentLearningPathsPage from './pages/StudentLearningPathsPage';
 import StudentViewLearningPathPage from './pages/StudentViewLearningPathPage';
 import StudentTakeActivityPage from './pages/StudentTakeActivityPage';
-import StudentProgressPage from './pages/StudentProgressPage'; 
+import StudentProgressPage from './pages/StudentProgressPage';
 import UserProfilePage from './pages/UserProfilePage';
 import StudentPanel from './pages/StudentPanel';
 import TeacherPanel from './pages/TeacherPanel';
+import TeacherGroupProgressPage from './pages/TeacherGroupProgressPage'; // Import for new page
 
 import { getTheme } from './theme';
 
@@ -193,6 +194,10 @@ function App() {
                   <Route
                     path="/student/progress"
                     element={<ProtectedRoute element={<StudentProgressPage />} allowedRoles={['Estudiante', 'Administrador']} />}
+                  />
+                  <Route
+                    path="/teacher/progress-monitoring"
+                    element={<ProtectedRoute element={<TeacherGroupProgressPage />} allowedRoles={['Docente', 'Administrador']} />}
                   />
                   <Route
                     path="/profile"
