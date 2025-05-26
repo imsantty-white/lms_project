@@ -21,7 +21,6 @@ import { toast } from 'react-toastify';
 function CreateGroupModal({ open, onClose, onSubmit, isCreating }) {
   // Estados del formulario para crear un grupo
   const [nombre, setNombre] = useState('');
-  const [codigoAcceso, setCodigoAcceso] = useState(''); // Asumiendo que el docente puede ingresarlo
   const [description, setDescription] = useState(''); // Campo de descripción opcional
 
 
@@ -29,7 +28,6 @@ function CreateGroupModal({ open, onClose, onSubmit, isCreating }) {
   useEffect(() => {
       if (open) {
           setNombre('');
-          setCodigoAcceso('');
           setDescription('');
       }
   }, [open]);
@@ -55,7 +53,6 @@ function CreateGroupModal({ open, onClose, onSubmit, isCreating }) {
     // Prepara los datos para pasar al componente padre
     const newGroupData = {
         nombre: nombre.trim(),
-        codigo_acceso: codigoAcceso.trim(), // O puedes omitirlo si el backend lo genera
         description: description?.trim() || '', // La descripción es opcional
     };
 
@@ -78,17 +75,6 @@ function CreateGroupModal({ open, onClose, onSubmit, isCreating }) {
             fullWidth
             required
             disabled={isCreating}
-          />
-            {/* Campo Código de Acceso (si el docente lo ingresa) */}
-          <TextField
-            label="Código de Acceso" // O "Código de Invitación"
-            variant="outlined"
-            value={codigoAcceso}
-            onChange={(e) => setCodigoAcceso(e.target.value)}
-            fullWidth
-            // required={true} // Hazlo obligatorio si el docente debe ingresarlo
-            disabled={isCreating}
-             helperText="Este código lo usarán los estudiantes para unirse al grupo."
           />
           {/* Campo Descripción (Opcional) */}
           <TextField
