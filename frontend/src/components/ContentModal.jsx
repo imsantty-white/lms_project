@@ -37,7 +37,41 @@ const ContentModal = React.memo(({ open, onClose, title, contentBody }) => {
           <DialogTitle>{title || 'Contenido'}</DialogTitle>
           <DialogContent dividers>
             {contentBody ? (
-              <Typography>{contentBody}</Typography>
+              <Box
+                component="div" // Use Box as a div
+                sx={{
+                  // Add any necessary styling for the rendered HTML content here
+                  // For example, ensure word wrap, basic typography, etc.
+                  // These styles will apply to the container of the HTML.
+                  // Styles for elements within the HTML (p, h1, ul, etc.)
+                  // will come from TipTap's output or global styles.
+                  wordWrap: 'break-word',
+                  '& h1': { typography: 'h4', mb: 2 }, // Example: Style H1s from TipTap
+                  '& h2': { typography: 'h5', mb: 1.5 }, // Example: Style H2s
+                  '& h3': { typography: 'h6', mb: 1 },   // Example: Style H3s
+                  '& p': { typography: 'body1', mb: 1 },   // Example: Style Ps
+                  '& ul, & ol': { pl: 3, mb: 1 },        // Example: Style lists
+                  '& blockquote': { 
+                    borderLeft: '4px solid', 
+                    borderColor: 'grey.400', 
+                    pl: 2, 
+                    ml: 0, 
+                    fontStyle: 'italic',
+                    color: 'text.secondary',
+                    mb: 1
+                  },
+                  '& pre': { // For code blocks
+                    backgroundColor: 'grey.100',
+                    border: '1px solid',
+                    borderColor: 'grey.300',
+                    p: 2,
+                    borderRadius: 1,
+                    overflowX: 'auto',
+                    fontFamily: 'monospace',
+                  }
+                }}
+                dangerouslySetInnerHTML={{ __html: contentBody }}
+              />
             ) : (
               <Typography variant="body2" color="text.secondary">Este contenido no tiene cuerpo especificado.</Typography>
             )}

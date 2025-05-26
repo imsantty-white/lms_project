@@ -12,6 +12,7 @@ import {
 import { axiosInstance } from '../../contexts/AuthContext'; // Ajusta la ruta si es necesario
 import { toast } from 'react-toastify';
 import GenericFormModal from '../../components/GenericFormModal'; // Ajusta la ruta
+import TipTapEditor from '../../components/TipTapEditor'; // Import TipTapEditor
 
 function EditResourceModal({ open, onClose, resourceId, onUpdateSuccess }) {
   const [originalResourceType, setOriginalResourceType] = useState('');
@@ -218,18 +219,20 @@ function EditResourceModal({ open, onClose, resourceId, onUpdateSuccess }) {
             disabled={isSaving} // Should still be disabled if saving
           />
           {originalResourceType === 'Contenido' && (
-            <TextField
-              label="Cuerpo del Contenido"
-              fullWidth
-              multiline
-              rows={6}
-              value={contentBody}
-              onChange={(e) => setContentBody(e.target.value)}
-              error={!!errors.contentBody}
-              helperText={errors.contentBody}
-              disabled={isSaving}
-              required
-            />
+            <>
+              <TipTapEditor
+                value={contentBody}
+                onChange={(newContent) => setContentBody(newContent)}
+                disabled={isSaving}
+                placeholder="Edita el contenido del recurso aquí..."
+              />
+              {/* Display validation error for contentBody, if any */}
+              {errors.contentBody && (
+                <Alert severity="error" sx={{ mt: 1 }}>
+                  {errors.contentBody}
+                </Alert>
+              )}
+            </>
           )}
           {(originalResourceType === 'Enlace' || originalResourceType === 'Video-Enlace') && (
             <TextField
