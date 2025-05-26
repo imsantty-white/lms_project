@@ -37,7 +37,19 @@ const ContentModal = React.memo(({ open, onClose, title, contentBody }) => {
           <DialogTitle>{title || 'Contenido'}</DialogTitle>
           <DialogContent dividers>
             {contentBody ? (
-              <Typography>{contentBody}</Typography>
+              <Box
+                component="div" // Use Box as a wrapper that can be styled if needed
+                dangerouslySetInnerHTML={{ __html: contentBody }}
+                sx={{
+                  // Add any necessary styling here. For example:
+                  lineHeight: '1.6',
+                  '& img': { maxWidth: '100%', height: 'auto', display: 'block', my: 2 }, // Responsive images with margin
+                  '& a': { color: 'primary.main', textDecoration: 'underline' }, // Basic link styling
+                  '& p': { marginBottom: '1em' }, // Spacing for paragraphs
+                  '& ul, & ol': { paddingLeft: '2em', marginBottom: '1em' }, // List styling
+                  '& h1, & h2, & h3, & h4, & h5, & h6': { marginTop: '1.5em', marginBottom: '0.5em', fontWeight: 'bold' } // Heading styling
+                }}
+              />
             ) : (
               <Typography variant="body2" color="text.secondary">Este contenido no tiene cuerpo especificado.</Typography>
             )}

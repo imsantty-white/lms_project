@@ -8,6 +8,10 @@ const Module = require('../models/ModuleModel'); // Necesario para verificacione
 const Theme = require('../models/ThemeModel'); // Necesario para verificaciones
 const mongoose = require('mongoose');
 
+const { JSDOM } = require('jsdom');
+const window = new JSDOM('').window;
+const DOMPurify = require('dompurify')(window);
+
 // @desc    Crear un nuevo Recurso (para el banco del docente)
 // @route   POST /api/content/resources
 // @access  Privado/Docente
@@ -33,12 +37,17 @@ const createResource = async (req, res) => {
     // Mongoose validará si el 'type' está dentro del enum permitido.
 
     try {
+        let sanitizedContentBody;
+        if (type === 'Contenido' && content_body) {
+            sanitizedContentBody = DOMPurify.sanitize(content_body);
+        }
+
         const resource = await Resource.create({
             type,
             title,
             docente_id: docenteId, // Asocia el recurso al docente creador
             // Solo incluye el campo específico si coincide con el tipo
-            content_body: type === 'Contenido' ? content_body : undefined,
+            content_body: type === 'Contenido' ? sanitizedContentBody : undefined,
             link_url: type === 'Enlace' ? link_url : undefined,
             video_url: type === 'Video-Enlace' ? video_url : undefined
         });
@@ -351,7 +360,8 @@ const updateResource = async (req, res) => { // <-- Usando async/await directame
         if (resource.type === 'Contenido') {
             // Si el recurso es de tipo Contenido, actualiza content_body si se proporcionó
             if (content_body !== undefined) {
-                resource.content_body = content_body.trim();
+                // Sanitize antes de asignar
+                resource.content_body = DOMPurify.sanitize(content_body);
             }
             // Opcional: Asegurarse de que los otros campos específicos no relevantes estén limpios
             resource.link_url = undefined;
