@@ -58,7 +58,18 @@ import EditContentAssignmentModal from '../pages/components/EditContentAssignmen
 // Import new sub-components
 import ModuleItem from '../pages/components/ModuleItem';
 // ThemeItem and AssignmentItem will be used by ModuleItem
+import SetModuleStatusModal from './components/SetModuleStatusModal'; 
+import SetThemeStatusModal from './components/SetThemeStatusModal'; // Import SetThemeStatusModal
 
+  // --- State for Set Module Status Modal ---
+  const [isSetModuleStatusModalOpen, setIsSetModuleStatusModalOpen] = useState(false);
+  const [selectedModuleForStatusSet, setSelectedModuleForStatusSet] = useState(null);
+  // --- END State for Set Module Status Modal ---
+
+  // --- State for Set Theme Status Modal ---
+  const [isSetThemeStatusModalOpen, setIsSetThemeStatusModalOpen] = useState(false);
+  const [selectedThemeForStatusSet, setSelectedThemeForStatusSet] = useState(null);
+  // --- END State for Set Theme Status Modal ---
 
 
 // --- BEGIN Reducer and Initial State for Module Modals ---
@@ -743,6 +754,124 @@ function ManageLearningPathPage() {
 
   // --- FIN Lógica Edición Asignación ---
 
+  // --- Handler para abrir el modal de Establecer Progreso del Módulo ---
+  const handleOpenSetModuleStatusModal = (moduleData) => {
+    if (isAnyOperationInProgress) return; 
+    if (!learningPath || !learningPath._id) {
+        toast.error("La información de la ruta de aprendizaje no está completamente cargada.");
+        return;
+    }
+    setSelectedModuleForStatusSet({
+      moduleId: moduleData._id,
+      moduleName: moduleData.nombre,
+      learningPathId: learningPath._id, 
+      groupName: learningPath.group_id?.nombre || 'N/A', // Ensure group_id might be undefined
+      groupId: learningPath.group_id?._id || null // Pass groupId
+    });
+    setIsSetModuleStatusModalOpen(true);
+  };
+  // --- FIN Handler ---
+
+  // --- Handler para confirmar y ejecutar el cambio de estado del módulo ---
+  const handleConfirmSetModuleStatus = async (status) => {
+    if (!selectedModuleForStatusSet || !selectedModuleForStatusSet.moduleId || !selectedModuleForStatusSet.learningPathId || !selectedModuleForStatusSet.groupId) {
+      toast.error('Error: Información incompleta para actualizar el estado del módulo.');
+      // Ensure the modal can catch this and display an error or stop submitting
+      return Promise.reject(new Error('Información de módulo o grupo incompleta.'));
+    }
+
+    const { moduleId, learningPathId, groupId, moduleName } = selectedModuleForStatusSet;
+
+    // The modal itself handles its 'isSubmitting' state.
+    // This function is responsible for the API call and returning a promise.
+    try {
+      const response = await axiosInstance.post('/api/progress/teacher/set-module-status', {
+        moduleId,
+        learningPathId,
+        groupId,
+        status
+      });
+      
+      // Use a more specific success message if possible from response.data
+      const updatedCount = response.data?.updatedCount;
+      let successMessage = `Progreso del módulo "${moduleName}" actualizado a "${status}"`;
+      if (updatedCount !== undefined) {
+          successMessage += ` para ${updatedCount} estudiante(s).`;
+      } else {
+          successMessage += '.';
+      }
+      toast.success(successMessage);
+      
+      setIsSetModuleStatusModalOpen(false); // Close modal on success
+      // No specific UI update needed on this page as it doesn't show student progress directly.
+      // The TeacherGroupProgressPage will reflect changes when visited.
+      return Promise.resolve(response.data); 
+    } catch (err) {
+      console.error('Error setting module status:', err.response?.data || err.message);
+      const errorMessage = err.response?.data?.message || `Error al actualizar el estado del módulo "${moduleName}".`;
+      toast.error(errorMessage);
+      return Promise.reject(new Error(errorMessage)); // Propagate error to modal to display
+    }
+  };
+  // --- FIN Handler Confirmación ---
+
+  // --- Handler para abrir el modal de Establecer Progreso del Tema ---
+  const handleOpenSetThemeStatusModal = (themeData, moduleData) => {
+    if (isAnyOperationInProgress) return;
+    if (!learningPath || !learningPath.group_id) {
+      toast.error("No se puede establecer el estado del tema: información de la ruta o grupo no disponible.");
+      return;
+    }
+    setSelectedThemeForStatusSet({
+      themeId: themeData._id,
+      themeName: themeData.nombre,
+      moduleId: moduleData._id, 
+      learningPathId: learningPath._id,
+      groupId: learningPath.group_id._id,
+      groupName: learningPath.group_id.nombre || 'Nombre del Grupo no disponible'
+    });
+    setIsSetThemeStatusModalOpen(true);
+  };
+  // --- FIN Handler ---
+
+  // --- Handler para confirmar y ejecutar el cambio de estado del Tema (para SetThemeStatusModal) ---
+  const handleConfirmSetThemeStatus = async (status) => {
+    if (!selectedThemeForStatusSet || !selectedThemeForStatusSet.themeId || !selectedThemeForStatusSet.learningPathId || !selectedThemeForStatusSet.groupId) {
+      toast.error('Error: Información incompleta para actualizar el estado del tema.');
+      return Promise.reject(new Error('Información de tema, ruta o grupo incompleta.'));
+    }
+
+    const { themeId, learningPathId, groupId, themeName } = selectedThemeForStatusSet;
+
+    try {
+      const response = await axiosInstance.post('/api/progress/teacher/set-theme-status', {
+        themeId,
+        learningPathId,
+        groupId,
+        status
+      });
+      
+      const updatedCount = response.data?.updatedCount; // Use updatedCount from response
+      let successMessage = `Progreso del tema "${themeName}" actualizado a "${status}"`;
+      if (updatedCount !== undefined) {
+          successMessage += ` para ${updatedCount} estudiante(s).`;
+      } else {
+          successMessage += '.'; // Default if count not provided
+      }
+      toast.success(successMessage);
+      
+      setIsSetThemeStatusModalOpen(false); // Close modal on success
+      // No specific UI update needed on this page as it doesn't show student progress directly.
+      return Promise.resolve(response.data); 
+    } catch (err) {
+      console.error('Error setting theme status:', err.response?.data || err.message);
+      const errorMessage = err.response?.data?.message || `Error al actualizar el estado del tema "${themeName}".`;
+      toast.error(errorMessage);
+      return Promise.reject(new Error(errorMessage)); // Propagate error to modal
+    }
+  };
+  // --- FIN Handler Confirmación Tema ---
+
 
   // Mensaje de acceso denegado / error / no encontrado / cargando (se mantiene igual)
   if (!isAuthenticated || (user?.userType !== 'Docente' && user?.userType !== 'Administrador')) {
@@ -858,6 +987,8 @@ function ManageLearningPathPage() {
                 onEditModule={handleOpenEditModuleModal}
                 onDeleteModule={handleOpenDeleteModuleConfirm}
                 onCreateTheme={handleOpenCreateThemeModal}
+                onSetModuleStatus={handleOpenSetModuleStatusModal} 
+                onSetThemeStatus={handleOpenSetThemeStatusModal} // Pass new handler for theme status
                 // Props for ThemeItem and AssignmentItem
                 expandedTheme={expandedTheme}
                 handleThemeAccordionChange={handleThemeAccordionChange}
@@ -1025,6 +1156,30 @@ function ManageLearningPathPage() {
         // isUpdating={isUpdatingAssignment} // No necesitas pasar esto si el modal se encarga de su propio estado de guardado
       />
 
+      {/* Modal para Establecer Progreso del Módulo */}
+      {isSetModuleStatusModalOpen && selectedModuleForStatusSet && (
+        <SetModuleStatusModal
+          open={isSetModuleStatusModalOpen}
+          onClose={() => {
+            setIsSetModuleStatusModalOpen(false);
+            // selectedModuleForStatusSet is reset implicitly if needed when modal reopens or data changes
+          }}
+          moduleInfo={selectedModuleForStatusSet}
+          onConfirmSetStatus={handleConfirmSetModuleStatus}
+        />
+      )}
+
+      {/* Modal para Establecer Progreso del Tema */}
+      {isSetThemeStatusModalOpen && selectedThemeForStatusSet && (
+        <SetThemeStatusModal
+          open={isSetThemeStatusModalOpen}
+          onClose={() => {
+            setIsSetThemeStatusModalOpen(false);
+          }}
+          themeInfo={selectedThemeForStatusSet}
+          onConfirmSetStatus={handleConfirmSetThemeStatus}
+        />
+      )}
 
     </Box>
   </Container>

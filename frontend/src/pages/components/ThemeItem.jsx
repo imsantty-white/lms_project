@@ -11,12 +11,14 @@ import {
   Button,
   Stack,
   List,
-  Divider
+  Divider,
+  Tooltip // Added Tooltip
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddCircleOutlinedIcon from '@mui/icons-material/AddCircleOutlined';
+import RuleIcon from '@mui/icons-material/Rule'; // Added RuleIcon
 import AssignmentItem from './AssignmentItem'; // Will be created next
 
 const ThemeItem = React.memo(({
@@ -27,6 +29,7 @@ const ThemeItem = React.memo(({
   onEditTheme,
   onDeleteTheme,
   onAddContentAssignment,
+  onSetThemeStatus, // New prop
   // Props needed for AssignmentItem that are passed down
   onEditAssignment,
   onDeleteAssignment,
@@ -47,6 +50,21 @@ const ThemeItem = React.memo(({
             <Typography variant="subtitle1" sx={{ flexGrow: 1 }}>
               {`Tema ${theme.orden || themeIndex + 1}: ${theme.nombre}`}
             </Typography>
+            <Tooltip title="Establecer Progreso del Tema">
+              <span> {/* Span for Tooltip when button is disabled */}
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent Accordion toggle
+                    onSetThemeStatus(theme); // Call the new handler
+                  }}
+                  disabled={isAnyOperationInProgress}
+                  sx={{ mr: 1 }} // Added margin for spacing
+                >
+                  <RuleIcon fontSize="small"/>
+                </IconButton>
+              </span>
+            </Tooltip>
             <IconButton
               size="small"
               onClick={(e) => {

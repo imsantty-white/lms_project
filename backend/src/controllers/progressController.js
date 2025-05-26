@@ -481,3 +481,382 @@ module.exports = {
     getAllStudentProgressForPathForDocente, // Exporta la nueva función
     getSpecificStudentProgressForPathForDocente // Exporta la nueva función
 };
+
+// --- Helper Function to Update Dependent Statuses ---
+async function updateDependentStatuses(progressDoc, learningPathId) {
+    if (!progressDoc || !learningPathId) {
+        console.error("updateDependentStatuses: Missing progressDoc or learningPathId");
+        return; // Or throw error
+    }
+
+    try {
+        // Fetch all modules and their themes for the given learning path
+        const modulesInPath = await Module.find({ learning_path_id: learningPathId }).populate('themes');
+        if (!modulesInPath || modulesInPath.length === 0) {
+            // If path has no modules, its status depends on whether it was explicitly set or remains 'No Iniciado'
+            // This function primarily deals with dependencies, so if no modules, no dependent updates to make here.
+            // However, if a path has no modules, it could be considered 'Completado' if tasks were only at path level (not modeled here)
+            // or 'No Iniciado' if progress is only tracked via modules/themes.
+            // For now, if no modules, we don't auto-complete the path unless it has no themes either.
+             if (progressDoc.path_status === 'En Progreso' && modulesInPath.length === 0) {
+                 // This case is ambiguous. A path with no modules could be 'No Iniciado' or 'Completado' by default.
+                 // Let's assume if it was 'En Progreso' and has no modules, it might be an anomaly or needs specific business rule.
+                 // For safety, we won't auto-complete it here without more specific rules.
+             }
+            // If a path has no modules, its themes are also empty in this context.
+            // If there are no themes at all in the path (via modules), path completion is tricky.
+            // The current logic below assumes themes are within modules.
+            // For a path with no modules, its status might remain as is or be set based on other criteria.
+            // Let's ensure completed_modules is empty if no modules in path.
+            progressDoc.completed_modules = []; 
+            // If no modules, path completion logic below will likely result in 'Completado' if path_status was 'En Progreso'.
+            // This might be okay if an empty path is considered complete once touched.
+        }
+
+
+        let allModulesCompleted = modulesInPath.length > 0; // Assume true if path has modules, else false
+
+        for (const module of modulesInPath) {
+            const moduleThemeIds = module.themes.map(t => t._id.toString());
+            let themesCompletedCount = 0;
+            let themesSeenCount = 0;
+
+            if (moduleThemeIds.length > 0) {
+                progressDoc.completed_themes.forEach(ct => {
+                    if (moduleThemeIds.includes(ct.theme_id.toString())) {
+                        if (ct.status === 'Completado') {
+                            themesCompletedCount++;
+                        }
+                        if (ct.status === 'Visto' || ct.status === 'Completado') {
+                            themesSeenCount++;
+                        }
+                    }
+                });
+
+                const moduleEntryIndex = progressDoc.completed_modules.findIndex(cm => cm.module_id.equals(module._id));
+                let currentModuleStatusInDb = moduleEntryIndex > -1 ? progressDoc.completed_modules[moduleEntryIndex].status : 'No Iniciado';
+
+                if (themesCompletedCount === moduleThemeIds.length) { // All themes in module completed
+                    if (moduleEntryIndex > -1) {
+                        progressDoc.completed_modules[moduleEntryIndex].status = 'Completado';
+                        progressDoc.completed_modules[moduleEntryIndex].completion_date = new Date();
+                    } else {
+                        progressDoc.completed_modules.push({ module_id: module._id, status: 'Completado', completion_date: new Date() });
+                    }
+                } else if (themesSeenCount > 0) { // Some themes seen/completed, but not all
+                    if (moduleEntryIndex > -1) {
+                        progressDoc.completed_modules[moduleEntryIndex].status = 'En Progreso';
+                        progressDoc.completed_modules[moduleEntryIndex].completion_date = undefined; // Clear completion date
+                    } else {
+                        progressDoc.completed_modules.push({ module_id: module._id, status: 'En Progreso' });
+                    }
+                    allModulesCompleted = false; 
+                } else { // No themes seen or completed in this module
+                    // Only remove/demote if it wasn't explicitly set to 'En Progreso' by a teacher (and saved before this helper)
+                    if (currentModuleStatusInDb !== 'En Progreso') {
+                         progressDoc.completed_modules = progressDoc.completed_modules.filter(cm => !cm.module_id.equals(module._id));
+                    } else {
+                        // If it was 'En Progreso' (e.g. by teacher override), and no themes are active, it remains 'En Progreso'.
+                        // No change to allModulesCompleted here, it depends on this module's state.
+                        // If it remains 'En Progreso', then allModulesCompleted should be false.
+                        allModulesCompleted = false; 
+                    }
+                    // If currentModuleStatusInDb was 'No Iniciado' or 'Completado' (and themesSeenCount is 0), it's now effectively 'No Iniciado'
+                    // by being filtered out, or if it was 'Completado' and themes became 0, it's 'No Iniciado'.
+                    // This ensures allModulesCompleted is false unless it was already 'En Progreso'.
+                     if (currentModuleStatusInDb !== 'En Progreso') {
+                        allModulesCompleted = false;
+                     }
+                }
+            } else { // Module has no themes
+                // An empty module can be considered 'Completado' by default if it's part of a path.
+                const moduleEntryIndex = progressDoc.completed_modules.findIndex(cm => cm.module_id.equals(module._id));
+                if (moduleEntryIndex > -1) {
+                    if(progressDoc.completed_modules[moduleEntryIndex].status !== 'Completado'){
+                        progressDoc.completed_modules[moduleEntryIndex].status = 'Completado';
+                        progressDoc.completed_modules[moduleEntryIndex].completion_date = new Date();
+                    }
+                } else {
+                     progressDoc.completed_modules.push({ module_id: module._id, status: 'Completado', completion_date: new Date() });
+                }
+                // If it was previously 'En Progreso' or 'No Iniciado', it's now 'Completado'.
+                // 'allModulesCompleted' remains true if this empty module is now 'Completado'.
+            }
+        }
+        
+        // Path status update
+        if (allModulesCompleted && modulesInPath.length > 0) { // Ensure path has modules to be completed
+            if(progressDoc.path_status !== 'Completado'){
+                progressDoc.path_status = 'Completado';
+                progressDoc.path_completion_date = new Date();
+            }
+        } else {
+            // Check if any module is 'En Progreso' or 'Completado', or any theme is 'Visto' or 'Completado'
+            const anyModuleInProgressOrCompleted = progressDoc.completed_modules.some(m => m.status === 'En Progreso' || m.status === 'Completado');
+            const anyThemeActive = progressDoc.completed_themes.some(t => t.status === 'Visto' || t.status === 'Completado');
+
+            if (anyModuleInProgressOrCompleted || anyThemeActive) {
+                 if(progressDoc.path_status !== 'En Progreso' && progressDoc.path_status !== 'Completado'){ // Don't revert from 'Completado' by this logic
+                    progressDoc.path_status = 'En Progreso';
+                    progressDoc.path_completion_date = undefined; // Remove completion date if not completed
+                 } else if (progressDoc.path_status === 'Completado' && !allModulesCompleted) {
+                     // If path was 'Completado' but now not all modules are, it should become 'En Progreso'
+                     progressDoc.path_status = 'En Progreso';
+                     progressDoc.path_completion_date = undefined;
+                 }
+            } else {
+                // If no modules are active and no themes are active, path is 'No Iniciado'
+                // unless it was already 'Completado' (e.g. an empty path marked complete by teacher)
+                if(progressDoc.path_status !== 'Completado'){
+                    progressDoc.path_status = 'No Iniciado';
+                    progressDoc.path_completion_date = undefined;
+                }
+            }
+        }
+        // No explicit save here, expect calling function to save.
+    } catch (error) {
+        console.error("Error in updateDependentStatuses:", error);
+        // Decide if to throw or handle. For now, log and let it continue.
+        // throw error; // Or handle more gracefully
+    }
+}
+
+
+// @desc    Set status for a specific module for all students in a group by Teacher/Admin
+// @route   POST /api/progress/teacher/set-module-status
+// @access  Privado/Docente/Administrador
+const setModuleStatusByTeacher = async (req, res) => {
+    const { moduleId, learningPathId, status, groupId } = req.body; // groupId explicitly from body for clarity
+    const teacherId = req.user._id;
+
+    // --- Validation ---
+    if (!mongoose.Types.ObjectId.isValid(moduleId) || 
+        !mongoose.Types.ObjectId.isValid(learningPathId) ||
+        !mongoose.Types.ObjectId.isValid(groupId)) {
+        return res.status(400).json({ message: 'IDs de módulo, ruta de aprendizaje y grupo inválidos.' });
+    }
+    const allowedStatuses = ['No Iniciado', 'En Progreso', 'Completado'];
+    if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({ message: `Estado inválido. Permitidos: ${allowedStatuses.join(', ')}.` });
+    }
+
+    try {
+        // --- Authorization ---
+        const learningPath = await LearningPath.findById(learningPathId).populate('group_id');
+        if (!learningPath) return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada.' });
+        if (!learningPath.group_id || !learningPath.group_id._id.equals(groupId)) {
+            return res.status(403).json({ message: 'La ruta de aprendizaje no pertenece al grupo especificado.'});
+        }
+        // Check if teacher owns the group associated with the learning path
+        if (req.user.tipo_usuario === 'Docente' && !learningPath.group_id.docente_id.equals(teacherId)) {
+            return res.status(403).json({ message: 'No tienes permiso para modificar el progreso de esta ruta de aprendizaje.' });
+        }
+
+        const module = await Module.findById(moduleId);
+        if (!module) return res.status(404).json({ message: 'Módulo no encontrado.' });
+        if (!module.learning_path_id.equals(learningPathId)) {
+            return res.status(403).json({ message: 'El módulo no pertenece a la ruta de aprendizaje especificada.' });
+        }
+
+        // --- Operations ---
+        const approvedMembers = await Membership.find({
+            grupo_id: groupId,
+            estado_solicitud: 'Aprobado'
+        }).select('usuario_id');
+
+        if (approvedMembers.length === 0) {
+            return res.status(404).json({ message: 'No hay estudiantes aprobados en este grupo.' });
+        }
+        const studentIds = approvedMembers.map(m => m.usuario_id);
+        
+        let updatedCount = 0;
+
+        for (const studentId of studentIds) {
+            let progress = await Progress.findOne({ student_id: studentId, learning_path_id: learningPathId });
+
+            if (!progress) {
+                progress = new Progress({
+                    student_id: studentId,
+                    learning_path_id: learningPathId,
+                    group_id: groupId, // Set group_id from the validated learning path
+                    path_status: 'No Iniciado',
+                    completed_themes: [],
+                    completed_modules: []
+                });
+            }
+            
+            // Prevent changes if path is 'Completado' by student, unless teacher overrides
+            // For bulk updates, teacher override is implicit. We will allow changing sub-elements.
+            // The final path status will be re-evaluated by updateDependentStatuses.
+
+            const moduleEntryIndex = progress.completed_modules.findIndex(cm => cm.module_id.equals(moduleId));
+
+            if (status === 'Completado') {
+                if (moduleEntryIndex > -1) {
+                    progress.completed_modules[moduleEntryIndex].status = 'Completado';
+                    progress.completed_modules[moduleEntryIndex].completion_date = new Date();
+                } else {
+                    progress.completed_modules.push({ module_id: moduleId, status: 'Completado', completion_date: new Date() });
+                }
+                // Mark all themes of this module as 'Completado'
+                const themesInModule = await Theme.find({ module_id: moduleId }).select('_id');
+                themesInModule.forEach(theme => {
+                    const themeEntryIndex = progress.completed_themes.findIndex(ct => ct.theme_id.equals(theme._id));
+                    if (themeEntryIndex > -1) {
+                        progress.completed_themes[themeEntryIndex].status = 'Completado';
+                        progress.completed_themes[themeEntryIndex].completion_date = new Date();
+                    } else {
+                        progress.completed_themes.push({ theme_id: theme._id, status: 'Completado', completion_date: new Date() });
+                    }
+                });
+            } else if (status === 'En Progreso') {
+                if (moduleEntryIndex > -1) {
+                    progress.completed_modules[moduleEntryIndex].status = 'En Progreso';
+                    // Ensure completion_date is removed or not set if it was 'Completado'
+                     progress.completed_modules[moduleEntryIndex].completion_date = undefined; 
+                } else {
+                    progress.completed_modules.push({ module_id: moduleId, status: 'En Progreso' });
+                }
+                // Themes under this module are NOT automatically changed to 'Visto' by this direct setting.
+                // Path status might become 'En Progreso'
+                if (progress.path_status === 'No Iniciado') {
+                    progress.path_status = 'En Progreso';
+                    progress.path_completion_date = undefined; // Ensure no completion date for 'En Progreso'
+                }
+                // Save the progress explicitly set by the teacher before recalculating dependencies.
+                // This ensures updateDependentStatuses respects the teacher's direct 'En Progreso' setting for THIS module.
+                await progress.save(); 
+
+            } else if (status === 'No Iniciado') {
+                progress.completed_modules = progress.completed_modules.filter(cm => !cm.module_id.equals(moduleId));
+                // Also mark all themes of this module as 'No Iniciado' (i.e., remove them from completed_themes)
+                const themesInModule = await Theme.find({ module_id: moduleId }).select('_id');
+                const themeIdsToRemove = themesInModule.map(t => t._id.toString());
+                progress.completed_themes = progress.completed_themes.filter(ct => !themeIdsToRemove.includes(ct.theme_id.toString()));
+            }
+            
+            // Update path_status if it's 'No Iniciado' and we are making progress (for 'Completado' case mainly now)
+            if (progress.path_status === 'No Iniciado' && status === 'Completado') {
+                progress.path_status = 'En Progreso';
+                progress.path_completion_date = undefined;
+            }
+            // For 'No Iniciado', path_status will be re-evaluated by updateDependentStatuses.
+
+            await updateDependentStatuses(progress, learningPathId); // Recalculate all statuses
+            await progress.save(); // Persist changes from updateDependentStatuses
+            updatedCount++;
+        }
+
+        res.status(200).json({ message: `Progreso del módulo actualizado para ${updatedCount} estudiante(s).` });
+
+    } catch (error) {
+        console.error('Error en setModuleStatusByTeacher:', error);
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ message: 'Error de validación.', errors: error.errors });
+        }
+        res.status(500).json({ message: 'Error interno del servidor.' });
+    }
+};
+
+// @desc    Set status for a specific theme for all students in a group by Teacher/Admin
+// @route   POST /api/progress/teacher/set-theme-status
+// @access  Privado/Docente/Administrador
+const setThemeStatusByTeacher = async (req, res) => {
+    const { themeId, learningPathId, status, groupId } = req.body;
+    const teacherId = req.user._id;
+
+    // --- Validation ---
+    if (!mongoose.Types.ObjectId.isValid(themeId) || 
+        !mongoose.Types.ObjectId.isValid(learningPathId) ||
+        !mongoose.Types.ObjectId.isValid(groupId)) {
+        return res.status(400).json({ message: 'IDs de tema, ruta de aprendizaje y grupo inválidos.' });
+    }
+    const allowedStatuses = ['No Iniciado', 'Visto', 'Completado'];
+    if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({ message: `Estado inválido. Permitidos: ${allowedStatuses.join(', ')}.` });
+    }
+    
+    try {
+        // --- Authorization ---
+        const learningPath = await LearningPath.findById(learningPathId).populate('group_id');
+        if (!learningPath) return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada.' });
+         if (!learningPath.group_id || !learningPath.group_id._id.equals(groupId)) {
+            return res.status(403).json({ message: 'La ruta de aprendizaje no pertenece al grupo especificado.'});
+        }
+        if (req.user.tipo_usuario === 'Docente' && !learningPath.group_id.docente_id.equals(teacherId)) {
+            return res.status(403).json({ message: 'No tienes permiso para modificar el progreso de esta ruta.' });
+        }
+
+        const theme = await Theme.findById(themeId).populate('module_id');
+        if (!theme) return res.status(404).json({ message: 'Tema no encontrado.' });
+        if (!theme.module_id || !theme.module_id.learning_path_id.equals(learningPathId)) {
+            return res.status(403).json({ message: 'El tema no pertenece a la ruta de aprendizaje especificada.' });
+        }
+        
+        // --- Operations ---
+        const approvedMembers = await Membership.find({
+            grupo_id: groupId,
+            estado_solicitud: 'Aprobado'
+        }).select('usuario_id');
+
+        if (approvedMembers.length === 0) {
+            return res.status(404).json({ message: 'No hay estudiantes aprobados en este grupo.' });
+        }
+        const studentIds = approvedMembers.map(m => m.usuario_id);
+        let updatedCount = 0;
+
+        for (const studentId of studentIds) {
+            let progress = await Progress.findOne({ student_id: studentId, learning_path_id: learningPathId });
+            if (!progress) {
+                 progress = new Progress({
+                    student_id: studentId,
+                    learning_path_id: learningPathId,
+                    group_id: groupId,
+                    path_status: 'No Iniciado',
+                    completed_themes: [],
+                    completed_modules: []
+                });
+            }
+
+            const themeEntryIndex = progress.completed_themes.findIndex(ct => ct.theme_id.equals(themeId));
+
+            if (status === 'Completado' || status === 'Visto') {
+                if (themeEntryIndex > -1) {
+                    progress.completed_themes[themeEntryIndex].status = status;
+                    progress.completed_themes[themeEntryIndex].completion_date = new Date();
+                } else {
+                    progress.completed_themes.push({ theme_id: themeId, status: status, completion_date: new Date() });
+                }
+            } else if (status === 'No Iniciado') {
+                progress.completed_themes = progress.completed_themes.filter(ct => !ct.theme_id.equals(themeId));
+            }
+            
+            if (progress.path_status === 'No Iniciado' && (status === 'Visto' || status === 'Completado')) {
+                progress.path_status = 'En Progreso';
+            }
+
+            await updateDependentStatuses(progress, learningPathId);
+            await progress.save();
+            updatedCount++;
+        }
+        
+        res.status(200).json({ message: `Progreso del tema actualizado para ${updatedCount} estudiante(s).` });
+
+    } catch (error) {
+        console.error('Error en setThemeStatusByTeacher:', error);
+         if (error.name === 'ValidationError') {
+            return res.status(400).json({ message: 'Error de validación.', errors: error.errors });
+        }
+        res.status(500).json({ message: 'Error interno del servidor.' });
+    }
+};
+
+
+module.exports = {
+    updateThemeProgress,
+    getStudentProgressForPath,
+    getAllStudentProgressForPathForDocente,
+    getSpecificStudentProgressForPathForDocente,
+    setModuleStatusByTeacher,
+    setThemeStatusByTeacher
+};

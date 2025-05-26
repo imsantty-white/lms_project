@@ -11,12 +11,14 @@ import {
   Button,
   Stack,
   List,
-  Divider
+  Divider,
+  Tooltip // Added Tooltip
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddCircleOutlinedIcon from '@mui/icons-material/AddCircleOutlined';
+import RuleIcon from '@mui/icons-material/Rule'; // Added RuleIcon
 import ThemeItem from './ThemeItem'; // Will be created next
 
 const ModuleItem = React.memo(({
@@ -27,6 +29,8 @@ const ModuleItem = React.memo(({
   onEditModule,
   onDeleteModule,
   onCreateTheme,
+  onSetModuleStatus, 
+  onSetThemeStatus, // New prop for ThemeItem
   // Props needed for ThemeItem that are passed down
   expandedTheme,
   handleThemeAccordionChange,
@@ -52,6 +56,21 @@ const ModuleItem = React.memo(({
             <Typography variant="h6" sx={{ flexGrow: 1 }}>
               {`Módulo ${module.orden || moduleIndex + 1}: ${module.nombre}`}
             </Typography>
+            <Tooltip title="Establecer Progreso del Módulo">
+              <span> {/* Span needed for Tooltip when button is disabled */}
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent Accordion toggle
+                    onSetModuleStatus(module);
+                  }}
+                  disabled={isAnyOperationInProgress}
+                  sx={{ mr: 1 }} // Added margin for spacing
+                >
+                  <RuleIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
             <IconButton
               size="small"
               onClick={(e) => {
@@ -107,6 +126,7 @@ const ModuleItem = React.memo(({
                   onEditTheme={onEditTheme}
                   onDeleteTheme={onDeleteTheme}
                   onAddContentAssignment={onAddContentAssignment}
+                  onSetThemeStatus={(theme) => onSetThemeStatus(theme, module)} // Pass module context
                   onEditAssignment={onEditAssignment}
                   onDeleteAssignment={onDeleteAssignment}
                   onStatusChange={onStatusChange}

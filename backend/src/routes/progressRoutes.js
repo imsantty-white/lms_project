@@ -8,7 +8,9 @@ const {
     updateThemeProgress,
     getStudentProgressForPath,
     getAllStudentProgressForPathForDocente,
-    getSpecificStudentProgressForPathForDocente
+    getSpecificStudentProgressForPathForDocente,
+    setModuleStatusByTeacher, // Import new function
+    setThemeStatusByTeacher   // Import new function
   } = require('../controllers/progressController');
 
 router.use(protect);
@@ -151,5 +153,102 @@ router.get('/group/:groupId/path/:learningPathId/docente', authorize('Docente'),
  *         description: Estudiante o ruta no encontrada
  */
 router.get('/student/:studentId/path/:learningPathId/docente', authorize('Docente'), getSpecificStudentProgressForPathForDocente);
+
+
+// --- New Routes for Teacher Bulk Updates ---
+
+/**
+ * @swagger
+ * /api/progress/teacher/set-module-status:
+ *   post:
+ *     summary: Establecer el estado de un módulo para todos los estudiantes de un grupo (Docente/Admin)
+ *     tags: [Progreso]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               moduleId:
+ *                 type: string
+ *                 description: ID del módulo a actualizar.
+ *               learningPathId:
+ *                 type: string
+ *                 description: ID de la ruta de aprendizaje a la que pertenece el módulo.
+ *               groupId:
+ *                 type: string
+ *                 description: ID del grupo para el cual se actualizará el progreso.
+ *               status:
+ *                 type: string
+ *                 enum: [No Iniciado, En Progreso, Completado]
+ *                 description: Nuevo estado para el módulo.
+ *     responses:
+ *       200:
+ *         description: Progreso del módulo actualizado para los estudiantes del grupo.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Datos de entrada inválidos o error de validación.
+ *       401:
+ *         description: No autorizado (token faltante o inválido).
+ *       403:
+ *         description: Prohibido (usuario no tiene permisos o no es dueño del grupo/ruta).
+ *       404:
+ *         description: Recurso no encontrado (ruta, módulo, grupo).
+ *       500:
+ *         description: Error interno del servidor.
+ */
+router.post('/teacher/set-module-status', authorize(['Docente', 'Administrador']), setModuleStatusByTeacher);
+
+/**
+ * @swagger
+ * /api/progress/teacher/set-theme-status:
+ *   post:
+ *     summary: Establecer el estado de un tema para todos los estudiantes de un grupo (Docente/Admin)
+ *     tags: [Progreso]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               themeId:
+ *                 type: string
+ *                 description: ID del tema a actualizar.
+ *               learningPathId:
+ *                 type: string
+ *                 description: ID de la ruta de aprendizaje a la que pertenece el tema.
+ *               groupId:
+ *                 type: string
+ *                 description: ID del grupo para el cual se actualizará el progreso.
+ *               status:
+ *                 type: string
+ *                 enum: [No Iniciado, Visto, Completado]
+ *                 description: Nuevo estado para el tema.
+ *     responses:
+ *       200:
+ *         description: Progreso del tema actualizado para los estudiantes del grupo.
+ *       400:
+ *         description: Datos de entrada inválidos.
+ *       403:
+ *         description: Prohibido.
+ *       404:
+ *         description: Recurso no encontrado.
+ *       500:
+ *         description: Error interno del servidor.
+ */
+router.post('/teacher/set-theme-status', authorize(['Docente', 'Administrador']), setThemeStatusByTeacher);
+
 
 module.exports = router;
