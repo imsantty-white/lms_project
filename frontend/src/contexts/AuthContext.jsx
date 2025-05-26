@@ -2,11 +2,11 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { API_BASE_URL } from '../utils/constants';
-import { jwtDecode } from 'jwt-decode'; // Necesitas instalar esta librería: npm install jwt-decode
+import { jwtDecode } from 'jwt-decode';
 
 
 // Crea el contexto de autenticación
-export const AuthContext = createContext(null); // MODIFIED: Added export
+export const AuthContext = createContext(null);
 
 // *** Configurar una instancia de Axios separada ***
 const axiosInstance = axios.create({
@@ -106,7 +106,7 @@ export const AuthProvider = ({ children }) => {
         _id,
         email: userEmail,
         userType: tipo_usuario,      // para el frontend
-        tipo_usuario,                // para compatibilidad si lo necesitas
+        tipo_usuario,                // para compatibilidad (Importante)
         nombre,
         apellidos,
       };
