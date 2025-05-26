@@ -547,8 +547,8 @@ const getAssignmentSubmissions = async (req, res, next) => {
                             title: "$assignment_id.activity_id.title",
                             // Incluir preguntas solo si son realmente necesarias para la vista de entregas del docente
                             // A menudo, solo el tipo y título son suficientes aquí, y las preguntas se ven al calificar/ver detalle.
-                            // quiz_questions: "$assignment_id.activity_id.quiz_questions", 
-                            // cuestionario_questions: "$assignment_id.activity_id.cuestionario_questions"
+                            quiz_questions: "$assignment_id.activity_id.quiz_questions", 
+                            cuestionario_questions: "$assignment_id.activity_id.cuestionario_questions"
                         }
                     },
                     fecha_envio: 1,
