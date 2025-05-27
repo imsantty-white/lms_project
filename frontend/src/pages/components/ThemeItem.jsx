@@ -88,7 +88,7 @@ const ThemeItem = React.memo(({
               Asignar Contenido
             </Button>
           </Stack>
-          <Divider sx={{ borderStyle: 'dashed', borderColor: 'primary.main', my: 2 }} />
+          <Divider sx={{ borderStyle: 'dotted', borderColor: 'text.primary', my: 2 }} />
           <Typography variant="subtitle1" sx={{ mt: 2, mb: 1 }}>
             Contenido:
           </Typography>

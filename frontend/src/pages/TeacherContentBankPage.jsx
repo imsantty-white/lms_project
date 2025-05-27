@@ -124,7 +124,7 @@ const renderActivityDetails = (item) => {
         );
     }
     return item.description && (
-        <Typography variant="body2" color="text.primary" sx={{
+        <Typography variant="body2" color="text.secondary" sx={{
             display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%'
         }}>
             {item.description}
@@ -442,7 +442,7 @@ function TeacherContentBankPage() {
                             itemTypeLabel={item.type}
                             icon={getActivityIcon(item.type)}
                             title={item.title}
-                            description={item.description}
+                            //description={item.description}
                             detailsRenderer={renderActivityDetails}
                             isAssigned={item.isAssigned}
                             onEdit={() => handleOpenEditActivityModal(item._id)}

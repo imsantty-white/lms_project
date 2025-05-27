@@ -93,7 +93,7 @@ const ModuleItem = React.memo(({
               Nuevo Tema
             </Button>
           </Stack>
-          <Divider sx={{ borderStyle: 'dashed', borderColor: 'primary.main', my: 2 }} />
+          <Divider sx={{ borderStyle: 'dotted', borderColor: 'text.primary', my: 2 }} />
           <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Temas:</Typography>
           {module.themes && module.themes.length > 0 ? (
             <List dense disablePadding>
