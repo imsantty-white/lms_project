@@ -8,7 +8,9 @@ const mongoose = require('mongoose'); // Para comparación de ObjectIds
 const LearningPath = require('../models/LearningPathModel');
 const Module = require('../models/ModuleModel');
 const Theme = require('../models/ThemeModel');
+const Module = require('../models/ModuleModel'); // Needed to trace back to learning_path_id
 const Group = require('../models/GroupModel'); // Necesario para verificar propiedad del grupo
+const { triggerActivityBasedProgressUpdate } = require('./progressController'); // Import progress update function
 
 
 // @desc    Crear una nueva entrega para una actividad asignada
@@ -217,9 +219,47 @@ const createSubmission = async (req, res) => {
 
             await submission.save();
 
-            res.status(200).json(submission);
+            // --- Trigger progress update after auto-grading a Quiz ---
+            try {
+                const studentIdForProgress = submission.student_id;
+                // Need to get learningPathId from assignment -> theme -> module -> learningPath
+                const assignmentForProgress = await ContentAssignment.findById(submission.assignment_id)
+                    .populate({
+                        path: 'theme_id',
+                        select: 'module_id',
+                        populate: {
+                            path: 'module_id',
+                            select: 'learning_path_id'
+                        }
+                    });
+
+                if (assignmentForProgress && assignmentForProgress.theme_id && assignmentForProgress.theme_id.module_id && assignmentForProgress.theme_id.module_id.learning_path_id) {
+                    const learningPathIdForProgress = assignmentForProgress.theme_id.module_id.learning_path_id;
+                    // Call the trigger function (fire and forget, or log errors)
+                    triggerActivityBasedProgressUpdate(studentIdForProgress, learningPathIdForProgress)
+                        .then(result => {
+                            if (result && result.success) {
+                                console.log(`Progress update triggered successfully for student ${studentIdForProgress}, path ${learningPathIdForProgress} after Quiz auto-grade.`);
+                            } else {
+                                console.error(`Progress update trigger failed for student ${studentIdForProgress}, path ${learningPathIdForProgress} after Quiz auto-grade: ${result ? result.message : 'Unknown error'}`);
+                            }
+                        })
+                        .catch(err => {
+                            console.error(`Error calling triggerActivityBasedProgressUpdate for student ${studentIdForProgress}, path ${learningPathIdForProgress} after Quiz auto-grade:`, err);
+                        });
+                } else {
+                    console.error(`Could not find learningPathId for assignment ${submission.assignment_id} to trigger progress update.`);
+                }
+            } catch (progressError) {
+                console.error('Error trying to trigger progress update after Quiz auto-grade:', progressError);
+                // Do not let this error affect the main response for submission creation
+            }
+            // --- End Trigger progress update ---
+
+            res.status(200).json(submission); // Quiz is created and auto-graded
 
         } else {
+            // For non-Quiz activities, just return the created submission (status 201)
             res.status(201).json(submission);
         }
         // --- Fin Calificación Automática ---
@@ -457,6 +497,47 @@ const gradeSubmission = async (req, res) => {
 
         await submission.save(); // Guarda los cambios en la base de datos
         // --- Fin Actualizar Entrega ---
+
+        // --- Trigger progress update after manual grading ---
+        if (submission.estado_envio === 'Calificado') {
+            try {
+                const studentIdForProgress = submission.student_id._id; // submission.student_id is populated
+                // Need to get learningPathId from assignment -> theme -> module -> learningPath
+                // submission.assignment_id is populated, and inside it, activity_id and group_id are populated.
+                // We need theme_id from assignment_id.
+                const assignmentForProgress = await ContentAssignment.findById(submission.assignment_id._id)
+                    .populate({
+                        path: 'theme_id',
+                        select: 'module_id',
+                        populate: {
+                            path: 'module_id',
+                            select: 'learning_path_id'
+                        }
+                    });
+
+                if (assignmentForProgress && assignmentForProgress.theme_id && assignmentForProgress.theme_id.module_id && assignmentForProgress.theme_id.module_id.learning_path_id) {
+                    const learningPathIdForProgress = assignmentForProgress.theme_id.module_id.learning_path_id;
+                    
+                    triggerActivityBasedProgressUpdate(studentIdForProgress, learningPathIdForProgress)
+                        .then(result => {
+                            if (result && result.success) {
+                                console.log(`Progress update triggered successfully for student ${studentIdForProgress}, path ${learningPathIdForProgress} after manual grade.`);
+                            } else {
+                                console.error(`Progress update trigger failed for student ${studentIdForProgress}, path ${learningPathIdForProgress} after manual grade: ${result ? result.message : 'Unknown error'}`);
+                            }
+                        })
+                        .catch(err => {
+                            console.error(`Error calling triggerActivityBasedProgressUpdate for student ${studentIdForProgress}, path ${learningPathIdForProgress} after manual grade:`, err);
+                        });
+                } else {
+                    console.error(`Could not find learningPathId for assignment ${submission.assignment_id._id} to trigger progress update after manual grading.`);
+                }
+            } catch (progressError) {
+                console.error('Error trying to trigger progress update after manual grading:', progressError);
+                // Do not let this error affect the main response for grading
+            }
+        }
+        // --- End Trigger progress update ---
 
         res.status(200).json(submission); // Responde con la entrega actualizada (calificada)
 
