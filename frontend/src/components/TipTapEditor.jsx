@@ -1,3 +1,4 @@
+// src/componentes/TipTapEditor.jsx	
 import React from 'react';
 import { EditorProvider, FloatingMenu, BubbleMenu, useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';

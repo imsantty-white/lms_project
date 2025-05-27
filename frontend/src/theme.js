@@ -1,12 +1,11 @@
 // src/theme.js
 import { createTheme } from '@mui/material/styles';
 import '@fontsource-variable/open-sans';
-import '@fontsource/poppins';
+import '@fontsource-variable/open-sans/wght-italic.css';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/inter/wght-italic.css';
 import '@fontsource/cal-sans';
-import '@fontsource/lato';
-import '@fontsource/inter';
 import '@fontsource-variable/nunito';
-import '@fontsource/blinker';
 
 // Paletas de colores personalizadas
 const customPrimaryColor = {
@@ -57,7 +56,7 @@ export const getTheme = (mode = 'light') =>
   createTheme({
     palette: mode === 'dark' ? darkPalette : lightPalette,
     typography: {
-      fontFamily: '"Cal sans", "Poppins", "Arial", Lato',
+      fontFamily: '"Inter Variable","Open Sans Variable",  "Roboto", sans-serif',
       h1: { fontSize: '2.5rem', fontWeight: 700 },
       h2: { fontWeight: 600 },
       h3: { fontWeight: 600 },
