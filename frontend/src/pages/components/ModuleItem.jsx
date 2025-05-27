@@ -1,5 +1,5 @@
 // frontend/src/pages/components/ModuleItem.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Paper,
   Accordion,
@@ -22,12 +22,12 @@ import ThemeItem from './ThemeItem'; // Will be created next
 const ModuleItem = React.memo(({
   module,
   moduleIndex,
-  expanded,
+  // Se recibe onAccordionChange para propagar el cambio si se requiere más adelante
   onAccordionChange,
   onEditModule,
   onDeleteModule,
   onCreateTheme,
-  // Props needed for ThemeItem that are passed down
+  // Props para ThemeItem
   expandedTheme,
   handleThemeAccordionChange,
   onEditTheme,
@@ -40,9 +40,19 @@ const ModuleItem = React.memo(({
   updatingAssignmentStatus,
   isAnyOperationInProgress
 }) => {
+  // Estado local para controlar el acordeón, iniciando en 'true'
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  const handleChange = (event, newExpanded) => {
+    setIsExpanded(newExpanded);
+    if (onAccordionChange) {
+      onAccordionChange(event, newExpanded);
+    }
+  };
+
   return (
     <Paper sx={{ mb: 2, boxShadow: 3 }}>
-      <Accordion expanded={expanded} onChange={onAccordionChange}>
+      <Accordion expanded={isExpanded} onChange={handleChange}>
         <AccordionSummary
           expandIcon={<ExpandMoreIcon />}
           aria-controls={`panel${module._id}-content`}
@@ -81,7 +91,13 @@ const ModuleItem = React.memo(({
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             {module.descripcion}
           </Typography>
-          <Stack direction="row" spacing={1} sx={{ mb: 2 }} alignItems="center" justifyContent="flex-end">
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ mb: 2 }}
+            alignItems="center"
+            justifyContent="flex-end"
+          >
             <Button
               variant="outlined"
               size="small"
