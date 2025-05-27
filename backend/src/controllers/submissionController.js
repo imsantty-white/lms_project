@@ -384,33 +384,37 @@ const gradeSubmission = async (req, res) => {
 
     // --- Validación de entrada ---
     // Validar que el ID de la entrega sea un ObjectId válido
-     if (!mongoose.Types.ObjectId.isValid(submissionId)) {
-         return res.status(400).json({ message: 'ID de entrega inválido' });
+    if (!mongoose.Types.ObjectId.isValid(submissionId)) {
+        return res.status(400).json({ message: 'ID de entrega inválido' });
     }
     // Validar que la calificación sea un número no negativo. 0 es una calificación válida.
-    if (calificacion === undefined || typeof calificacion !== 'number' || calificacion < 0) {
-        return res.status(400).json({ message: 'La calificación proporcionada es inválida. Debe ser un número no negativo.' });
+    // Se permite `null` para calificaciones vacías o descalificadas
+    if (calificacion !== null && (typeof calificacion !== 'number' || calificacion < 0)) {
+        return res.status(400).json({ message: 'La calificación proporcionada es inválida. Debe ser un número no negativo o null.' });
     }
     // La retroalimentación es opcional, no necesita validación de obligatoriedad aquí.
-    // Podemos añadir validación de tipo si queremos (ej: que sea string).
-     if (retroalimentacion !== undefined && typeof retroalimentacion !== 'string') {
-         return res.status(400).json({ message: 'La retroalimentación debe ser texto' });
+    if (retroalimentacion !== undefined && retroalimentacion !== null && typeof retroalimentacion !== 'string') {
+        return res.status(400).json({ message: 'La retroalimentación debe ser texto' });
     }
     // --- Fin Validación de entrada ---
-
 
     try {
         // --- Buscar la entrega y verificar Propiedad (a través de asignación y grupo) ---
         // Necesitamos poblar la entrega -> asignación -> grupo para verificar la propiedad del docente
         // También necesitamos la asignación para obtener la puntuación máxima y el tipo de actividad
+        // Y AHORA POBLAREMOS TAMBIÉN EL STUDENT_ID
         const submission = await Submission.findById(submissionId)
             .populate({ // Pobla la asignación asociada a la entrega
                 path: 'assignment_id',
-                 select: 'puntuacion_maxima type activity_id group_id', // Seleccionar campos necesarios
-                 populate: { // Dentro de la asignación, puebla el grupo y la actividad
-                     path: 'group_id activity_id', // Poblar group_id y activity_id
-                     select: 'docente_id type' // Del grupo solo necesitamos docente_id, de la actividad solo type
-                 }
+                select: 'puntos_maximos type activity_id group_id', // Asegúrate de que es 'puntos_maximos' si así se llama en tu modelo
+                populate: { // Dentro de la asignación, puebla el grupo y la actividad
+                    path: 'group_id activity_id', // Poblar group_id y activity_id
+                    select: 'docente_id type' // Del grupo solo necesitamos docente_id, de la actividad solo type
+                }
+            })
+            .populate({ // **Añade este populate para el student_id**
+                path: 'student_id',
+                select: 'nombre apellidos' // Selecciona los campos que necesitas del estudiante
             });
 
 
@@ -420,36 +424,36 @@ const gradeSubmission = async (req, res) => {
 
         // Comprueba si el grupo de la asignación de esta entrega pertenece al docente autenticado
         if (!submission.assignment_id || !submission.assignment_id.group_id || !submission.assignment_id.group_id.docente_id.equals(docenteId)) {
-             // Si la asignación o su grupo no existen, o el docente no es el dueño del grupo.
-             return res.status(403).json({ message: 'No tienes permiso para calificar esta entrega. No pertenece a uno de tus grupos.' }); // 403 Forbidden
+            // Si la asignación o su grupo no existen, o el docente no es el dueño del grupo.
+            return res.status(403).json({ message: 'No tienes permiso para calificar esta entrega. No pertenece a uno de tus grupos.' }); // 403 Forbidden
         }
         // --- Fin Verificación de Propiedad ---
 
         // --- Verificar Tipo de Actividad: No se puede calificar manualmente un Quiz ---
         const activityType = submission.assignment_id.activity_id ? submission.assignment_id.activity_id.type : null;
         if (activityType === 'Quiz') {
-             // Si la actividad es Quiz, se califica automáticamente. No permitimos calificación manual.
-             return res.status(400).json({ message: 'Las entregas de tipo Quiz se califican automáticamente y no pueden ser calificadas manualmente.' });
+            // Si la actividad es Quiz, se califica automáticamente. No permitimos calificación manual.
+            return res.status(400).json({ message: 'Las entregas de tipo Quiz se califican automáticamente y no pueden ser calificadas manualmente.' });
         }
         // Si activityType es null, algo salió mal al poblar, es un error interno
-         if (!activityType) {
-             console.error(`Error: No se pudo obtener el tipo de actividad para la asignación ${submission.assignment_id._id} en la entrega ${submissionId}`);
-              return res.status(500).json({ message: 'Error interno: No se pudo determinar el tipo de actividad.' });
+        if (!activityType) {
+            console.error(`Error: No se pudo obtener el tipo de actividad para la asignación ${submission.assignment_id._id} en la entrega ${submissionId}`);
+            return res.status(500).json({ message: 'Error interno: No se pudo determinar el tipo de actividad.' });
         }
         // --- Fin Verificación Tipo de Actividad ---
 
         // --- Validar Calificación contra Puntuación Máxima ---
-        const maxAssignmentPoints = submission.assignment_id.puntuacion_maxima;
-        // Validar que la calificación proporcionada no exceda la puntuación máxima si está definida.
-        if (maxAssignmentPoints !== undefined && typeof maxAssignmentPoints === 'number' && calificacion > maxAssignmentPoints) {
-             return res.status(400).json({ message: `La calificación (<span class="math-inline">\{calificacion\}\) no puede ser mayor que la puntuación máxima permitida \(</span>{maxAssignmentPoints}) para esta asignación.` });
+        const maxAssignmentPoints = submission.assignment_id.puntos_maximos; // Usar 'puntos_maximos'
+        // Validar que la calificación proporcionada no exceda la puntuación máxima si está definida y la calificación no es null.
+        if (calificacion !== null && maxAssignmentPoints !== undefined && typeof maxAssignmentPoints === 'number' && calificacion > maxAssignmentPoints) {
+            return res.status(400).json({ message: `La calificación (${calificacion}) no puede ser mayor que la puntuación máxima permitida (${maxAssignmentPoints}) para esta asignación.` });
         }
-         // --- Fin Validar Calificación ---
+        // --- Fin Validar Calificación ---
 
         // --- Actualizar la Entrega con Calificación y Retroalimentación ---
         submission.calificacion = calificacion; // Establece la calificación
         submission.retroalimentacion = retroalimentacion; // Establece la retroalimentación (puede ser null si no se proporciona)
-        submission.estado_envio = 'Calificado'; // Cambia el estado a 'Calificado'
+        submission.estado_envio = (calificacion === null || calificacion === undefined || calificacion === '') ? 'Enviado' : 'Calificado'; // Cambia el estado a 'Calificado' si hay calificación, de lo contrario 'Enviado'
 
         await submission.save(); // Guarda los cambios en la base de datos
         // --- Fin Actualizar Entrega ---
@@ -457,8 +461,8 @@ const gradeSubmission = async (req, res) => {
         res.status(200).json(submission); // Responde con la entrega actualizada (calificada)
 
     } catch (error) {
-         // Manejo de errores de validación de Mongoose (aunque ya validamos antes de guardar)
-         if (error.name === 'ValidationError') {
+        // Manejo de errores de validación de Mongoose (aunque ya validamos antes de guardar)
+        if (error.name === 'ValidationError') {
             const messages = Object.values(error.errors).map(val => val.message);
             return res.status(400).json({ message: 'Error de validación al calificar la entrega', errors: messages });
         }

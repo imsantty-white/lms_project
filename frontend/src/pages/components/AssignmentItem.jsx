@@ -62,7 +62,7 @@ const AssignmentItem = React.memo(({
   const statusLabel = statusOption ? statusOption.label : assignment.status;
 
   return (
-    <ListItem sx={{ pl: 4, borderBottom: '1px dashed #eee' }}>
+    <ListItem sx={{ pl: 4, borderBottom: '1px dashed, #eee' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
         <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', pr: 2 }}>
           <ListItemIcon sx={{ minWidth: 40 }}>

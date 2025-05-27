@@ -111,6 +111,7 @@ function TeacherAssignmentSubmissionsPage() {
           sub._id === selectedSubmission._id ? response.data : sub
         )
       );
+      handleCloseDetailsModal();
     } catch (err) {
       console.error('Error saving grade:', err.response ? err.response.data : err.message);
       const errorMessage = err.response?.data?.message || 'Error al guardar la calificación.';
@@ -246,7 +247,9 @@ return (
                     {/* *** COMIENZO DE LAS CELDAS DE DATOS *** */}
                     <TableCell component="th" scope="row">
                       {/* Mostrar nombre del estudiante populado */}
-                      {submission.student_id ? `${submission.student_id.nombre} ${submission.student_id.apellidos}` : 'Estudiante Desconocido'}
+                      {submission.student_id && submission.student_id.nombre && submission.student_id.apellidos
+                      ? `${submission.student_id.nombre} ${submission.student_id.apellidos}`
+                      : 'Estudiante Desconocido'}
                     </TableCell>
                     <TableCell align="center">{submission.attempt_number}</TableCell>
                     <TableCell align="center">
@@ -342,7 +345,9 @@ return (
                 Información del Estudiante
               </Typography>
               <Typography variant="subtitle1" fontWeight="medium">
-                {selectedSubmission.student_id ? `${selectedSubmission.student_id.nombre} ${selectedSubmission.student_id.apellidos}` : 'Desconocido'}
+                {selectedSubmission.student_id && selectedSubmission.student_id.nombre && selectedSubmission.student_id.apellidos
+                ? `${selectedSubmission.student_id.nombre} ${selectedSubmission.student_id.apellidos}`
+                : 'Desconocido'}
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 1, gap: 2 }}>
                 <Typography variant="body2" color="text.secondary">
