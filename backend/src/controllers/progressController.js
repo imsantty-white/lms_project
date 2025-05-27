@@ -4,6 +4,9 @@ const Progress = require('../models/ProgressModel'); // Modelo de Progreso
 const LearningPath = require('../models/LearningPathModel'); // Necesario para verificar la ruta y obtener grupo
 const Theme = require('../models/ThemeModel'); // Necesario para verificar que el tema existe y pertenece a la ruta
 const Module = require('../models/ModuleModel'); // Necesario para popular el módulo del tema
+const ContentAssignment = require('../models/ContentAssignmentModel'); // Para obtener actividades
+const Activity = require('../models/ActivityModel'); // Para obtener detalles de actividades
+const Submission = require('../models/SubmissionModel'); // Para obtener envíos de actividades
 const Membership = require('../models/MembershipModel'); // Necesario para verificar la membresía del estudiante
 const Group = require('../models/GroupModel'); // Necesario para verificación de propiedad del grupo por docente
 const User = require('../models/UserModel');   // Necesario para poblar detalles del estudiante
@@ -139,58 +142,26 @@ const updateThemeProgress = async (req, res) => {
         // --- Fin Actualizar o Añadir Entrada de Tema ---
 
 
-        // --- Guardar el Documento de Progreso con la actualización del tema (Guardado intermedio) ---
-        // Guardamos los cambios del tema antes de verificar el estado de la ruta completa.
-        // Si la ruta se marca como completada, se guardará de nuevo.
-        await progress.save();
-        // --- Fin Guardar (intermedio) ---
-
-
-        // --- Implementar Lógica de Completado de Ruta Automático ---
-        // Esta verificación solo se realiza si un tema acaba de ser marcado como 'Completado' en esta petición
-        // Y si la ruta no estaba ya marcada como 'Completado' anteriormente
-        if (themeStatusJustCompleted && progress.path_status !== 'Completado') {
-
-            // 1. Obtener todos los IDs de todos los temas que pertenecen a esta ruta de aprendizaje
-            // (Necesitamos saber cuántos temas totales hay y cuáles son sus IDs)
-            const modulesInPath = await Module.find({ learning_path_id: learningPathId }).select('_id'); // Obtiene IDs de módulos de la ruta
-            const moduleIds = modulesInPath.map(m => m._id); // Extrae los IDs como array
-            // Busca todos los temas que pertenecen a esos módulos
-            const themesInPath = await Theme.find({ module_id: { $in: moduleIds } }).select('_id');
-            const allThemeIdsInPath = themesInPath.map(t => t._id.toString()); // Extrae los IDs de temas y los convierte a string para comparar fácilmente
-
-            // 2. Obtener los IDs de los temas que el estudiante SÍ ha marcado como 'Completado' en su progreso actual
-            // Es importante usar el documento de progreso DESPUÉS de la actualización del tema, para que incluya el último tema completado.
-            const completedThemeIdsByStudent = progress.completed_themes
-                .filter(entry => entry.status === 'Completado') // Filtra solo las entradas marcadas como 'Completado'
-                .map(entry => entry.theme_id.toString()); // Extrae los IDs de los temas completados como string
-
-            // 3. Comparar los conjuntos de IDs: ¿Todos los temas de la ruta están en la lista de temas 'Completado' del estudiante?
-            // Esto se cumple si:
-            // - La ruta tiene temas definidos (para evitar marcar como completo una ruta vacía).
-            // - El número de temas completados por el estudiante es igual al número total de temas en la ruta.
-            // - Cada ID de tema en la lista total de temas está presente en la lista de temas completados por el estudiante.
-            const allThemesInPathCompletedByStudent = allThemeIdsInPath.length > 0 && // Asegurarse de que la ruta tiene temas
-                                                       completedThemeIdsByStudent.length === allThemeIdsInPath.length && // El número de temas completados coincide con el total
-                                                       allThemeIdsInPath.every(themeId => completedThemeIdsByStudent.includes(themeId)); // Cada tema total está en la lista de completados
-
-
-            // 4. Si TODOS los temas de la ruta están completados por el estudiante
-            if (allThemesInPathCompletedByStudent) {
-                // Actualizar el estado general de la ruta a 'Completado' y registrar la fecha de finalización
-                progress.path_status = 'Completado';
-                progress.path_completion_date = new Date();
-
-                // Guardar el documento de progreso nuevamente para persistir el estado de 'Completado' de la ruta
-                await progress.save();
-                console.log(`Ruta de aprendizaje ${learningPathId} marcada como completada automáticamente para estudiante ${studentId}`);
-                // Opcional: Podrías añadir lógica aquí para dar una insignia, enviar una notificación, etc.
-            }
+        // --- Guardar el Documento de Progreso ---
+        // El path_status general ('En Progreso', 'Completado') se recalcula ahora
+        // principalmente a través de getStudentProgressForPath basado en actividades.
+        // Aquí, solo nos aseguramos de que si estaba 'No Iniciado', pase a 'En Progreso'.
+        // Si ya estaba 'Completado' (por actividades), ver un tema no debería cambiarlo a 'En Progreso'.
+        if (progress.path_status === 'No Iniciado') {
+            progress.path_status = 'En Progreso';
         }
-        // --- Fin Lógica de Completado de Ruta Automático ---
+        // No hay lógica de completado automático por temas aquí.
+        // El estado 'Completado' de la ruta se determinará por la completitud de actividades
+        // y se actualizará en la base de datos por getStudentProgressForPath o un proceso similar
+        // cuando se califique una actividad.
 
+        await progress.save();
+        // --- Fin Guardar ---
 
-        // Responde con el documento de progreso (potencialmente actualizado de nuevo si la ruta se marcó como completada)
+        // Responde con el documento de progreso actualizado
+        // Es importante notar que este 'progress' devuelto aquí podría no tener el path_status
+        // más actualizado si una calificación de actividad acaba de ocurrir en paralelo.
+        // El frontend debería confiar más en getStudentProgressForPath para el estado general.
         res.status(200).json(progress);
 
     } catch (error) {
@@ -218,45 +189,28 @@ const getStudentProgressForPath = async (req, res) => {
     }
 
     try {
-        // --- Buscar el documento de progreso del estudiante para esta ruta ---
-        // Se busca por el ID del estudiante autenticado y el ID de la ruta.
-        // Se pueblan los IDs de los temas completados/vistos para mostrar su nombre.
-        const progress = await Progress.findOne({
-            student_id: studentId,
-            learning_path_id: learningPathId
-        })
-        .populate('completed_themes.theme_id', 'nombre orden module_id'); // Poblar nombre, orden y module_id del tema
-
-        // --- Verificación de Permiso Adicional (Opcional pero robusto) ---
-        // Aunque si existe un documento de progreso, implica que el estudiante interactuó
-        // con la ruta (y debió ser miembro). Podemos añadir una verificación
-        // explícita de membresía aprobada actual para mayor seguridad.
+        // --- Verificación de Permiso Adicional y Existencia de Ruta ---
         const learningPath = await LearningPath.findById(learningPathId).populate('group_id');
-         if (!learningPath || !learningPath.group_id) {
-             // Esto no debería pasar si el progress doc existe, pero salvaguarda
-             console.error(`Error: Progreso existe para ruta incompleta ${learningPathId}`);
-             return res.status(500).json({ message: 'Error interno del servidor: ruta incompleta.' });
-         }
+        if (!learningPath || !learningPath.group_id) {
+            return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada o incompleta.' });
+        }
+        const groupId = learningPath.group_id._id;
+
         const approvedMembership = await Membership.findOne({
-             usuario_id: studentId,
-             grupo_id: learningPath.group_id._id,
-             estado_solicitud: 'Aprobado'
-         });
-         // Si no es miembro aprobado actual, no puede ver el progreso (incluso si tuvo un doc de progreso antes)
-         if (!approvedMembership) {
-             return res.status(403).json({ message: 'No tienes permiso para ver el progreso de esta ruta (no eres miembro aprobado del grupo).' });
-         }
+            usuario_id: studentId,
+            grupo_id: groupId,
+            estado_solicitud: 'Aprobado'
+        });
+        if (!approvedMembership) {
+            return res.status(403).json({ message: 'No tienes permiso para ver el progreso de esta ruta (no eres miembro aprobado del grupo).' });
+        }
         // --- Fin Verificación Adicional ---
 
+        // Llamar a la función helper para calcular y obtener el progreso
+        const progressResult = await _calculateAndUpdatePathProgress(studentId, learningPathId, groupId);
 
-        if (!progress) {
-            // Si no se encuentra un documento de progreso, significa que el estudiante no ha iniciado esta ruta.
-            // Devolvemos 200 OK con un mensaje indicando que no ha iniciado y progress: null o un estado inicial.
-             return res.status(200).json({ message: 'Progreso no iniciado para esta ruta de aprendizaje', progress: { path_status: 'No Iniciado', completed_themes: [] } });
-        }
-
-        // Si se encontró el progreso, se devuelve
-        res.status(200).json(progress);
+        // Devolver el resultado del progreso
+        res.status(200).json(progressResult);
 
     } catch (error) {
         console.error('Error al obtener progreso del estudiante para ruta:', error);
@@ -442,7 +396,158 @@ const getSpecificStudentProgressForPathForDocente = async (req, res) => {
 
 module.exports = {
     updateThemeProgress,
-    getStudentProgressForPath, // Exporta la nueva función
-    getAllStudentProgressForPathForDocente, // Exporta la nueva función
-    getSpecificStudentProgressForPathForDocente // Exporta la nueva función
+    getStudentProgressForPath,
+    getAllStudentProgressForPathForDocente,
+    getSpecificStudentProgressForPathForDocente,
+    triggerActivityBasedProgressUpdate // Exportar la nueva función de trigger
+};
+
+// --- Helper Function para Calcular y Actualizar el Progreso del Estudiante en una Ruta ---
+// Esta función no es un controlador de ruta, sino una utilidad interna.
+// El groupIdFromPath debe ser el ID del grupo al que pertenece la ruta de aprendizaje.
+const _calculateAndUpdatePathProgress = async (studentId, learningPathId, groupIdFromPath) => {
+    // Validaciones básicas de IDs (opcional aquí si se asume que ya están validados por el llamador)
+    if (!mongoose.Types.ObjectId.isValid(studentId) || 
+        !mongoose.Types.ObjectId.isValid(learningPathId) ||
+        !mongoose.Types.ObjectId.isValid(groupIdFromPath)) {
+        console.error('Error en _calculateAndUpdatePathProgress: IDs inválidos proporcionados.');
+        // Podría lanzar un error o devolver un objeto de error específico
+        throw new Error('IDs inválidos para calcular el progreso.'); 
+    }
+
+    // --- Obtener todas las actividades de la ruta de aprendizaje ---
+    const modulesInPath = await Module.find({ learning_path_id: learningPathId }).select('_id');
+    const moduleIds = modulesInPath.map(m => m._id);
+    
+    const themesInModules = await Theme.find({ module_id: { $in: moduleIds } }).select('_id');
+    const themeIds = themesInModules.map(t => t._id);
+    
+    const contentAssignments = await ContentAssignment.find({
+        theme_id: { $in: themeIds },
+        group_id: groupIdFromPath, // Usar el groupId proporcionado
+        tipo_contenido: 'Actividad'
+    }).populate('activity_id');
+
+    const activities = contentAssignments
+        .filter(ca => ca.activity_id)
+        .map(ca => ca.activity_id); 
+    
+    const total_activities = activities.length;
+    let graded_activities = 0;
+    let path_status = 'No Iniciado';
+
+    let progressDoc = await Progress.findOne({
+        student_id: studentId,
+        learning_path_id: learningPathId
+    }).populate('completed_themes.theme_id', 'nombre orden module_id');
+
+    if (total_activities > 0) {
+        const contentAssignmentIds = contentAssignments.map(ca => ca._id);
+        const submissions = await Submission.find({
+            student_id: studentId,
+            assignment_id: { $in: contentAssignmentIds },
+        });
+        graded_activities = submissions.filter(sub => sub.estado_envio === 'Calificado').length;
+
+        if (graded_activities === total_activities) {
+            path_status = 'Completado';
+        } else if (graded_activities > 0 || (progressDoc && progressDoc.completed_themes && progressDoc.completed_themes.length > 0)) {
+            path_status = 'En Progreso';
+        } else {
+             if (progressDoc && progressDoc.completed_themes && progressDoc.completed_themes.length === 0 && graded_activities === 0) {
+                path_status = 'No Iniciado';
+             } else if (!progressDoc && graded_activities === 0) {
+                path_status = 'No Iniciado';
+             } else {
+                path_status = 'En Progreso'; 
+             }
+        }
+    } else { // No hay actividades en la ruta
+        path_status = 'No Iniciado'; 
+        if (progressDoc && progressDoc.completed_themes && progressDoc.completed_themes.length > 0) {
+            path_status = 'En Progreso';
+            const themesInPath = await Theme.find({ module_id: { $in: moduleIds } }).select('_id'); // Re-usar moduleIds
+            const allThemeIdsInPath = themesInPath.map(t => t._id.toString());
+            const viewedOrCompletedThemeIdsByStudent = progressDoc.completed_themes
+                .map(entry => entry.theme_id._id.toString());
+            
+            const allThemesViewedOrCompleted = allThemeIdsInPath.length > 0 &&
+                allThemeIdsInPath.every(themeId => viewedOrCompletedThemeIdsByStudent.includes(themeId));
+
+            if (allThemesViewedOrCompleted) {
+                path_status = 'Completado';
+            }
+        }
+    }
+
+    // Actualizar o crear el documento de progreso en la BD
+    if (progressDoc) {
+        if (progressDoc.path_status !== path_status || 
+            (path_status === 'Completado' && !progressDoc.path_completion_date) ||
+            (path_status !== 'Completado' && progressDoc.path_completion_date)) {
+            
+            progressDoc.path_status = path_status;
+            if (path_status === 'Completado') {
+                progressDoc.path_completion_date = progressDoc.path_completion_date || new Date();
+            } else {
+                progressDoc.path_completion_date = null; 
+            }
+            await progressDoc.save();
+        }
+    } else if (path_status !== 'No Iniciado') {
+        progressDoc = new Progress({ // Asignar a progressDoc para que se devuelva
+            student_id: studentId,
+            learning_path_id: learningPathId,
+            group_id: groupIdFromPath,
+            path_status: path_status,
+            completed_themes: [], 
+            path_completion_date: path_status === 'Completado' ? new Date() : null
+        });
+        await progressDoc.save();
+    }
+
+    // Devolver el estado calculado y los conteos (similar a la respuesta original)
+    return {
+        path_status: path_status,
+        total_activities: total_activities,
+        graded_activities: graded_activities,
+        completed_themes: progressDoc ? progressDoc.completed_themes : [],
+        _id: progressDoc ? progressDoc._id : null,
+        student_id: studentId,
+        learning_path_id: learningPathId,
+        group_id: groupIdFromPath,
+        path_completion_date: progressDoc ? progressDoc.path_completion_date : (path_status === 'Completado' ? new Date() : null)
+    };
+};
+
+// --- Función de Trigger Exportada ---
+// Esta función será llamada desde otros controladores (ej: submissionController)
+const triggerActivityBasedProgressUpdate = async (studentId, learningPathId) => {
+    if (!mongoose.Types.ObjectId.isValid(studentId) || !mongoose.Types.ObjectId.isValid(learningPathId)) {
+        console.error('triggerActivityBasedProgressUpdate: IDs inválidos.', { studentId, learningPathId });
+        // Considerar lanzar un error o devolver un estado de fallo
+        return { success: false, message: 'IDs inválidos.' };
+    }
+
+    try {
+        // 1. Obtener el learningPath para conseguir el group_id
+        const learningPath = await LearningPath.findById(learningPathId).select('group_id');
+        if (!learningPath || !learningPath.group_id) {
+            console.error(`triggerActivityBasedProgressUpdate: Ruta de aprendizaje ${learningPathId} no encontrada o sin group_id.`);
+            return { success: false, message: 'Ruta de aprendizaje no encontrada o incompleta.' };
+        }
+        const groupId = learningPath.group_id;
+
+        // 2. Llamar a la función helper principal
+        // El helper ya maneja el guardado en la BD y devuelve el estado del progreso
+        const progressResult = await _calculateAndUpdatePathProgress(studentId, learningPathId, groupId);
+        
+        console.log(`Progreso actualizado para estudiante ${studentId} en ruta ${learningPathId} vía trigger. Nuevo estado: ${progressResult.path_status}`);
+        return { success: true, data: progressResult };
+
+    } catch (error) {
+        console.error(`Error en triggerActivityBasedProgressUpdate para estudiante ${studentId}, ruta ${learningPathId}:`, error);
+        // Devolver un objeto de error o lanzar el error para que el llamador lo maneje
+        return { success: false, message: 'Error interno al actualizar el progreso.', error: error.message };
+    }
 };

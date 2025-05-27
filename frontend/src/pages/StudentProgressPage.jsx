@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth, axiosInstance } from '../contexts/AuthContext';
 import {
-  Container, Box, Typography, LinearProgress, Paper, List, ListItem, ListItemText, Chip, Divider, CircularProgress, Alert
+  Container, Box, Typography, LinearProgress, Paper, List, ListItem, ListItemText, Chip, Divider, CircularProgress, Alert, Snackbar
 } from '@mui/material';
 
 function StudentProgressPage() {
@@ -10,26 +10,34 @@ function StudentProgressPage() {
   const [selectedPath, setSelectedPath] = useState(null);
   const [progress, setProgress] = useState(null);
   const [activities, setActivities] = useState([]);
-  const [loading, setLoading] = useState(false); // Cambiar a false inicialmente
-  const [loadingPaths, setLoadingPaths] = useState(false); // Para la carga de rutas
+  const [loading, setLoading] = useState(false); 
+  const [loadingPaths, setLoadingPaths] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false); // State for Snackbar
 
-  // Traducción optimizada de estados
+  // Traducción de estados para el progreso de la ruta y estado de actividades
   const STATUS_TRANSLATIONS = {
+    // Para path_status desde el backend
+    'completado': 'completed',
+    'en progreso': 'in progress',
+    'no iniciado': 'not started',
+    // Para estados de actividades/asignaciones (existentes)
     open: 'Abierto',
     closed: 'Cerrado',
     draft: 'Borrador',
-    pending: 'Pendiente',
-    submitted: 'Entregado',
-    graded: 'Calificado',
-    completed: 'Completado',
-    in_progress: 'En progreso',
-    not_started: 'No iniciado'
+    // Para estados de entrega (existentes)
+    pending: 'Pendiente', // Usado para actividad.lastSubmission no existente
+    submitted: 'Entregado', // Usado para actividad.lastSubmission.estado_envio
+    graded: 'Calificado', // Usado para actividad.lastSubmission.estado_envio
+    // Nuevos estados para la interfaz de actividades (si es necesario, o usar los de arriba)
+    'pendiente de entrega': 'Pendiente de entrega',
+    'pendiente de calificar': 'Pendiente de calificar'
   };
-
-  const translateStatus = (status) => {
-    if (!status) return 'Desconocido';
-    return STATUS_TRANSLATIONS[status.toLowerCase()] || 
-           status.charAt(0).toUpperCase() + status.slice(1);
+  
+  const translateStatus = (statusKey) => {
+    if (!statusKey) return 'Desconocido';
+    const lowerStatusKey = statusKey.toLowerCase();
+    return STATUS_TRANSLATIONS[lowerStatusKey] || 
+           statusKey.charAt(0).toUpperCase() + statusKey.slice(1);
   };
 
   // 1. Cargar rutas de aprendizaje asignadas al estudiante
@@ -51,17 +59,28 @@ function StudentProgressPage() {
   useEffect(() => {
     if (selectedPath) {
       setLoading(true);
-      setProgress(null); // Limpiar datos anteriores
+      setProgress(null); 
       setActivities([]);
+      setSnackbarOpen(false); // Close snackbar when new path is selected or data is being fetched
       
       Promise.all([
         axiosInstance.get(`/api/progress/my/${selectedPath._id}`),
-        axiosInstance.get(`/api/learning-paths/${selectedPath._id}/activities/student`) 
+        axiosInstance.get(`/api/learning-paths/${selectedPath._id}/activities/student`)
       ]).then(([progressRes, activitiesRes]) => {
-        setProgress(progressRes.data.progress);
-        setActivities(activitiesRes.data.activities);
+        const newProgressData = progressRes.data;
+        setProgress(newProgressData); 
+        setActivities(activitiesRes.data.activities || []); 
+
+        if (newProgressData && newProgressData.path_status === 'No Iniciado') {
+          setSnackbarOpen(true);
+        } else {
+          setSnackbarOpen(false); 
+        }
       }).catch(error => {
-        console.error('Error loading progress and activities:', error);
+        console.error('Error loading progress or activities:', error);
+        setProgress(null); 
+        setActivities([]);
+        setSnackbarOpen(false); // Ensure snackbar is closed on error
         // Opcional: mostrar mensaje de error
       }).finally(() => {
         setLoading(false);
@@ -120,54 +139,75 @@ function StudentProgressPage() {
       {/* Mostrar progreso solo si hay una ruta seleccionada y no está cargando */}
       {selectedPath && !loading && progress && (
         <Paper sx={{ p: 3, mb: 3 }}>
-          <Typography variant="h6">Progreso en la Ruta</Typography>
-          <LinearProgress
-            variant="determinate"
-            value={progress.completed_themes.length / progress.total_themes * 100}
-            sx={{ height: 10, borderRadius: 5, my: 2 }}
-          />
-          <Typography>
-            {progress.completed_themes.length} de {progress.total_themes} temas completados
+          <Typography variant="h6" gutterBottom>
+            Progreso en la Ruta: {translateStatus(progress.path_status)}
           </Typography>
+          
+          {progress.total_activities > 0 ? (
+            <>
+              <LinearProgress
+                variant="determinate"
+                value={(progress.graded_activities / progress.total_activities) * 100}
+                sx={{ height: 10, borderRadius: 5, my: 2 }}
+              />
+              <Typography>
+                {progress.graded_activities} de {progress.total_activities} actividades calificadas
+              </Typography>
+            </>
+          ) : (
+            <Typography variant="body2" color="text.secondary" sx={{ my: 2 }}>
+              {progress.path_status === 'Completado' 
+                ? 'Completado (sin actividades asignadas)' 
+                : 'No hay actividades asignadas en esta ruta para medir el progreso.'}
+            </Typography>
+          )}
         </Paper>
       )}
 
       {/* Mostrar actividades solo si hay una ruta seleccionada y no está cargando */}
       {selectedPath && !loading && (
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="h6" gutterBottom>Actividades</Typography>
-          {activities.length > 0 ? (
+         <Paper sx={{ p: 3, mt: 3 }}> {/* Añadido margen superior para separar de la sección de progreso */}
+          <Typography variant="h6" gutterBottom>Detalle de Actividades</Typography>
+          {activities && activities.length > 0 ? ( // Comprobar que activities existe y tiene items
             <List>
               {activities.map(act => (
-                <React.Fragment key={act._id}>
+                <React.Fragment key={act.activity_id?._id || act._id}> {/* Usar activity_id._id si está poblado, sino act._id */}
                   <ListItem>
                     <ListItemText
-                      primary={act.title}
+                      primary={act.activity_id?.title || 'Título no disponible'} // Acceder al título desde activity_id poblado
                       secondary={
                         <>
-                          <Typography variant="body2">Estado: {translateStatus(act.status)}</Typography>
                           <Typography variant="body2">
-                            Calificación: {act.lastSubmission?.calificacion !== undefined
+                            Estado de la asignación: {translateStatus(act.status)} 
+                          </Typography>
+                          <Typography variant="body2">
+                            Tu calificación: {act.lastSubmission?.calificacion !== undefined && act.lastSubmission?.calificacion !== null
                               ? act.lastSubmission.calificacion
-                              : 'Pendiente'}
+                              : 'N/A'} 
+                          </Typography>
+                           <Typography variant="body2">
+                            Estado de tu entrega: {act.lastSubmission 
+                                ? translateStatus(act.lastSubmission.estado_envio)
+                                : translateStatus('pendiente de entrega')
+                            }
                           </Typography>
                         </>
                       }
                     />
-                    <Chip
+                     <Chip
                         label={
                             !act.lastSubmission
-                            ? 'Pendiente de entrega'
-                            : act.lastSubmission.estado_envio === 'Calificado'
-                                ? 'Calificado'
-                                : 'Pendiente de calificar'
+                            ? translateStatus('pendiente de entrega') // Usar translateStatus
+                            : translateStatus(act.lastSubmission.estado_envio) // Usar translateStatus
                         }
                         color={
                             !act.lastSubmission
                             ? 'default'
                             : act.lastSubmission.estado_envio === 'Calificado'
                                 ? 'success'
-                                : 'warning'
+                                : act.lastSubmission.estado_envio === 'Enviado'
+                                    ? 'warning'
+                                    : 'default' // Para 'Pendiente' u otros
                         }
                         />
                   </ListItem>
@@ -177,7 +217,7 @@ function StudentProgressPage() {
             </List>
           ) : (
             <Typography variant="body2" color="text.secondary">
-              No hay actividades disponibles para esta ruta.
+              No hay actividades disponibles o asignadas para esta ruta.
             </Typography>
           )}
         </Paper>
@@ -196,6 +236,17 @@ function StudentProgressPage() {
           No tienes rutas de aprendizaje asignadas.
         </Alert>
       )}
+
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={6000}
+        onClose={() => setSnackbarOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setSnackbarOpen(false)} severity="info" sx={{ width: '100%' }}>
+          Esta ruta de aprendizaje aún no ha sido iniciada. ¡Es hora de empezar!
+        </Alert>
+      </Snackbar>
     </Container>
   );
 }
