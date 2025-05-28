@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import AssignmentItem from './AssignmentItem'; // Adjust path as necessary
+import AssignmentItem from '../components/AssignmentItem'; // Adjust path as necessary
 import '@testing-library/jest-dom';
 
 // Mock data and functions
