@@ -67,25 +67,36 @@ function TeacherManageGroupPage() {
         // Tu backend debe verificar que el docente logueado ES el dueño de este grupo
         const response = await axiosInstance.get(`/api/groups/${groupId}`); // <-- Asume este endpoint
 
-        // Asume que el backend devuelve el objeto del grupo en response.data
-        setGroup(response.data);
+            // Asume que el backend devuelve el objeto del grupo en response.data
+            setGroup(response.data);
 
-        if (!hasShownGroupSuccessToast.current) {
-            toast.success('Detalles del grupo cargados.');
-            hasShownGroupSuccessToast.current = true;
+            if (!hasShownGroupSuccessToast.current) {
+                toast.success('Detalles del grupo cargados.');
+                hasShownGroupSuccessToast.current = true;
+            }
+
+        } catch (err) {
+            console.error(`Error al obtener detalles del grupo ${groupId}:`, err.response ? err.response.data : err.message);
+
+            const backendMessage = err.response && err.response.data && err.response.data.message;
+            let displayMessage = 'Error al cargar los detalles del grupo.';
+
+            // Verificamos si el mensaje del backend es el que indica que el grupo no está activo
+            if (backendMessage === "Tu grupo no está activo, seguramente está archivado y no puedes ver los detalles.") {
+                displayMessage = backendMessage; // Usamos el mensaje del backend directamente
+                toast.info(displayMessage); // Cambiamos a toast.info para un mensaje menos "agresivo"
+            } else {
+                // Para otros errores, mantenemos el comportamiento original de error
+                displayMessage = backendMessage || 'Error al cargar los detalles del grupo.';
+                toast.error(displayMessage);
+            }
+            
+            setErrorGroup(displayMessage);
+            hasShownGroupSuccessToast.current = false;
+
+        } finally {
+            setIsLoadingGroup(false);
         }
-
-      } catch (err) {
-        console.error(`Error al obtener detalles del grupo ${groupId}:`, err.response ? err.response.data : err.message);
-        const errorMessage = err.response && err.response.data && err.response.data.message
-          ? err.response.data.message
-          : 'Error al cargar los detalles del grupo.';
-        setErrorGroup(errorMessage);
-        toast.error('Error al cargar detalles del grupo.');
-        hasShownGroupSuccessToast.current = false;
-      } finally {
-        setIsLoadingGroup(false);
-      }
     };
 
     // *** CONDICIÓN CLAVE: Esperar a que la Auth esté inicializada Y autenticado ***

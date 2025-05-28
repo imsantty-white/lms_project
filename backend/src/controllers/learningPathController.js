@@ -536,17 +536,22 @@ const getGroupLearningPathsForStudent = async (req, res) => {
 // @route   GET /api/learning-paths/:pathId/structure
 // Acceso: Privado/Docente (dueño del grupo) O Estudiante (miembro aprobado del grupo)
 const getLearningPathStructure = async (req, res) => {
-    const { pathId } = req.params; // ID de la ruta de aprendizaje de la URL
-    const userId = req.user._id; // ID del usuario autenticado
+    const { pathId } = req.params;
+    const userId = req.user._id;
     const userType = req.user.tipo_usuario;
 
     try {
         // --- Verificación de Permiso: Asegurar que el usuario tiene permiso para ver esta ruta ---
         // Primero, buscar la ruta y poblar el grupo asociado
-        const learningPath = await LearningPath.findById(pathId).populate({ path: 'group_id', select: '_id nombre activo docente_id' });
+        const learningPath = await LearningPath.findById(pathId).populate({ path: 'group_id', select: '_id nombre activo docente_id' }); // <<< Asegúrate de seleccionar 'activo' del grupo
 
         if (!learningPath) {
             return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada' });
+        }
+
+        // *** AJUSTE CLAVE AQUI: Si el grupo asociado a la ruta NO está activo, denegar acceso. ***
+        if (learningPath.group_id && !learningPath.group_id.activo) {
+            return res.status(403).json({ message: 'El grupo asociado a esta ruta de aprendizaje ha sido archivado y no puedes acceder a su contenido.' });
         }
 
         let canView = false;
@@ -558,28 +563,26 @@ const getLearningPathStructure = async (req, res) => {
         // Si es Estudiante, verificar si es miembro aprobado del grupo de la ruta
         } else if (userType === 'Estudiante') {
             if (learningPath.group_id) {
-                 const approvedMembership = await Membership.findOne({
-                     usuario_id: userId,
-                     grupo_id: learningPath.group_id._id,
-                     estado_solicitud: 'Aprobado'
-                 });
-                 if (approvedMembership) {
-                     canView = true;
-                 }
+                const approvedMembership = await Membership.findOne({
+                    usuario_id: userId,
+                    grupo_id: learningPath.group_id._id,
+                    estado_solicitud: 'Aprobado'
+                });
+                if (approvedMembership) {
+                    canView = true;
+                }
             }
         }
 
         // Si el usuario no es ni el docente dueño ni un estudiante miembro aprobado
         if (!canView) {
-            return res.status(403).json({ message: 'No tienes permiso para ver esta ruta de aprendizaje' }); // 403 Forbidden
+            return res.status(403).json({ message: 'No tienes permiso para ver esta ruta de aprendizaje o el grupo ha sido archivado.' });
         }
         // --- Fin Verificación de Permiso ---
 
-        // Si el usuario tiene permiso, obtener la estructura completa de la ruta
-        // Obtenemos Módulos -> Temas -> Asignaciones de Contenido -> Contenido (Recursos/Actividades)
+        // Si el usuario tiene permiso y el grupo está activo, obtener la estructura completa
         const modules = await Module.find({ learning_path_id: pathId }).sort('orden');
 
-        // Creamos el objeto de respuesta estructurado jerárquicamente
         const pathStructure = {
             _id: learningPath._id,
             nombre: learningPath.nombre,
@@ -587,15 +590,16 @@ const getLearningPathStructure = async (req, res) => {
             fecha_inicio: learningPath.fecha_inicio,
             fecha_fin: learningPath.fecha_fin,
             activo: learningPath.activo,
-            group_id: learningPath.group_id ? { // Ensure group_id is populated
+            // Asegúrate de enviar el estado 'activo' del grupo al frontend
+            group_id: learningPath.group_id ? {
                 _id: learningPath.group_id._id,
                 nombre: learningPath.group_id.nombre,
-                activo: learningPath.group_id.activo
+                activo: learningPath.group_id.activo // <<< IMPORTANTE: Pasar el estado activo del grupo
             } : null,
-            modules: [] // Array para los módulos
+            modules: []
         };
 
-        // Iterar sobre cada módulo para obtener sus temas y asignaciones
+        // ... (el resto de tu lógica para poblar módulos, temas, asignaciones) ...
         for (const module of modules) {
             const themes = await Theme.find({ module_id: module._id }).sort('orden');
             const moduleObject = {
@@ -603,22 +607,20 @@ const getLearningPathStructure = async (req, res) => {
                 nombre: module.nombre,
                 descripcion: module.descripcion,
                 orden: module.orden,
-                themes: [] // Array para los temas
+                themes: []
             };
 
-            // Iterar sobre cada tema para obtener sus asignaciones de contenido
             for (const theme of themes) {
-                // Buscar asignaciones para este tema y poblar los detalles del contenido (Recurso o Actividad)
                 const assignments = await ContentAssignment.find({ theme_id: theme._id }).sort('orden')
-                    .populate({ path: 'resource_id', select: '_id title type link_url video_url content_body' }) 
-                    .populate({ path: 'activity_id', select: '_id title type' }); 
+                    .populate({ path: 'resource_id', select: '_id title type link_url video_url content_body' })
+                    .populate({ path: 'activity_id', select: '_id title type' });
 
-                 const themeObject = {
-                     _id: theme._id,
-                     nombre: theme.nombre,
-                     descripcion: theme.descripcion,
-                     orden: theme.orden,
-                     assignments: assignments.map(assign => ({
+                const themeObject = {
+                    _id: theme._id,
+                    nombre: theme.nombre,
+                    descripcion: theme.descripcion,
+                    orden: theme.orden,
+                    assignments: assignments.map(assign => ({
                         _id: assign._id,
                         type: assign.type,
                         orden: assign.orden,
@@ -626,9 +628,6 @@ const getLearningPathStructure = async (req, res) => {
                         fecha_inicio: assign.fecha_inicio,
                         fecha_fin: assign.fecha_fin,
                         puntos_maximos: assign.puntos_maximos,
-                        // Incluir otros campos directos de ContentAssignmentModel si son esenciales
-                        // visible_a_estudiantes: assign.visible_a_estudiantes, 
-                        // obligatorio: assign.obligatorio,
                         resource_id: assign.type === 'Resource' && assign.resource_id ? {
                             _id: assign.resource_id._id,
                             title: assign.resource_id.title,
@@ -643,13 +642,13 @@ const getLearningPathStructure = async (req, res) => {
                             type: assign.activity_id.type
                         } : null,
                     }))
-                 };
-                 moduleObject.themes.push(themeObject); // Añade el tema (con asignaciones) al módulo
+                };
+                moduleObject.themes.push(themeObject);
             }
-            pathStructure.modules.push(moduleObject); // Añade el módulo (con temas) a la ruta
+            pathStructure.modules.push(moduleObject);
         }
 
-        res.status(200).json(pathStructure); // Responde con la estructura completa
+        res.status(200).json(pathStructure);
 
     } catch (error) {
         console.error('Error al obtener la estructura de la ruta de aprendizaje:', error);
@@ -664,12 +663,22 @@ const getMyAssignedLearningPaths = async (req, res) => {
     try {
         const userId = req.user._id;
 
+        // Paso 1: Obtener las membresías aprobadas del estudiante.
+        // Es crucial popular el 'grupo_id' y seleccionar el campo 'activo' del grupo.
         const approvedMemberships = await Membership.find({
             usuario_id: userId,
             estado_solicitud: 'Aprobado'
-        }).select('grupo_id');
+        }).populate({
+            path: 'grupo_id',
+            select: 'activo' // <-- IMPORTANTE: Incluir el campo 'activo' del grupo
+        });
 
-        if (approvedMemberships.length === 0) {
+        // Paso 2: Filtrar los IDs de los grupos que están activos (no archivados).
+        const activeGroupIds = approvedMemberships
+            .filter(membership => membership.grupo_id && membership.grupo_id.activo) // <-- Filtrar por grupo.activo
+            .map(membership => membership.grupo_id._id);
+
+        if (activeGroupIds.length === 0) {
             return res.status(200).json({
                 success: true,
                 count: 0,
@@ -677,26 +686,28 @@ const getMyAssignedLearningPaths = async (req, res) => {
             });
         }
 
-        const approvedGroupIds = approvedMemberships.map(membership => membership.grupo_id);
-
-        // 1. Popula la ruta de aprendizaje y el grupo
+        // Paso 3: Buscar las Rutas de Aprendizaje asociadas SOLO a los grupos activos.
+        // No es necesario poblar el grupo aquí nuevamente si ya lo tenemos filtrado,
+        // pero lo hacemos para obtener el nombre del grupo si lo necesitas en la respuesta.
         const rawAssignedPaths = await LearningPath.find({
-            group_id: { $in: approvedGroupIds }
+            group_id: { $in: activeGroupIds }
         })
-        .populate('group_id', 'nombre'); // Solo necesitamos el nombre del grupo
+        .populate('group_id', 'nombre'); // Solo necesitamos el nombre del grupo para la respuesta
 
-        // 2. Mapea los resultados para formatearlos como el frontend espera
+        // Paso 4: Formatear los resultados.
         const formattedAssignedPaths = rawAssignedPaths.map(lp => {
             // Verifica que lp.group_id no sea nulo antes de intentar acceder a sus propiedades
+            // Esta verificación sigue siendo útil por si alguna LP quedó huérfana de grupo,
+            // aunque ya filtramos por activeGroupIds.
             if (!lp.group_id) {
-                console.warn(`Ruta de aprendizaje ${lp._id} tiene una referencia de grupo nula.`);
-                return null; // O puedes devolver un objeto con group_id: 'Desconocido'
+                console.warn(`Ruta de aprendizaje ${lp._id} tiene una referencia de grupo nula o el grupo no fue populado.`);
+                return null;
             }
             return {
-                _id: lp._id, // ID de la ruta de aprendizaje
-                nombre: lp.nombre, // Nombre de la ruta de aprendizaje
-                group_id: lp.group_id._id, // **ID real del grupo (cadena)**
-                group_name: lp.group_id.nombre // **Nombre legible del grupo**
+                _id: lp._id,
+                nombre: lp.nombre,
+                group_id: lp.group_id._id,
+                group_name: lp.group_id.nombre
             };
         }).filter(item => item !== null); // Filtra cualquier entrada nula si se produjo alguna
 

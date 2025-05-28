@@ -24,6 +24,7 @@ const notificationSchema = new mongoose.Schema({
       'MEMBERSHIP_REMOVED',
       'CONTENT_SHARED',
       'GENERAL_INFO',
+      'GROUP_ARCHIVED',
     ],
   },
   message: {

@@ -486,53 +486,64 @@ const getMyOwnedGroups = async (req, res) => {
 // @route   GET /api/groups/my-memberships
 // Acceso: Privado
 const getMyMembershipsWithStatus = async (req, res) => {
-  const userId = req.user._id;
+    const userId = req.user._id;
 
-  try {
-    // 1. Buscar todas las membresías asociadas a este usuario
-    const membershipsWithGroups = await Membership.find({ usuario_id: userId })
-      .populate({
-        path: 'grupo_id',
-        select: 'nombre codigo_acceso docente_id activo',
-        populate: {
-          path: 'docente_id',
-          model: 'User',
-          select: 'nombre apellidos'
+    try {
+        // 1. Buscar todas las membresías asociadas a este usuario y poblar el grupo y el docente.
+        // Es crucial seleccionar el campo 'activo' del grupo.
+        const membershipsWithGroups = await Membership.find({ usuario_id: userId })
+            .populate({
+                path: 'grupo_id',
+                select: 'nombre codigo_acceso docente_id activo', // <-- Asegúrate de incluir 'activo'
+                populate: {
+                    path: 'docente_id',
+                    model: 'User',
+                    select: 'nombre apellidos'
+                }
+            })
+            .sort({ createdAt: -1 });
+
+        // 2. Filtrar las membresías:
+        //    a) Asegurarse de que el grupo se populó correctamente.
+        //    b) Asegurarse de que el grupo esté activo (no archivado).
+        const activeMemberships = membershipsWithGroups.filter(membership =>
+            membership.grupo_id && membership.grupo_id.activo // <-- Filtra solo grupos activos
+        );
+
+        // 3. Filtrar para dejar solo la membresía más reciente por grupo (si el estudiante se unió y salió varias veces)
+        //    Esto se mantiene para tu lógica de "uniqueGroups", pero ahora solo con grupos activos.
+        const uniqueGroups = new Map();
+        for (const membership of activeMemberships) { // <-- Iterar sobre las membresías activas
+            const groupId = membership.grupo_id?._id?.toString();
+            if (groupId && !uniqueGroups.has(groupId)) {
+                uniqueGroups.set(groupId, membership);
+            }
         }
-      })
-      .sort({ createdAt: -1 }); // Ordena por la más reciente primero
 
-    // 2. Filtrar para dejar solo la membresía más reciente por grupo
-    const uniqueGroups = new Map();
-    for (const membership of membershipsWithGroups) {
-      const groupId = membership.grupo_id?._id?.toString();
-      if (groupId && !uniqueGroups.has(groupId)) {
-        uniqueGroups.set(groupId, membership);
-      }
+        // 4. Mapear la respuesta final
+        const studentGroups = Array.from(uniqueGroups.values()).map(membership => ({
+            _id: membership.grupo_id._id,
+            nombre: membership.grupo_id.nombre,
+            codigo_acceso: membership.grupo_id.codigo_acceso,
+            docente: membership.grupo_id.docente_id ? {
+                _id: membership.grupo_id.docente_id._id,
+                nombre: membership.grupo_id.docente_id.nombre,
+                apellidos: membership.grupo_id.docente_id.apellidos
+            } : null,
+            student_status: membership.estado_solicitud,
+            membership_id: membership._id,
+            // Opcional: Puedes incluir el estado 'activo' del grupo en la respuesta
+            // para que el frontend lo pueda usar, aunque ya esté filtrado.
+            is_group_active: membership.grupo_id.activo
+        }));
+
+        res.status(200).json(studentGroups);
+
+    } catch (error) {
+        console.error('Error al obtener las membresías del usuario:', error);
+        res.status(500).json({ message: 'Error interno del servidor al obtener tus grupos y estados.', error: error.message });
     }
-
-    // 3. Mapear la respuesta como antes, pero usando solo la membresía más reciente por grupo
-    const studentGroups = Array.from(uniqueGroups.values()).map(membership => ({
-      _id: membership.grupo_id._id,
-      nombre: membership.grupo_id.nombre,
-      codigo_acceso: membership.grupo_id.codigo_acceso,
-      docente: membership.grupo_id.docente_id ? {
-        _id: membership.grupo_id.docente_id._id,
-        nombre: membership.grupo_id.docente_id.nombre,
-        apellidos: membership.grupo_id.docente_id.apellidos
-      } : null,
-      student_status: membership.estado_solicitud,
-      membership_id: membership._id
-    }));
-
-    res.status(200).json(studentGroups);
-
-  } catch (error) {
-    console.error('Error al obtener las membresías del usuario:', error);
-    res.status(500).json({ message: 'Error interno del servidor al obtener tus grupos y estados.', error: error.message });
-  }
 };
-
 
 // @desc    Actualizar detalles del grupo (nombre, limite_estudiantes)
 // @route   PUT /api/groups/:groupId
@@ -612,58 +623,73 @@ const updateGroup = async (req, res) => {
 };
 
 
-// @desc    Eliminar un grupo
+// @desc    Eliminar un grupo (Soft Delete - Archivar)
 // @route   DELETE /api/groups/:groupId
 // @access  Privado/Docente
-const deleteGroup = async (req, res) => {
-  const { groupId } = req.params; // ID del grupo a eliminar de la URL
-  const docenteId = req.user._id; // ID del docente autenticado
-  const userType = req.user.tipo_usuario; // Tipo de usuario
+const deleteGroup = async (req, res) => { // ¡Ya no se necesita 'io' aquí!
+    const { groupId } = req.params;
+    const docenteId = req.user._id; // El docente que archiva el grupo es el 'sender' de la notificación
+    const userType = req.user.tipo_usuario;
 
-  // Verificación de Permiso: Solo docentes pueden usar esta ruta
-  if (userType !== 'Docente') {
-      return res.status(403).json({ message: 'Solo los docentes pueden eliminar grupos' });
-  }
+    if (userType !== 'Docente') {
+        return res.status(403).json({ message: 'Solo los docentes pueden archivar grupos.' });
+    }
 
-   // Validación básica del ID del grupo
-   if (!mongoose.Types.ObjectId.isValid(groupId)) {
-       return res.status(400).json({ message: 'ID de grupo inválido' });
-  }
+    if (!mongoose.Types.ObjectId.isValid(groupId)) {
+        return res.status(400).json({ message: 'ID de grupo inválido.' });
+    }
 
-  try {
-      // Buscar el grupo por ID y verificar que pertenece al docente autenticado
-      // Refactor: Use isTeacherOfGroup
-      const isOwner = await isTeacherOfGroup(docenteId, groupId);
-      if (!isOwner) {
-           // Se usa 404 para no revelar si el grupo existe pero pertenece a otro
-          return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece' });
-      }
-      // Fetch the group instance using isTeacherOfGroup, which already verifies ownership.
-      // The isTeacherOfGroup utility returns true if the group exists and belongs to the teacher, otherwise false.
-      // We need the group object itself to update it.
-      const group = await Group.findOne({ _id: groupId, docente_id: docenteId });
+    try {
+        const group = await Group.findOne({ _id: groupId, docente_id: docenteId });
 
-      // This check is technically redundant if isOwner was true, but good for safety.
-      if (!group) {
-          // This case should ideally be caught by isOwner check already.
-          return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece.' });
-      }
+        if (!group) {
+            return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece.' });
+        }
 
-      // --- Soft Delete: Marcar el grupo como inactivo ---
-      group.activo = false;
-      group.archivedAt = new Date(); // Set archive date
-      await group.save(); // Guardar el cambio en la base de datos
+        if (!group.activo) {
+            return res.status(200).json({ message: 'El grupo ya se encuentra archivado.' });
+        }
 
-      // La verificación de relatedMembershipCount ya no es necesaria para impedir la operación.
-      // Los miembros existentes y las solicitudes pendientes permanecerán, pero el grupo estará inactivo.
+        group.activo = false;
+        group.archivedAt = new Date(); // Asegúrate de que tu modelo Group tenga este campo
+        await group.save();
 
-      // Respuesta de éxito actualizada
-      res.status(200).json({ message: 'Grupo archivado exitosamente' });
+        // *** GENERAR LA NOTIFICACIÓN PARA LOS ESTUDIANTES USANDO TU NotificationService ***
 
-  } catch (error) {
-       console.error('Error archivando el grupo:', error); // Mensaje de error actualizado
-       res.status(500).json({ message: 'Error interno del servidor al archivar el grupo', error: error.message });
-  }
+        // 1. Obtener los IDs de los estudiantes que eran miembros aprobados de este grupo
+        const approvedMemberships = await Membership.find({
+            grupo_id: groupId,
+            estado_solicitud: 'Aprobado'
+        }).select('usuario_id');
+
+        const studentUserIds = approvedMemberships.map(m => m.usuario_id.toString());
+
+        // 2. Crear notificaciones individuales para cada estudiante afectado
+        const notificationPromises = studentUserIds.map(async (studentId) => {
+            try {
+                await NotificationService.createNotification({
+                    recipient: studentId,
+                    sender: docenteId, // El docente que archivó el grupo
+                    type: 'GROUP_ARCHIVED', // Nuevo tipo de notificación. Asegúrate de definir este tipo en tu frontend para manejar el mensaje adecuado.
+                    message: `El grupo "${group.nombre}" al que pertenecías ha sido archivado y ya no está activo.`,
+                    link: '/student/groups' // Link a la página donde verán sus grupos (ahora sin el archivado)
+                    // No necesitas pasar 'ioInstance' aquí, NotificationService lo obtiene de 'global.io'
+                });
+            } catch (notifError) {
+                console.error(`Error al enviar notificación de archivado al estudiante ${studentId}:`, notifError);
+            }
+        });
+
+        // Espera a que todas las promesas de notificación se resuelvan (o fallen)
+        await Promise.allSettled(notificationPromises);
+
+
+        res.status(200).json({ message: 'Grupo archivado exitosamente.' });
+
+    } catch (error) {
+        console.error('Error archivando el grupo:', error);
+        res.status(500).json({ message: 'Error interno del servidor al archivar el grupo', error: error.message });
+    }
 };
 
 // @desc    Eliminar un estudiante de un grupo (eliminar membresía aprobada)
@@ -750,14 +776,18 @@ const getGroupById = async (req, res, next) => {
     }
 
     // 2. Si es el dueño, buscar el grupo por su ID para devolverlo
-    const group = await Group.findOne({ _id: groupId, docente_id: docenteId, activo: true });
+    const group = await Group.findOne({ _id: groupId, docente_id: docenteId }); // Eliminamos 'activo: true' de esta búsqueda inicial
     // Esta segunda búsqueda es necesaria porque isTeacherOfGroup solo devuelve boolean.
     // Debería existir si isOwner es true, pero es una buena práctica verificar.
     if (!group) {
         // Esto podría indicar un problema de consistencia de datos si isOwner fue true.
-        // O el grupo está inactivo
-        console.error(`Error de consistencia o grupo inactivo: Grupo ${groupId} no encontrado o inactivo después de confirmar propiedad para docente ${docenteId}.`);
-        return res.status(404).json({ message: `Grupo no encontrado con ID ${groupId} o no está activo.` });
+        console.error(`Error de consistencia: Grupo ${groupId} no encontrado después de confirmar propiedad para docente ${docenteId}.`);
+        return res.status(404).json({ message: `Grupo no encontrado con ID ${groupId}.` });
+    }
+
+    // Nueva verificación para el estado 'activo'
+    if (group.activo !== true) {
+        return res.status(400).json({ message: "Tu grupo no está activo, seguramente está archivado y no puedes ver los detalles." });
     }
 
     // 3. Si todo es correcto, responder con el objeto del grupo
