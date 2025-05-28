@@ -113,16 +113,31 @@ const LocationHierarchy = ({ assignment }) => {
   );
 };
 
+// Helper function for status color
+const getStatusColor = (status) => {
+  switch (status) {
+    case 'Open':
+      return 'success';
+    case 'Closed':
+      return 'error';
+    case 'Draft':
+      return 'warning'; // Or 'default'
+    default:
+      return 'default';
+  }
+};
+
 // Componente para una tarjeta de asignación
 const AssignmentCard = React.memo(({ assignment }) => {
   const assignmentTitle = assignment.activity_id?.title || assignment.title || 'Título desconocido';
   const assignmentType = assignment.activity_id?.type || assignment.type || 'Desconocido';
+  const assignmentStatus = assignment.status || 'Desconocido';
   
   return (
     <Card elevation={2} sx={{ mb: 2, borderLeft: '4px solid', borderColor: 'primary.main' }}>
       <CardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1 }}>
             <Avatar sx={{ bgcolor: 'primary.light' }}>
               <ActivityTypeIcon type={assignmentType} />
             </Avatar>
@@ -130,12 +145,20 @@ const AssignmentCard = React.memo(({ assignment }) => {
               {assignmentTitle} 
             </Typography>
           </Box>
-          <Chip 
-            label={assignmentType} 
-            size="small" 
-            color="primary" 
-            variant="outlined"
-          />
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
+            <Chip 
+              label={assignmentType} 
+              size="small" 
+              color="primary" 
+              variant="outlined"
+            />
+            <Chip
+              label={assignmentStatus}
+              size="small"
+              color={getStatusColor(assignmentStatus)}
+              variant="outlined"
+            />
+          </Box>
         </Box>
         
         <Divider sx={{ mb: 2 }} />
@@ -343,6 +366,7 @@ function TeacherAssignmentsListPage() {
                   <TableRow sx={{ backgroundColor: theme.palette.background.paper }}>
                     <TableCell sx={{ fontWeight: 'bold' }}>Nombre de Actividad</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Tipo</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Estado</TableCell> {/* New Header */}
                     <TableCell sx={{ fontWeight: 'bold' }}>Ubicación</TableCell>
                     <TableCell align="center" sx={{ fontWeight: 'bold' }}>Entregas</TableCell>
                     <TableCell align="center" sx={{ fontWeight: 'bold' }}>Pendientes</TableCell>
@@ -374,6 +398,14 @@ function TeacherAssignmentsListPage() {
                           label={assignment.activity_id?.type || assignment.type || 'Desconocido'} 
                           size="small" 
                           color="primary" 
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell> {/* New Cell for Status */}
+                        <Chip
+                          label={assignment.status || 'Desconocido'}
+                          size="small"
+                          color={getStatusColor(assignment.status)}
                           variant="outlined"
                         />
                       </TableCell>

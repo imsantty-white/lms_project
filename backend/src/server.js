@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const app = require('./app');
 const connectDB = require('./config/db.config');
+const { startActivityStatusUpdater } = require('./services/activityStatusUpdater'); // Import cron job
 
 require('dotenv').config();
 
@@ -11,6 +12,7 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
     try {
         await connectDB();
+        startActivityStatusUpdater(); // Start cron job
 
         const httpServer = http.createServer(app);
 

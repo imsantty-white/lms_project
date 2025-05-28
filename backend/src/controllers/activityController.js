@@ -193,6 +193,14 @@ const submitStudentActivityAttempt = async (req, res, next) => {
             return res.status(404).json({ message: 'Asignación no encontrada después de poblar.' });
         }
 
+        // Check assignment status
+        if (assignment.status === 'Closed') {
+            return res.status(403).json({ message: 'No se pueden realizar entregas para actividades cerradas.' });
+        }
+        if (assignment.status === 'Draft') {
+            return res.status(403).json({ message: 'Esta actividad aún no está abierta para entregas.' });
+        }
+
         // *** MODIFICACIÓN: Incluir 'Trabajo' en los tipos soportados ***
         if (assignment.type !== 'Activity' || !assignment.activity_id || (assignment.activity_id.type !== 'Quiz' && assignment.activity_id.type !== 'Cuestionario' && assignment.activity_id.type !== 'Trabajo')) {
             console.error(`Assignment ${assignmentId} is not a supported activity type for submission.`);
