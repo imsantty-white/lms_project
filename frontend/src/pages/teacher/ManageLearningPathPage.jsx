@@ -1,7 +1,6 @@
 // src/pages/ManageLearningPathPage.jsx
-import React, { useCallback, useEffect, useState, useReducer } from 'react'; // Added useReducer
+import React, { useCallback, useEffect, useState, useReducer } from 'react';
 import { useParams } from 'react-router-dom';
-// Componentes de Material UI
 import {
   Container,
   Box,
@@ -30,11 +29,9 @@ import {
   InputLabel,
   Chip,
   Divider,
-  Skeleton // Import Skeleton
+  Skeleton
   // Importa componentes adicionales si los necesitas (ej: para el modal de asignación)
 } from '@mui/material';
-
-// Iconos de Material UI
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 // EditIcon, DeleteIcon, CheckCircleOutlineIcon, DescriptionIcon, LinkIcon, PlayCircleOutlinedIcon, AssignmentIcon, QuizIcon, QuestionAnswerIcon, WorkIcon are now primarily used in sub-components
 import AddCircleOutlinedIcon from '@mui/icons-material/AddCircleOutlined';
@@ -42,8 +39,6 @@ import AddCircleOutlinedIcon from '@mui/icons-material/AddCircleOutlined';
 
 // *** Importar useAuth Y axiosInstance ***
 import { useAuth, axiosInstance } from '../../contexts/AuthContext';
-
-
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 

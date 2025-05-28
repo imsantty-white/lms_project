@@ -221,9 +221,9 @@ return (
         </Typography>
 
         {/* Mejora: Añadido stickyHeader para tablas grandes y estilización */}
-        <Paper elevation={3} sx={{ p: 2, borderRadius: 2, overflow: 'hidden' }}>
+        <Paper elevation={2} sx={{ p: 1, borderRadius: 1, overflow: 'hidden' }}>
           <TableContainer sx={{ maxHeight: '70vh' }}>
-            <Table stickyHeader>
+            <Table stickyHeader size="small">
               <TableHead>
                 <TableRow sx={{ backgroundColor: 'primary.light' }}>
                   <TableCell sx={{ fontWeight: 'bold' }}>Estudiante</TableCell>
@@ -282,7 +282,7 @@ return (
                       {/* Mejora: Separar botones de Ver y Calificar con funcionalidades distintas */}
                       <Tooltip title="Ver detalles">
                         <IconButton 
-                          color="primary"
+                          color= "text.primary"
                           onClick={() => handleViewDetailsClick(submission)}
                           size="small"
                         >

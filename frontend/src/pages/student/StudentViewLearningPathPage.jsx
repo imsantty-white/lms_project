@@ -89,6 +89,11 @@ function StudentViewLearningPathPage() {
     const [isLinkConfirmOpen, setIsLinkConfirmOpen] = useState(false);
     const [linkToOpen, setLinkToOpen] = useState(null);
 
+    // NUEVOS ESTADOS para el diálogo de confirmación de actividad
+    const [isActivityConfirmOpen, setIsActivityConfirmOpen] = useState(false);
+    const [activityToConfirm, setActivityToConfirm] = useState(null); // Almacena la asignación completa
+
+
     const [isContentModalOpen, setIsContentModalOpen] = useState(false);
     const [currentContent, setCurrentContent] = useState(null);
 
@@ -119,7 +124,6 @@ function StudentViewLearningPathPage() {
                     } catch (err) {
                         console.error('Error fetching learning path structure:', err.response ? err.response.data : err.message);
                         const errorMessage = err.response?.data?.message || 'Error al cargar la estructura de la ruta de aprendizaje.';
-                        setFetchError(errorMessage);
                         toast.error(errorMessage);
                     } finally {
                         setIsLoading(false);
@@ -184,7 +188,12 @@ function StudentViewLearningPathPage() {
             switch (contentItem.type) {
                 case 'Quiz':
                 case 'Cuestionario':
+                    // *** CAMBIO CLAVE AQUÍ: Mostrar el diálogo de confirmación ***
+                    setActivityToConfirm(assignment); // Guardar la asignación para usarla después de la confirmación
+                    setIsActivityConfirmOpen(true);
+                    break;
                 case 'Trabajo':
+                    // Para trabajos, puedes ir directamente o también añadir un diálogo si lo prefieres
                     navigate(`/student/assignments/${assignment._id}/take-activity`);
                     break;
                 default:
@@ -225,6 +234,26 @@ function StudentViewLearningPathPage() {
         setCurrentVideo(null);
     };
 
+    // NUEVAS FUNCIONES para el diálogo de confirmación de actividad
+    const handleConfirmTakeActivity = () => {
+        if (activityToConfirm) {
+            navigate(`/student/assignments/${activityToConfirm._id}/take-activity`);
+            toast.info(`Iniciando ${activityToConfirm.activity_id?.type || 'actividad'}...`); // Mensaje informativo
+        }
+        setIsActivityConfirmOpen(false);
+    };
+
+    const handleCloseActivityConfirm = (event, reason) => {
+        if (reason && (reason === 'backdropClick' || reason === 'escapeKeyDown')) {
+            return;
+        }
+        setIsActivityConfirmOpen(false);
+    };
+
+    const handleExitedActivityDialog = () => {
+        setActivityToConfirm(null); // <--- ¡MOVIDO AQUÍ! Solo resetea cuando el diálogo ya no es visible
+    };
+
 
     if (isLoading) {
         return (
@@ -257,6 +286,12 @@ function StudentViewLearningPathPage() {
         );
     }
 
+    // Calcular la fecha y hora de finalización si existe
+    const fechaFinActividad = activityToConfirm?.fecha_fin ? format(new Date(activityToConfirm.fecha_fin), 'dd/MM/yyyy HH:mm') : 'N/A';
+    // Calcular el tiempo límite si existe
+    const tiempoLimiteActividad = activityToConfirm?.tiempo_limite !== undefined ? `${activityToConfirm.tiempo_limite} minutos` : 'N/A';
+
+
     return (
         <Container maxWidth="md">
             <Box sx={{ mt: 1 }}>
@@ -286,7 +321,7 @@ function StudentViewLearningPathPage() {
                             return (
                                 <Accordion
                                     key={module._id}
-                                    defaultExpanded // Los módulos sí están expandidos por defecto
+                                    defaultExpanded
                                     sx={{
                                         boxShadow: 3,
                                         borderRadius: theme.shape.borderRadius * 2,
@@ -341,11 +376,9 @@ function StudentViewLearningPathPage() {
                                                     return (
                                                         <Accordion
                                                             key={themeItem._id}
-                                                            // defaultExpanded REMOVIDO: Los temas no están expandidos por defecto ahora
                                                             elevation={0}
                                                             sx={{
                                                                 border: '0.7px dotted',
-                                                                //borderColor: theme.palette.text.secondary,
                                                                 borderRadius: theme.shape.borderRadius,
                                                                 '&:before': { display: 'none' },
                                                                 backgroundColor: theme.palette.background.default,
@@ -363,7 +396,7 @@ function StudentViewLearningPathPage() {
                                                                     '& .MuiAccordionSummary-content': {
                                                                         alignItems: 'center',
                                                                         my: 0,
-                                                                        justifyContent: 'space-between', // Para alinear el texto y el chip
+                                                                        justifyContent: 'space-between',
                                                                     },
                                                                     px: 2
                                                                 }}
@@ -377,7 +410,7 @@ function StudentViewLearningPathPage() {
                                                                         secondary={themeItem.descripcion || 'Sin descripción.'}
                                                                         primaryTypographyProps={{ sx: { fontSize: '1rem', fontWeight: 'medium', color: theme.palette.text.primary } }}
                                                                         secondaryTypographyProps={{ sx: { fontSize: '0.85rem', color: theme.palette.text.secondary } }}
-                                                                        sx={{ mr: 1 }} // Margen a la derecha para el chip
+                                                                        sx={{ mr: 1 }}
                                                                     />
                                                                 </Box>
                                                                 {openAssignmentsCount > 0 && (
@@ -386,7 +419,7 @@ function StudentViewLearningPathPage() {
                                                                         size="small"
                                                                         color="text.primary"
                                                                         variant="outlined"
-                                                                        sx={{ mr: 3, flexShrink: 0 }} // Margen a la derecha y no se encoge
+                                                                        sx={{ mr: 3, flexShrink: 0 }}
                                                                     />
                                                                 )}
                                                             </AccordionSummary>
@@ -487,6 +520,7 @@ function StudentViewLearningPathPage() {
                     )}
                 </Stack>
 
+                {/* Diálogo de Confirmación para Enlaces (existente) */}
                 <Dialog
                     open={isLinkConfirmOpen}
                     onClose={handleCloseLinkConfirm}
@@ -506,6 +540,58 @@ function StudentViewLearningPathPage() {
                         </Button>
                     </DialogActions>
                 </Dialog>
+
+                {/* NUEVO: Diálogo de Confirmación para Quiz/Cuestionario */}
+                <Dialog
+                    open={isActivityConfirmOpen}
+                    onClose={handleCloseActivityConfirm}
+                    aria-labelledby="activity-confirm-title"
+                    aria-describedby="activity-confirm-description"
+                    TransitionProps={{
+                        onExited: handleExitedActivityDialog // <--- ¡AÑADE ESTA PROP!
+                    }}
+                >
+                    <DialogTitle id="activity-confirm-title">
+                        {`Iniciar ${activityToConfirm?.activity_id?.type || 'Actividad'}: ${activityToConfirm?.activity_id?.title || 'Desconocido'}`}
+                    </DialogTitle>
+                    <DialogContent>
+                        <DialogContentText id="activity-confirm-description" sx={{ mb: 1 }}>
+                            Estás a punto de comenzar este {activityToConfirm?.activity_id?.type || 'actividad'}.
+                        </DialogContentText>
+                        <Stack spacing={0.5} sx={{ mt: 1 }}>
+                            {activityToConfirm?.puntos_maximos !== undefined && (
+                                <Typography variant="body2">
+                                    **Puntos Máximos:** {activityToConfirm.puntos_maximos}
+                                </Typography>
+                            )}
+                            {activityToConfirm?.intentos_permitidos !== undefined && (
+                                <Typography variant="body2">
+                                    **Intentos Permitidos:** {activityToConfirm.intentos_permitidos}
+                                </Typography>
+                            )}
+                            {activityToConfirm?.tiempo_limite !== undefined && (
+                                <Typography variant="body2">
+                                    **Tiempo Límite:** {tiempoLimiteActividad}
+                                </Typography>
+                            )}
+                            {activityToConfirm?.fecha_fin && (
+                                <Typography variant="body2">
+                                    **Fecha Límite:** {fechaFinActividad}
+                                </Typography>
+                            )}
+                            <Typography variant="body2" sx={{ mt: 2, fontWeight: 'bold' }}>
+                                ¿Deseas continuar?
+                            </Typography>
+                        </Stack>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleCloseActivityConfirm} color='secondary'>Cancelar</Button>
+                        <Button onClick={handleConfirmTakeActivity} variant="contained" autoFocus>
+                            Iniciar {activityToConfirm?.activity_id?.type || 'Actividad'}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+
 
                 <ContentModal
                     open={isContentModalOpen}
