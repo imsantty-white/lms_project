@@ -4,10 +4,10 @@ import React, { useEffect, useState, useRef } from 'react'; // Importa useEffect
 import { useParams, Link as RouterLink } from 'react-router-dom'; // <-- Importa useParams y Link
 import { Container, Typography, Box, CircularProgress, Alert, Paper, Divider, Chip, Stack, Button, Link, // Import Link from MUI for styling if needed
             Table, TableBody, TableCell, TableContainer, TableHead, TableRow, } from '@mui/material'; // Importa componentes de Material UI (Chip para estados, Stack para botones)
-import { useAuth, axiosInstance  } from '../contexts/AuthContext';
+import { useAuth, axiosInstance  } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 // Importa el modal de confirmación por si necesitas confirmar acciones (ej: aprobar/rechazar)
-import ConfirmationModal from '../components/ConfirmationModal';
+import ConfirmationModal from '../../components/ConfirmationModal';
 
 
 

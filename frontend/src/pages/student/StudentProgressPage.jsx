@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth, axiosInstance } from '../contexts/AuthContext';
+import { useAuth, axiosInstance } from '../../contexts/AuthContext';
 import {
   Container, Box, Typography, LinearProgress, Paper, List, ListItem, ListItemText, Chip, Divider, CircularProgress, Alert, Snackbar
 } from '@mui/material';

@@ -41,22 +41,22 @@ import AddCircleOutlinedIcon from '@mui/icons-material/AddCircleOutlined';
 // format is now primarily used in AssignmentItem
 
 // *** Importar useAuth Y axiosInstance ***
-import { useAuth, axiosInstance } from '../contexts/AuthContext';
+import { useAuth, axiosInstance } from '../../contexts/AuthContext';
 
 
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 
 // Importa los componentes modales (revisa tus rutas)
-import CreateModuleModal from '../pages/components/CreateModuleModal';
-import CreateThemeModal from '../pages/components/CreateThemeModal';
-import EditModuleModal from '../pages/components/EditModuleModal';
-import EditThemeModal from '../pages/components/EditThemeModal';
-import AddContentAssignmentModal from '../pages/components/AddContentAssignmentModal';
-import EditContentAssignmentModal from '../pages/components/EditContentAssignmentModal';
+import CreateModuleModal from '../components/CreateModuleModal';
+import CreateThemeModal from '../components/CreateThemeModal';
+import EditModuleModal from '../components/EditModuleModal';
+import EditThemeModal from '../components/EditThemeModal';
+import AddContentAssignmentModal from '../components/AddContentAssignmentModal';
+import EditContentAssignmentModal from '../components/EditContentAssignmentModal';
 
 // Import new sub-components
-import ModuleItem from '../pages/components/ModuleItem';
+import ModuleItem from '../components/ModuleItem';
 // ThemeItem and AssignmentItem will be used by ModuleItem
 
 

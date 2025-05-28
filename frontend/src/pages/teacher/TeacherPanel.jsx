@@ -14,7 +14,7 @@ import {
   Link as MuiLink // Renombrar para evitar conflicto con Link de react-router-dom
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { useAuth, axiosInstance } from '../contexts/AuthContext'; // Asumo que axiosInstance también está aquí
+import { useAuth, axiosInstance } from '../../contexts/AuthContext'; // Asumo que axiosInstance también está aquí
 
 // Iconos de Material-UI (asegúrate de tenerlos instalados: npm install @mui/icons-material)
 import SchoolIcon from '@mui/icons-material/School'; // Icono para cursos

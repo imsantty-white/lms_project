@@ -19,7 +19,7 @@ import {
 import WorkIcon from '@mui/icons-material/Work';
 
 // *** Importar useAuth (ahora incluyendo isAuthInitialized) Y axiosInstance ***
-import { useAuth, axiosInstance } from '../contexts/AuthContext';
+import { useAuth, axiosInstance } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 
 function StudentLearningPathsPage() {

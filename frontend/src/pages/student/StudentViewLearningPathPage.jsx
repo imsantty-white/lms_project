@@ -35,13 +35,13 @@ import QuizIcon from '@mui/icons-material/Quiz';
 import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
 import WorkIcon from '@mui/icons-material/Work';
 
-import { useAuth, axiosInstance } from '../contexts/AuthContext';
+import { useAuth, axiosInstance } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 
-import ContentModal from '../components/ContentModal';
-import VideoModal from '../components/VideoModal';
+import ContentModal from '../../components/ContentModal';
+import VideoModal from '../../components/VideoModal';
 
 
 const getContentIcon = (assignment) => {

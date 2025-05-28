@@ -20,14 +20,14 @@ import {
   Link,
   Stack
 } from '@mui/material';
-import { useAuth, axiosInstance } from '../contexts/AuthContext';
+import { useAuth, axiosInstance } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 
 // Import reusable components
-import PageHeader from '../components/PageHeader';
-import EmptyState from '../components/EmptyState';
+import PageHeader from '../../components/PageHeader';
+import EmptyState from '../../components/EmptyState';
 import GroupIcon from '@mui/icons-material/Group';
-import ConfirmationModal from '../components/ConfirmationModal';
+import ConfirmationModal from '../../components/ConfirmationModal';
 
 function AdminUserManagementPage() {
     const { user, isAuthenticated, isAuthInitialized } = useAuth();

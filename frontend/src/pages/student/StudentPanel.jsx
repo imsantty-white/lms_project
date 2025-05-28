@@ -14,7 +14,7 @@ import {
   Link as MuiLink // Renombrar para evitar conflicto con Link de react-router-dom
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { useAuth, axiosInstance } from '../contexts/AuthContext'; // Asumo que axiosInstance también está aquí
+import { useAuth, axiosInstance } from '../../contexts/AuthContext'; // Asumo que axiosInstance también está aquí
 
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import WbSunnyIcon from '@mui/icons-material/WbSunny'; // Icono para el clima

@@ -44,7 +44,7 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import SortIcon from '@mui/icons-material/Sort';
 import RefreshIcon from '@mui/icons-material/Refresh';
 
-import { useAuth, axiosInstance } from '../contexts/AuthContext';
+import { useAuth, axiosInstance } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 
 // Componente para el icono de tipo de actividad

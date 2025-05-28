@@ -36,20 +36,20 @@ import QuizIcon from '@mui/icons-material/Quiz';
 import DescriptionIcon from '@mui/icons-material/Description';
 import { motion } from 'framer-motion';
 
-import { useAuth, axiosInstance } from '../contexts/AuthContext';
+import { useAuth, axiosInstance } from '../../contexts/AuthContext';
 
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 
-import CreateResourceModal from '../pages/components/CreateResourceModal';
-import EditResourceModal from '../pages/components/EditResourceModal';
-import CreateActivityModal from './components/CreateActivityModal';
-import EditActivityModal from './components/EditActivityModal';
+import CreateResourceModal from '../components/CreateResourceModal';
+import EditResourceModal from '../components/EditResourceModal';
+import CreateActivityModal from '../components/CreateActivityModal';
+import EditActivityModal from '../components/EditActivityModal';
 
-import PageHeader from '../components/PageHeader';
-import EmptyState from '../components/EmptyState';
-import ContentCard from '../components/ContentCard';
-import ConfirmationModal from '../components/ConfirmationModal';
+import PageHeader from '../../components/PageHeader';
+import EmptyState from '../../components/EmptyState';
+import ContentCard from '../../components/ContentCard';
+import ConfirmationModal from '../../components/ConfirmationModal';
 
 // Icon mapping (kept the same)
 const resourceIconMap = {

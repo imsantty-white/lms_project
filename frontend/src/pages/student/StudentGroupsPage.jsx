@@ -23,12 +23,12 @@ import PendingIcon from '@mui/icons-material/Pending';
 import CancelIcon from '@mui/icons-material/Cancel';
 import ArchiveIcon from '@mui/icons-material/Archive';
 
-import { useAuth, axiosInstance } from '../contexts/AuthContext';
+import { useAuth, axiosInstance } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 
 // Reusable Components
-import PageHeader from '../components/PageHeader';
-import EmptyState from '../components/EmptyState';
+import PageHeader from '../../components/PageHeader';
+import EmptyState from '../../components/EmptyState';
 
 // Componente de Loading mejorado
 const GroupsSkeleton = () => (

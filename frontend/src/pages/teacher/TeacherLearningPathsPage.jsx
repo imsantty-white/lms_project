@@ -26,7 +26,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import IconButton from '@mui/material/IconButton';
 
 // *** Importar useAuth Y axiosInstance ***
-import { useAuth, axiosInstance } from '../contexts/AuthContext'; // <-- Importa axiosInstance aquí
+import { useAuth, axiosInstance } from '../../contexts/AuthContext'; // <-- Importa axiosInstance aquí
 
 // *** Eliminar la importación de 'axios' si ya no la usas directamente ***
 // import axios from 'axios';
@@ -38,7 +38,7 @@ import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 
 // Importa el componente modal para crear Ruta de Aprendizaje
-import CreateLearningPathModal from '../pages/components/CreateLearningPathModal';
+import CreateLearningPathModal from '../components/CreateLearningPathModal';
 
 
 function TeacherLearningPathsPage() {

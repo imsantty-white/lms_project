@@ -30,13 +30,13 @@ import ArchiveIcon from '@mui/icons-material/Archive'; // Icon for archive butto
 import RestoreIcon from '@mui/icons-material/Restore'; // Icon for unarchive/restore button
 
 // *** Importar useAuth Y axiosInstance ***
-import { useAuth, axiosInstance } from '../contexts/AuthContext'; // <-- Importa axiosInstance aquí
+import { useAuth, axiosInstance } from '../../contexts/AuthContext'; // <-- Importa axiosInstance aquí
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 
 // Importa el nuevo componente modal para crear grupo
-import CreateGroupModal from '../pages/components/CreateGroupModal';
-import ConfirmationModal from '../components/ConfirmationModal'; // Import ConfirmationModal
+import CreateGroupModal from '../components/CreateGroupModal';
+import ConfirmationModal from '../../components/ConfirmationModal'; // Import ConfirmationModal
 
 
 function TeacherGroupsPage() {

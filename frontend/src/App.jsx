@@ -9,27 +9,27 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import HomePage from './pages/HomePage';
 
-import JoinGroupPage from './pages/JoinGroupPage';
-import TeacherGroupsPage from './pages/TeacherGroupsPage';
-import StudentGroupsPage from './pages/StudentGroupsPage';
-import TeacherManageGroupPage from './pages/TeacherManageGroupPage';
-import TeacherContentBankPage from './pages/TeacherContentBankPage';
+import JoinGroupPage from './pages/student/JoinGroupPage';
+import TeacherGroupsPage from './pages/teacher/TeacherGroupsPage';
+import StudentGroupsPage from './pages/student/StudentGroupsPage';
+import TeacherManageGroupPage from './pages/teacher/TeacherManageGroupPage';
+import TeacherContentBankPage from './pages/teacher/TeacherContentBankPage';
 
-import AdminUserManagementPage from './pages/AdminUserManagementPage';
-import AdminGroupManagementPage from './pages/AdminGroupManagementPage'; // Import the new page
+import AdminUserManagementPage from './pages/administrator/AdminUserManagementPage';
+import AdminGroupManagementPage from './pages/administrator/AdminGroupManagementPage';
 
-import TeacherLearningPathsPage from './pages/TeacherLearningPathsPage';
-import ManageLearningPathPage from './pages/ManageLearningPathPage';
-import TeacherAssignmentsListPage from './pages/TeacherAssignmentsListPage';
-import TeacherAssignmentSubmissionsPage from './pages/TeacherAssignmentSubmissionsPage';
+import TeacherLearningPathsPage from './pages/teacher/TeacherLearningPathsPage';
+import ManageLearningPathPage from './pages/teacher/ManageLearningPathPage';
+import TeacherAssignmentsListPage from './pages/teacher/TeacherAssignmentsListPage';
+import TeacherAssignmentSubmissionsPage from './pages/teacher/TeacherAssignmentSubmissionsPage';
 
-import StudentLearningPathsPage from './pages/StudentLearningPathsPage';
-import StudentViewLearningPathPage from './pages/StudentViewLearningPathPage';
-import StudentTakeActivityPage from './pages/StudentTakeActivityPage';
-import StudentProgressPage from './pages/StudentProgressPage'; 
+import StudentLearningPathsPage from './pages/student/StudentLearningPathsPage';
+import StudentViewLearningPathPage from './pages/student/StudentViewLearningPathPage';
+import StudentTakeActivityPage from './pages/student/StudentTakeActivityPage';
+import StudentProgressPage from './pages/student/StudentProgressPage'; 
 import UserProfilePage from './pages/UserProfilePage';
-import StudentPanel from './pages/StudentPanel';
-import TeacherPanel from './pages/TeacherPanel';
+import StudentPanel from './pages/student/StudentPanel';
+import TeacherPanel from './pages/teacher/TeacherPanel';
 
 import { getTheme } from './theme';
 
