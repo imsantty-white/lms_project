@@ -29,7 +29,7 @@ body, html {
 
 a {
   font-weight: 500;
-  color: #646cff;
+  color:rgb(35, 230, 18);
   text-decoration: inherit;
 }
 a:hover {
@@ -54,7 +54,7 @@ button {
   transition: border-color 0.25s;
 }
 button:hover {
-  border-color: #646cff;
+  border-color:rgb(74, 149, 235);
 }
 button:focus,
 button:focus-visible {

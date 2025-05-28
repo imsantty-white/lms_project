@@ -200,7 +200,7 @@ function App() {
                   />
                   <Route
                     path="/profile/:userId"
-                    element={<ProtectedRoute element={<UserProfilePage />} allowedRoles={['Estudiante', 'Docente', 'Administrador']} />}
+                    element={<ProtectedRoute element={<UserProfilePage />} allowedRoles={[ 'Docente', 'Administrador']} />}
                   />
                   <Route
                     path="/admin/config"

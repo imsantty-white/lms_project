@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppBar, Toolbar, Typography, IconButton, Box, Badge, Avatar } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import LogoutIcon from '@mui/icons-material/Logout';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
@@ -22,7 +21,7 @@ import {
 } from '../services/notificationService';
 
 const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode }) => {
-    const { isAuthenticated, user, logout } = useAuth();
+    const { isAuthenticated, user } = useAuth(); // Removed logout here
     const navigate = useNavigate();
     const socket = useSocket();
 
@@ -32,17 +31,13 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
     const [panelOpen, setPanelOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
 
-    // *** AJUSTE CLAVE AQUÍ: REMOVER isLoadingNotifications de las dependencias ***
     const fetchNotifications = useCallback(async () => {
         if (!isAuthenticated) {
             setNotifications([]);
             setUnreadCount(0);
             return;
         }
-        // La condición `if (isLoadingNotifications) return;` es importante para evitar llamadas duplicadas
-        // si la función es llamada múltiples veces en rápida sucesión antes de que la primera termine.
         if (isLoadingNotifications) {
-            // console.log("Fetch already in progress, skipping."); // Puedes añadir esto para depurar
             return;
         }
         setIsLoadingNotifications(true);
@@ -56,14 +51,9 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
         } finally {
             setIsLoadingNotifications(false);
         }
-    }, [isAuthenticated]); // <-- ¡SOLO isAuthenticated AQUÍ!
+    }, [isAuthenticated]);
 
-    const handleLogout = () => {
-        logout();
-        setNotifications([]);
-        setUnreadCount(0);
-        navigate('/');
-    };
+    // Removed handleLogout as it's moved to Sidebar.jsx
 
     const handleNotificationBellClick = (event) => {
         setAnchorEl(event.currentTarget);
@@ -109,9 +99,8 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
     const handleNotificationClick = async (notificationToUpdate) => {
         try {
             if (!notificationToUpdate.isRead) {
-                // Llama directamente a la función de marcado si solo necesitas marcar sin más lógica
                 await markNotificationAsRead(notificationToUpdate._id);
-                 setNotifications(prevNotifications =>
+                   setNotifications(prevNotifications =>
                     prevNotifications.map(n => n._id === notificationToUpdate._id ? { ...n, isRead: true } : n)
                 );
                 setUnreadCount(prevCount => prevCount > 0 ? prevCount - 1 : 0);
@@ -119,7 +108,7 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
 
             if (notificationToUpdate.link) {
                 navigate(notificationToUpdate.link);
-                setPanelOpen(false); // Cierra el panel solo si hay navegación
+                setPanelOpen(false);
             }
         } catch (error) {
             console.error('Error handling notification click:', error);
@@ -158,28 +147,23 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
     };
 
     useEffect(() => {
-        // console.log("Header useEffect (isAuthenticated, user) fired");
         if (isAuthenticated && user) {
             fetchNotifications();
         } else if (!isAuthenticated) {
-            // Asegúrate de limpiar el estado si el usuario no está autenticado (ej. al desloguearse)
             setNotifications([]);
             setUnreadCount(0);
         }
-    }, [isAuthenticated, user, fetchNotifications]); // Dependencias: isAuthenticated, user, fetchNotifications
+    }, [isAuthenticated, user, fetchNotifications]);
 
     useEffect(() => {
         if (socket) {
-            // console.log('Header useEffect (socket) fired');
             const handleNewNotification = (newNotification) => {
-                // console.log('New notification received via WebSocket:', newNotification);
                 fetchNotifications();
             };
 
             socket.on('new_notification', handleNewNotification);
 
             return () => {
-                // console.log('Socket listener cleanup');
                 socket.off('new_notification', handleNewNotification);
             };
         }
@@ -220,10 +204,10 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
                     to="/"
                     sx={{
                         textDecoration: 'none',
-                        color: 'primary',
+                        color: 'primary.main',
                         fontWeight: 700,
                         letterSpacing: 1,
-                        fontSize: { xs: 18, sm: 22 },
+                        fontSize: { xs: 18, sm: 20 },
                         flexGrow: 1,
                         textShadow: '2px 2px 6px rgba(0,0,0,0.35)',
                         transition: 'color 0.2s',
@@ -280,17 +264,7 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
                             {`${user?.nombre || ''} ${user?.apellidos || ''}`.trim() || user?.email || 'Usuario'}
                         </Typography>
 
-                        <IconButton
-                            color="inherit"
-                            onClick={handleLogout}
-                            size="small"
-                            sx={{
-                                ml: 1,
-                                color: mode === 'dark' ? '#fff' : '#222',
-                            }}
-                        >
-                            <LogoutIcon />
-                        </IconButton>
+                        {/* Logout button removed from Header */}
                     </Box>
                 )}
                 <IconButton

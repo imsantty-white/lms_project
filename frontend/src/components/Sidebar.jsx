@@ -1,76 +1,303 @@
 import React from 'react';
-import { Box, Drawer, Toolbar, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography, Divider, IconButton } from '@mui/material';
-import { Link } from 'react-router-dom';
+import {
+  Box,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Typography,
+  Divider,
+  IconButton,
+  Avatar,
+  Chip,
+  useTheme,
+  alpha
+} from '@mui/material';
+import { Link, useLocation, useNavigate } from 'react-router-dom'; // Import useNavigate
 import { useAuth } from '../contexts/AuthContext';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import Avatar from '@mui/material/Avatar';
 
-// Importa algunos iconos de ejemplo (puedes añadir más según necesites)
+// Iconos
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import GroupIcon from '@mui/icons-material/Group';
-import SchoolIcon from '@mui/icons-material/School';
 import SettingsIcon from '@mui/icons-material/Settings';
-import AssignmentIcon from '@mui/icons-material/Assignment';
-import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import PersonIcon from '@mui/icons-material/Person';
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
 import GroupsIcon from '@mui/icons-material/Groups';
 import DonutLargeIcon from '@mui/icons-material/DonutLarge';
 import RouteIcon from '@mui/icons-material/Route';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import RuleIcon from '@mui/icons-material/Rule';
+import SupervisedUserCircleSharpIcon from '@mui/icons-material/SupervisedUserCircleSharp';
+import LogoutIcon from '@mui/icons-material/Logout';
+import { toast } from 'react-toastify'; // Import toast for notifications
 
-// Define el ancho del sidebar (debe coincidir con el usado en App.jsx)
-const drawerWidth = 240;
+const drawerWidth = 280;
 
 const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
-  // Obtiene el estado de autenticación y la información del usuario
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth(); // Destructure logout from useAuth
+  const location = useLocation();
+  const navigate = useNavigate(); // Initialize useNavigate
+  const theme = useTheme();
 
-  // Si el usuario no está autenticado, no mostramos el sidebar
   if (!isAuthenticated) {
-    return null; // No renderiza nada si no hay usuario logueado
+    return null;
   }
 
-  // Define las opciones de navegación para cada rol
-  const navLinks = {
-    Estudiante: [
-      { text: 'Inicio', icon: <DashboardIcon />, path: '/student/panel' },
-      { text: 'Mi Progreso', icon: <DonutLargeIcon />, path: '/student/progress' },
-      { text: 'Mis Grupos', icon: <GroupsIcon />, path: '/student/groups' },
-      { text: 'Mis Rutas de Aprendizaje', icon: <RouteIcon />, path: '/student/learning-paths' },
-      { text: 'Unirse a un Grupo', icon: <GroupAddIcon />, path: '/join-group' }, 
-    ],
-    Docente: [
-      { text: 'Inicio', icon: <DashboardIcon />, path: '/teacher/panel' },
-      { text: 'Mis Grupos', icon: <GroupIcon />, path: '/teacher/groups/' },
-      { text: 'Actividades Asignadas', icon: <LibraryBooksIcon />, path: '/teacher/assignments' },
-      { text: 'Banco de Contenido', icon: <AssignmentIcon />, path: '/content-bank' },
-      { text: 'Gestionar Mis Rutas de Aprendizaje', icon: <RouteIcon />, path: '/teacher/learning-paths' },
-    ],
-    Administrador: [
-      { text: 'Stats', icon: <DashboardIcon />, path: '/dashboard-admin' },
-      { text: 'Gestión de Usuarios', icon: <PersonIcon />, path: '/admin/user-management' },
-      { text: 'Gestión de Grupos', icon: <GroupsIcon />, path: '/admin/groups' }, // Updated path
-      { text: 'Configuración del Sistema', icon: <SettingsIcon />, path: '/admin/config' },
-    ],
-    Common: [
-      { text: 'Mi Perfil', icon: <PersonIcon />, path: '/profile' },
-    ]
+  // Configuration for navigation based on user type
+  const navConfig = {
+    Estudiante: {
+      sections: [
+        {
+          title: 'Principal',
+          items: [
+            { text: 'Inicio', icon: <DashboardIcon />, path: '/student/panel' },
+            { text: 'Mi Progreso', icon: <DonutLargeIcon />, path: '/student/progress' },
+          ]
+        },
+        {
+          title: 'Aprendizaje',
+          items: [
+            { text: 'Rutas de Aprendizaje', icon: <RouteIcon />, path: '/student/learning-paths' },
+          ]
+        },
+        {
+          title: 'Colaboración',
+          items: [
+            { text: 'Mis Grupos', icon: <GroupIcon />, path: '/student/groups' },
+            { text: 'Unirse a Grupo', icon: <GroupAddIcon />, path: '/join-group' },
+          ]
+        }
+      ]
+    },
+    Docente: {
+      sections: [
+        {
+          title: 'Principal',
+          items: [
+            { text: 'Inicio', icon: <DashboardIcon />, path: '/teacher/panel' },
+            { text: 'Mis Grupos', icon: <GroupsIcon />, path: '/teacher/groups/' },
+          ]
+        },
+        {
+          title: 'Contenido',
+          items: [
+            { text: 'Rutas de Aprendizaje', icon: <RouteIcon />, path: '/teacher/learning-paths' },
+            { text: 'Banco de Contenido', icon: <ViewListIcon />, path: '/content-bank' },
+          ]
+        },
+        {
+          title: 'Evaluación',
+          items: [
+            { text: 'Calificar Actividades', icon: <RuleIcon />, path: '/teacher/assignments' },
+          ]
+        }
+      ]
+    },
+    Administrador: {
+      sections: [
+        {
+          title: 'Panel de Control',
+          items: [
+            { text: 'Estadísticas', icon: <DashboardIcon />, path: '/dashboard-admin' },
+          ]
+        },
+        {
+          title: 'Gestión',
+          items: [
+            { text: 'Usuarios', icon: <SupervisedUserCircleSharpIcon />, path: '/admin/user-management' },
+            { text: 'Grupos', icon: <GroupsIcon />, path: '/admin/groups' },
+          ]
+        },
+        {
+          title: 'Sistema',
+          items: [
+            { text: 'Configuración', icon: <SettingsIcon />, path: '/admin/config' },
+          ]
+        }
+      ]
+    }
   };
 
-  // Obtiene los enlaces correspondientes al rol del usuario actual
-  // Si el rol del usuario no coincide con ninguna lista, mostramos un array vacío
-  const currentUserLinks = navLinks[user?.userType] || [];
-  // const commonLinks = navLinks.Common || [];
-  // const linksToDisplay = [...currentUserLinks, ...commonLinks];
-  const linksToDisplay = [...currentUserLinks];
+  const currentConfig = navConfig[user?.userType];
 
-  // Si el usuario está logueado pero no tiene un userType válido definido para links, no mostrar sidebar o mostrar un mensaje
-  if (currentUserLinks.length === 0 && isAuthenticated) {
-      console.warn(`No hay enlaces de navegación definidos para el tipo de usuario: ${user?.userType}`);
-      // Podrías renderizar un mensaje de "No hay navegación disponible para tu rol" si quieres
-       return null; // No mostramos el sidebar si no hay enlaces específicos para el rol
+  if (!currentConfig) {
+    console.warn(`No hay navegación definida para: ${user?.userType}`);
+    return null;
   }
 
+  // Function to determine if a link is active
+  const isActivePath = (path) => {
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
+
+  // Logout handler
+  const handleLogout = () => {
+    try {
+      logout(); // Call the logout function from AuthContext
+      navigate('/'); // Redirect to home page
+      toast.info('Sesión cerrada correctamente.'); // Optional: show a success message
+    } catch (error) {
+      console.error('Error during logout:', error);
+      toast.error('Ocurrió un error al cerrar sesión.'); // Optional: show an error message
+    }
+  };
+
+  // User Profile Component
+  const UserProfile = () => (
+    <Box
+      component={Link}
+      to="/profile"
+      sx={{
+        display: 'block',
+        textDecoration: 'none',
+        color: 'inherit',
+        p: 2,
+        borderRadius: 2,
+        mx: 2,
+        mb: 1.5,
+        mt: 1,
+        background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(theme.palette.secondary.main, 0.04)} 100%)`,
+        border: `1px solid ${alpha(theme.palette.primary.main, 0.08)}`,
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        '&:hover': {
+          background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.12)} 0%, ${alpha(theme.palette.secondary.main, 0.06)} 100%)`,
+          transform: 'translateY(-1px)',
+          boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.1)}`,
+        }
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Avatar
+          sx={{
+            width: 36,
+            height: 36,
+            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+            fontSize: '0.9rem',
+            fontWeight: 600,
+            boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.25)}`,
+          }}
+        >
+          {`${(user?.nombre?.[0] || '')}${(user?.apellidos?.[0] || '')}`.toUpperCase()}
+        </Avatar>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography
+            variant="subtitle2"
+            sx={{
+              fontWeight: 600,
+              mb: 0.25,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              fontSize: '0.85rem',
+              lineHeight: 1.2,
+            }}
+          >
+            {`${user?.nombre || ''} ${user?.apellidos || ''}`.trim() || 'Usuario'}
+          </Typography>
+          <Chip
+            label={user?.userType}
+            size="small"
+            sx={{
+              backgroundColor: alpha(theme.palette.secondary.main, 0.15),
+              color: theme.palette.secondary.dark,
+              fontWeight: 500,
+              fontSize: '0.7rem',
+              height: 20,
+              '& .MuiChip-label': {
+                px: 1,
+              }
+            }}
+          />
+        </Box>
+      </Box>
+    </Box>
+  );
+
+  // Navigation Section Component
+  const NavigationSection = ({ section, index }) => (
+    <Box key={section.title} sx={{ mb: 2 }}>
+      <Typography
+        variant="overline"
+        sx={{
+          px: 3,
+          py: 0.5,
+          display: 'block',
+          fontWeight: 700,
+          fontSize: '0.7rem',
+          color: theme.palette.text.secondary,
+          letterSpacing: '0.08em',
+        }}
+      >
+        {section.title}
+      </Typography>
+      <List sx={{ px: 2 }}>
+        {section.items.map((item) => {
+          const isActive = isActivePath(item.path);
+          return (
+            <ListItem key={item.text} disablePadding sx={{ mb: 0.25 }}>
+              <ListItemButton
+                component={Link}
+                to={item.path}
+                sx={{
+                  borderRadius: 1.5,
+                  py: 1,
+                  px: 1.5,
+                  minHeight: 40,
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  ...(isActive && {
+                    backgroundColor: alpha(theme.palette.primary.main, 0.12),
+                    color: theme.palette.primary.main,
+                    fontWeight: 600,
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: 3,
+                      backgroundColor: theme.palette.primary.main,
+                      borderRadius: '0 3px 3px 0',
+                    }
+                  }),
+                  '&:hover': {
+                    backgroundColor: isActive
+                      ? alpha(theme.palette.primary.main, 0.16)
+                      : alpha(theme.palette.text.primary, 0.04),
+                    transform: 'translateX(3px)',
+                  }
+                }}
+              >
+                <ListItemIcon
+                  sx={{
+                    minWidth: 36,
+                    color: isActive ? theme.palette.primary.main : 'inherit',
+                    transition: 'color 0.3s ease',
+                    '& svg': {
+                      fontSize: '1.2rem',
+                    }
+                  }}
+                >
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={item.text}
+                  primaryTypographyProps={{
+                    fontWeight: isActive ? 600 : 500,
+                    fontSize: '0.85rem',
+                  }}
+                />
+              </ListItemButton>
+            </ListItem>
+          );
+        })}
+      </List>
+    </Box>
+  );
 
   return (
     <Drawer
@@ -87,7 +314,9 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
           height: 'calc(100% - 64px)',
           transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           overflowX: 'hidden',
-          borderRight: open ? undefined : 'none',
+          borderRight: open ? `1px solid ${alpha(theme.palette.divider, 0.12)}` : 'none',
+          backgroundColor: theme.palette.background.paper,
+          backgroundImage: `linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.02)} 0%, transparent 100%)`,
         },
       }}
     >
@@ -98,46 +327,87 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
           pointerEvents: open ? 'auto' : 'none',
           height: '100%',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
         }}
       >
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 1 }}>
-          <IconButton onClick={onClose}>
+        {/* Header with close button */}
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            p: 2,
+            borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+          }}
+        >
+          <Typography variant="h6" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
+            Navegación
+          </Typography>
+          <IconButton
+            onClick={onClose}
+            sx={{
+              backgroundColor: alpha(theme.palette.text.primary, 0.04),
+              '&:hover': {
+                backgroundColor: alpha(theme.palette.text.primary, 0.08),
+                transform: 'rotate(180deg)',
+              },
+              transition: 'all 0.3s ease',
+            }}
+          >
             <ChevronLeftIcon />
           </IconButton>
         </Box>
-        <Box sx={{ overflow: 'auto' }}>
-          {/* Bloque de usuario: ahora clickeable y con avatar */}
-          <Box
-            sx={{ p: 2, textAlign: 'center', cursor: 'pointer' }}
-            component={Link}
-            to="/profile"
-            style={{ textDecoration: 'none', color: 'inherit' }}
-          >
-            <Avatar sx={{ mx: 'auto', mb: 1, bgcolor: 'primary.main' }}>
-              {`${(user?.nombre?.[0] || '')}${(user?.apellidos?.[0] || '')}`.toUpperCase()}
-            </Avatar>
-            <Typography variant="h6">
-              {`${user?.nombre || ''} ${user?.apellidos || ''}`.trim() || 'Usuario'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {user?.userType}
-            </Typography>
-            <Divider sx={{ mt: 2 }} />
-          </Box>
-          {/* Lista de enlaces de navegación */}
-          <List>
-            {linksToDisplay.map((link, index) => (
-              <ListItem key={link.text} disablePadding>
-                <ListItemButton component={Link} to={link.path}>
-                  <ListItemIcon>
-                    {link.icon}
-                  </ListItemIcon>
-                  <ListItemText primary={link.text} />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
+
+        {/* User profile */}
+        <UserProfile />
+
+        {/* Scrollable content */}
+        <Box sx={{ flex: 1, overflowY: 'auto', pb: 2 }}>
+          {currentConfig.sections.map((section, index) => (
+            <NavigationSection key={section.title} section={section} index={index} />
+          ))}
+        </Box>
+
+        {/* Footer with logout */}
+        <Box sx={{
+          p: 2,
+          borderTop: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+          backgroundColor: alpha(theme.palette.background.default, 0.5),
+        }}>
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={handleLogout} // Call the handleLogout function
+              sx={{
+                borderRadius: 1.5,
+                py: 1,
+                px: 1.5,
+                minHeight: 40,
+                color: theme.palette.error.main,
+                '&:hover': {
+                  backgroundColor: alpha(theme.palette.error.main, 0.08),
+                  transform: 'translateX(2px)',
+                }
+              }}
+            >
+              <ListItemIcon sx={{
+                minWidth: 36,
+                color: theme.palette.error.main,
+                '& svg': {
+                  fontSize: '1.2rem',
+                }
+              }}>
+                <LogoutIcon />
+              </ListItemIcon>
+              <ListItemText
+                primary="Cerrar Sesión"
+                primaryTypographyProps={{
+                  fontWeight: 500,
+                  fontSize: '0.85rem',
+                  color: theme.palette.error.main,
+                }}
+              />
+            </ListItemButton>
+          </ListItem>
         </Box>
       </Box>
     </Drawer>
