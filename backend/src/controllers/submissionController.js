@@ -8,7 +8,6 @@ const mongoose = require('mongoose'); // Para comparación de ObjectIds
 const LearningPath = require('../models/LearningPathModel');
 const Module = require('../models/ModuleModel');
 const Theme = require('../models/ThemeModel');
-const Module = require('../models/ModuleModel'); // Needed to trace back to learning_path_id
 const Group = require('../models/GroupModel'); // Necesario para verificar propiedad del grupo
 const { triggerActivityBasedProgressUpdate } = require('./progressController'); // Import progress update function
 
@@ -28,40 +27,48 @@ const createSubmission = async (req, res) => {
     // --- Fin Verificación de Permiso ---
 
     // --- Validación básica de entrada (mantener) ---
-    // 'respuesta' es obligatorio, aunque su contenido válido depende del tipo de actividad
     if (!assignmentId || respuesta === undefined) {
         return res.status(400).json({ message: 'ID de asignación y respuesta son obligatorios' });
     }
     // --- Fin Validación básica ---
 
     try {
-        // --- Verificar Existencia de la Asignación y Obtener Detalles (mantener) ---
+        // --- Verificar Existencia de la Asignación y Obtener Detalles (Mantenido y mejorado) ---
         // Necesitamos poblar la asignación para obtener la actividad linked (y su tipo y preguntas)
-        // y el grupo (para verificar la membresía del estudiante)
+        // el grupo (para verificar la membresía del estudiante)
+        // Y AHORA: el theme_id, module_id, y learning_path_id para el trigger de progreso
         const assignment = await ContentAssignment.findById(assignmentId)
-                                .populate('activity_id') // Poblar la actividad (incluye preguntas para Quiz/Cuestionario)
-                                .populate('group_id');   // Poblar el grupo (para verificar membresía)
+            .populate('activity_id') // Poblar la actividad (incluye preguntas para Quiz/Cuestionario)
+            .populate('group_id')    // Poblar el grupo (para verificar membresía)
+            .populate({              // Deep populate para obtener learning_path_id
+                path: 'theme_id',
+                select: 'module_id',
+                populate: {
+                    path: 'module_id',
+                    select: 'learning_path_id'
+                }
+            });
 
-        // Verificar si la asignación existe y tiene referencias válidas a actividad y grupo
-        if (!assignment || !assignment.activity_id || !assignment.group_id) {
-            return res.status(404).json({ message: 'Asignación no encontrada o incompleta' });
+        // Verificar si la asignación existe y tiene referencias válidas
+        if (!assignment || !assignment.activity_id || !assignment.group_id ||
+            !assignment.theme_id || !assignment.theme_id.module_id || !assignment.theme_id.module_id.learning_path_id) {
+            console.error(`Asignación incompleta para el ID: ${assignmentId}. Faltan referencias a activity_id, group_id, theme_id, module_id, o learning_path_id.`);
+            return res.status(404).json({ message: 'Asignación no encontrada o incompleta. No se pudo determinar la ruta de aprendizaje.' });
         }
-        // Asegurarse de que la asignación es efectivamente de una Actividad, no un Recurso
+        
+        // Asegurarse de que la asignación es efectivamente de una Actividad
         if (assignment.type !== 'Activity') {
-             return res.status(400).json({ message: 'Esta asignación no corresponde a una actividad evaluable' });
+            return res.status(400).json({ message: 'Esta asignación no corresponde a una actividad evaluable' });
         }
-         // --- Fin Verificación Asignación ---
+        // --- Fin Verificación Asignación ---
 
         // *** NUEVA VERIFICACIÓN DE ESTADO: La asignación debe estar 'Open' para permitir la entrega ***
         if (assignment.status !== 'Open') {
-             // Usamos 403 Forbidden o 410 Gone (dependiendo si quieres indicar que está cerrada)
-             return res.status(403).json({ message: `Esta actividad asignada no está actualmente disponible para entregas (Estado: ${assignment.status}).` });
+            return res.status(403).json({ message: `Esta actividad asignada no está actualmente disponible para entregas (Estado: ${assignment.status}).` });
         }
         // *** Fin Nueva Verificación de Estado ***
 
-
         // --- Verificar Membresía Aprobada del Estudiante en el Grupo (mantener) ---
-        // El estudiante debe ser miembro aprobado del grupo donde está asignada esta actividad
         const approvedMembership = await Membership.findOne({
             usuario_id: studentId,
             grupo_id: assignment.group_id._id,
@@ -79,139 +86,124 @@ const createSubmission = async (req, res) => {
             student_id: studentId
         });
 
-        const attemptNumber = existingSubmissionsCount + 1; // El número del intento actual
+        const attemptNumber = existingSubmissionsCount + 1;
 
-        // Obtenemos los intentos permitidos de la asignación. Validamos que sea un número >= 1.
         const intentosPermitidos = assignment.intentos_permitidos;
-        // Se valida que sea un número positivo en la creación de la asignación.
-        // Esta validación de salvaguarda asegura que el campo tiene un valor usable.
         if (intentosPermitidos === undefined || typeof intentosPermitidos !== 'number' || intentosPermitidos < 1) {
-             console.error(`Advertencia: Asignación ${assignmentId} tiene un valor inválido para intentos_permitidos: ${intentosPermitidos}`);
-             return res.status(500).json({ message: 'Error en la configuración de la asignación: intentos permitidos inválidos.' });
+            console.error(`Advertencia: Asignación ${assignmentId} tiene un valor inválido para intentos_permitidos: ${intentosPermitidos}`);
+            return res.status(500).json({ message: 'Error en la configuración de la asignación: intentos permitidos inválidos.' });
         }
 
-
         if (attemptNumber > intentosPermitidos) {
-            // Si el número del intento actual excede los permitidos
             return res.status(400).json({ message: `Has excedido el número máximo de intentos (${intentosPermitidos}) para esta actividad asignada.` });
         }
         // --- Fin Control de Intentos ---
 
-
         // --- Validar y Estructurar la Data de Respuesta según el Tipo de Actividad (mantener tu lógica) ---
-        const activityType = assignment.activity_id.type; // Tipo de actividad (Cuestionario, Trabajo, Quiz)
-        const submissionResponseData = {}; // Objeto para guardar la respuesta validada
+        const activityType = assignment.activity_id.type;
+        const submissionResponseData = {};
 
         if (activityType === 'Cuestionario') {
-             // ... tu lógica de validación de respuestas de Cuestionario ...
-             if (!respuesta.cuestionario_answers || !Array.isArray(respuesta.cuestionario_answers)) {
-                 return res.status(400).json({ message: 'La respuesta para un Cuestionario debe contener un array llamado "cuestionario_answers"' });
-             }
-             const originalQuestions = assignment.activity_id.cuestionario_questions || []; // Salvaguarda si questions es null/undefined
-             const originalQuestionsCount = originalQuestions.length;
+            if (!respuesta.cuestionario_answers || !Array.isArray(respuesta.cuestionario_answers)) {
+                return res.status(400).json({ message: 'La respuesta para un Cuestionario debe contener un array llamado "cuestionario_answers"' });
+            }
+            const originalQuestions = assignment.activity_id.cuestionario_questions || [];
+            const originalQuestionsCount = originalQuestions.length;
 
-             for (const answer of respuesta.cuestionario_answers) {
-                 if (answer.question_index === undefined || answer.student_answer === undefined) {
-                      return res.status(400).json({ message: 'Cada objeto en "cuestionario_answers" debe incluir "question_index" y "student_answer"' });
-                 }
-                  if (typeof answer.question_index !== 'number' || answer.question_index < 0 || answer.question_index >= originalQuestionsCount) {
-                      return res.status(400).json({ message: `question_index inválido (${answer.question_index}) en las respuestas del cuestionario.` });
-                 }
-                  if (typeof answer.student_answer !== 'string') {
-                      return res.status(400).json({ message: `student_answer debe ser texto para las respuestas del cuestionario.` });
-                 }
-             }
-             submissionResponseData.cuestionario_answers = respuesta.cuestionario_answers;
+            for (const answer of respuesta.cuestionario_answers) {
+                if (answer.question_index === undefined || answer.student_answer === undefined) {
+                    return res.status(400).json({ message: 'Cada objeto en "cuestionario_answers" debe incluir "question_index" y "student_answer"' });
+                }
+                if (typeof answer.question_index !== 'number' || answer.question_index < 0 || answer.question_index >= originalQuestionsCount) {
+                    return res.status(400).json({ message: `question_index inválido (${answer.question_index}) en las respuestas del cuestionario.` });
+                }
+                if (typeof answer.student_answer !== 'string') {
+                    return res.status(400).json({ message: `student_answer debe ser texto para las respuestas del cuestionario.` });
+                }
+            }
+            submissionResponseData.cuestionario_answers = respuesta.cuestionario_answers;
 
         } else if (activityType === 'Trabajo') {
-            // ... tu lógica de validación de respuestas de Trabajo ...
             if (!respuesta.link_entrega || typeof respuesta.link_entrega !== 'string' || respuesta.link_entrega.trim() === '') {
-                 return res.status(400).json({ message: 'La respuesta para un Trabajo debe contener un link de entrega válido llamado "link_entrega"' });
+                return res.status(400).json({ message: 'La respuesta para un Trabajo debe contener un link de entrega válido llamado "link_entrega"' });
             }
-             submissionResponseData.link_entrega = respuesta.link_entrega;
+            submissionResponseData.link_entrega = respuesta.link_entrega;
 
         } else if (activityType === 'Quiz') {
-             // ... tu lógica de validación de respuestas de Quiz ...
-             if (!respuesta.quiz_answers || !Array.isArray(respuesta.quiz_answers)) {
-                 return res.status(400).json({ message: 'La respuesta para un Quiz debe contener un array llamado "quiz_answers"' });
-             }
-             const originalQuestions = assignment.activity_id.quiz_questions || []; // Salvaguarda
-             const totalQuestions = originalQuestions.length;
+            if (!respuesta.quiz_answers || !Array.isArray(respuesta.quiz_answers)) {
+                return res.status(400).json({ message: 'La respuesta para un Quiz debe contener un array llamado "quiz_answers"' });
+            }
+            const originalQuestions = assignment.activity_id.quiz_questions || [];
+            const totalQuestions = originalQuestions.length;
 
-             if (respuesta.quiz_answers.length !== totalQuestions) {
-                  return res.status(400).json({ message: `Se esperaban ${totalQuestions} respuestas para este quiz` });
-             }
+            if (respuesta.quiz_answers.length !== totalQuestions) {
+                return res.status(400).json({ message: `Se esperaban ${totalQuestions} respuestas para este quiz` });
+            }
 
-             for (const studentAnswer of respuesta.quiz_answers) {
-                 if (studentAnswer.question_index === undefined || studentAnswer.student_answer === undefined) {
-                      return res.status(400).json({ message: 'Cada objeto en "quiz_answers" debe incluir "question_index" y "student_answer"' });
-                 }
-                 if (typeof studentAnswer.question_index !== 'number' || studentAnswer.question_index < 0 || studentAnswer.question_index >= totalQuestions) {
-                      return res.status(400).json({ message: `question_index inválido (${studentAnswer.question_index}) en las respuestas del quiz.` });
-                 }
-                 if (typeof studentAnswer.student_answer !== 'string') {
-                     return res.status(400).json({ message: `student_answer debe ser texto para las respuestas del quiz.` });
-                 }
-                 const originalQuestion = originalQuestions[studentAnswer.question_index];
-                  if (!originalQuestion || !originalQuestion.options || !Array.isArray(originalQuestion.options) || !originalQuestion.options.includes(studentAnswer.student_answer)) {
-                     return res.status(400).json({ message: `La respuesta proporcionada ("${studentAnswer.student_answer}") para la pregunta en el índice ${studentAnswer.question_index} no es una opción válida.` });
-                 }
-             }
+            for (const studentAnswer of respuesta.quiz_answers) {
+                if (studentAnswer.question_index === undefined || studentAnswer.student_answer === undefined) {
+                    return res.status(400).json({ message: 'Cada objeto en "quiz_answers" debe incluir "question_index" y "student_answer"' });
+                }
+                if (typeof studentAnswer.question_index !== 'number' || studentAnswer.question_index < 0 || studentAnswer.question_index >= totalQuestions) {
+                    return res.status(400).json({ message: `question_index inválido (${studentAnswer.question_index}) en las respuestas del quiz.` });
+                }
+                if (typeof studentAnswer.student_answer !== 'string') {
+                    return res.status(400).json({ message: `student_answer debe ser texto para las respuestas del quiz.` });
+                }
+                const originalQuestion = originalQuestions[studentAnswer.question_index];
+                if (!originalQuestion || !originalQuestion.options || !Array.isArray(originalQuestion.options) || !originalQuestion.options.includes(studentAnswer.student_answer)) {
+                    return res.status(400).json({ message: `La respuesta proporcionada ("${studentAnswer.student_answer}") para la pregunta en el índice ${studentAnswer.question_index} no es una opción válida.` });
+                }
+            }
             submissionResponseData.quiz_answers = respuesta.quiz_answers;
 
         } else {
-             return res.status(500).json({ message: 'Tipo de actividad desconocido en la asignación. No se puede procesar la entrega.' });
+            return res.status(500).json({ message: 'Tipo de actividad desconocido en la asignación. No se puede procesar la entrega.' });
         }
         // --- Fin Validar Data de Respuesta ---
 
-
         // --- Crear el Documento de Entrega Inicial ---
-        const submissionDate = new Date(); // Obtiene la fecha y hora actual del envío
-        const assignmentDeadline = assignment.fecha_fin; // Obtiene la fecha de fin de la asignación (ahora potencial fecha sugerida)
+        const submissionDate = new Date();
+        const assignmentDeadline = assignment.fecha_fin;
 
-        // Comprueba si la entrega es tardía (si hay fecha de fin y la fecha de envío es posterior)
-        // Esta flag is_late se mantiene, aunque el control de acceso primario sea el 'status'
         const isLate = assignmentDeadline && submissionDate > assignmentDeadline;
-
 
         const submission = new Submission({
             assignment_id: assignmentId,
             student_id: studentId,
             group_id: assignment.group_id._id,
-            docente_id: assignment.docente_id,
+            docente_id: assignment.docente_id, // Asumo que docente_id está en ContentAssignment
             fecha_envio: submissionDate,
-            estado_envio: 'Enviado', // El estado inicial es Enviado
-            is_late: isLate, // Establece si es tardía
+            estado_envio: 'Enviado',
+            is_late: isLate,
             attempt_number: attemptNumber,
             respuesta: submissionResponseData
         });
 
         await submission.save();
-
         // --- Fin Crear Entrega Inicial ---
 
-
-        // --- Calificación Automática para Quiz (mantener tu lógica) ---
+        // --- Calificación Automática para Quiz (mantener y optimizar) ---
         if (activityType === 'Quiz') {
             let correctAnswersCount = 0;
-             const originalQuestions = assignment.activity_id.quiz_questions || []; // Salvaguarda
+            const originalQuestions = assignment.activity_id.quiz_questions || [];
             const totalQuestions = originalQuestions.length;
 
             for (const studentAnswer of submissionResponseData.quiz_answers) {
                 const questionIndex = studentAnswer.question_index;
                 if (questionIndex >= 0 && questionIndex < totalQuestions) {
-                     const originalQuestion = originalQuestions[questionIndex];
-                     if (originalQuestion && studentAnswer.student_answer === originalQuestion.correct_answer) {
-                         correctAnswersCount++;
-                     }
+                    const originalQuestion = originalQuestions[questionIndex];
+                    if (originalQuestion && studentAnswer.student_answer === originalQuestion.correct_answer) {
+                        correctAnswersCount++;
+                    }
                 }
             }
 
-            const maxAssignmentPoints = assignment.puntos_maximos; // Usar puntos_maximos del modelo
+            const maxAssignmentPoints = assignment.puntos_maximos;
             let calculatedScore = 0;
             if (totalQuestions > 0 && maxAssignmentPoints !== undefined && maxAssignmentPoints >= 0) {
-                 calculatedScore = (correctAnswersCount / totalQuestions) * maxAssignmentPoints;
-                 calculatedScore = parseFloat(calculatedScore.toFixed(2));
+                calculatedScore = (correctAnswersCount / totalQuestions) * maxAssignmentPoints;
+                calculatedScore = parseFloat(calculatedScore.toFixed(2));
             }
 
             submission.calificacion = calculatedScore;
@@ -219,51 +211,35 @@ const createSubmission = async (req, res) => {
 
             await submission.save();
 
-            // --- Trigger progress update after auto-grading a Quiz ---
+            // --- Trigger progress update after auto-grading a Quiz (OPTIMIZADO) ---
             try {
-                const studentIdForProgress = submission.student_id;
-                // Need to get learningPathId from assignment -> theme -> module -> learningPath
-                const assignmentForProgress = await ContentAssignment.findById(submission.assignment_id)
-                    .populate({
-                        path: 'theme_id',
-                        select: 'module_id',
-                        populate: {
-                            path: 'module_id',
-                            select: 'learning_path_id'
+                // Ya tenemos la learningPathId de la población inicial de `assignment`
+                const learningPathIdForProgress = assignment.theme_id.module_id.learning_path_id;
+                
+                // No necesitamos volver a consultar `ContentAssignment` para el trigger
+                triggerActivityBasedProgressUpdate(studentId, learningPathIdForProgress)
+                    .then(result => {
+                        if (result && result.success) {
+                            console.log(`Progreso actualizado exitosamente para estudiante ${studentId}, ruta ${learningPathIdForProgress} después de autocalificar Quiz.`);
+                        } else {
+                            console.error(`Fallo al disparar actualización de progreso para estudiante ${studentId}, ruta ${learningPathIdForProgress} después de autocalificar Quiz: ${result ? result.message : 'Error desconocido'}`);
                         }
+                    })
+                    .catch(err => {
+                        console.error(`Error llamando a triggerActivityBasedProgressUpdate para estudiante ${studentId}, ruta ${learningPathIdForProgress} después de autocalificar Quiz:`, err);
                     });
-
-                if (assignmentForProgress && assignmentForProgress.theme_id && assignmentForProgress.theme_id.module_id && assignmentForProgress.theme_id.module_id.learning_path_id) {
-                    const learningPathIdForProgress = assignmentForProgress.theme_id.module_id.learning_path_id;
-                    // Call the trigger function (fire and forget, or log errors)
-                    triggerActivityBasedProgressUpdate(studentIdForProgress, learningPathIdForProgress)
-                        .then(result => {
-                            if (result && result.success) {
-                                console.log(`Progress update triggered successfully for student ${studentIdForProgress}, path ${learningPathIdForProgress} after Quiz auto-grade.`);
-                            } else {
-                                console.error(`Progress update trigger failed for student ${studentIdForProgress}, path ${learningPathIdForProgress} after Quiz auto-grade: ${result ? result.message : 'Unknown error'}`);
-                            }
-                        })
-                        .catch(err => {
-                            console.error(`Error calling triggerActivityBasedProgressUpdate for student ${studentIdForProgress}, path ${learningPathIdForProgress} after Quiz auto-grade:`, err);
-                        });
-                } else {
-                    console.error(`Could not find learningPathId for assignment ${submission.assignment_id} to trigger progress update.`);
-                }
             } catch (progressError) {
-                console.error('Error trying to trigger progress update after Quiz auto-grade:', progressError);
-                // Do not let this error affect the main response for submission creation
+                console.error('Error al intentar disparar la actualización de progreso después de autocalificar Quiz:', progressError);
             }
-            // --- End Trigger progress update ---
+            // --- Fin Trigger progress update ---
 
             res.status(200).json(submission); // Quiz is created and auto-graded
 
         } else {
-            // For non-Quiz activities, just return the created submission (status 201)
+            // Para actividades que no son Quiz, solo devuelve la entrega creada (estado 201)
             res.status(201).json(submission);
         }
         // --- Fin Calificación Automática ---
-
 
     } catch (error) {
         // Manejo de errores generales
@@ -271,8 +247,7 @@ const createSubmission = async (req, res) => {
             const messages = Object.values(error.errors).map(val => val.message);
             return res.status(400).json({ message: 'Error de validación al crear la entrega', errors: messages });
         }
-        // Manejo de errores específicos si es necesario (ej. Mongoose duplicate key error si tuvieras un unique index en submission)
-        if (error.code === 11000) { // Error de clave duplicada en Mongoose (si tienes índices únicos)
+        if (error.code === 11000) {
             return res.status(400).json({ message: 'Parece que ya existe una entrega similar. Error de duplicado.' });
         }
         console.error('Error creando entrega:', error);

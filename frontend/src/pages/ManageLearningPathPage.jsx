@@ -779,7 +779,7 @@ function ManageLearningPathPage() {
   if (!learningPath) {
     return (
       <Container>
-        <Box sx={{ mt: 4 }}>
+        <Box >
           <Alert severity="warning">Ruta de aprendizaje no encontrada.</Alert>
           <Button onClick={() => navigate(-1)} sx={{ mt: 2 }}>Volver</Button>
         </Box>
@@ -791,7 +791,7 @@ function ManageLearningPathPage() {
   // --- Renderizar la estructura de la Ruta de Aprendizaje ---
   return (
     <Container>
-      <Box sx={{ mt: 4 }}>
+      <Box sx={{ mt: 1 }}>
         {/* Título y Datos de la Ruta */}
         
           <Typography color="text.secondary" variant="h4" gutterBottom>

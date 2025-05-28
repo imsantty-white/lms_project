@@ -19,14 +19,7 @@ import {
 import WorkIcon from '@mui/icons-material/Work';
 
 // *** Importar useAuth (ahora incluyendo isAuthInitialized) Y axiosInstance ***
-import { useAuth, axiosInstance } from '../contexts/AuthContext'; // <-- Modificado
-
-// *** Eliminar la importación de axios si ya no la usas directamente ***
-// import axios from 'axios';
-
-// *** Eliminar la importación de API_BASE_URL si axiosInstance ya la tiene configurada ***
-// import { API_BASE_URL } from '../utils/constants';
-
+import { useAuth, axiosInstance } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
 
 function StudentLearningPathsPage() {
@@ -55,7 +48,12 @@ function StudentLearningPathsPage() {
           try {
             // *** LLAMADA GET AL BACKEND USANDO axiosInstance ***
             // Asume que axiosInstance ya tiene configurada la URL base
-            const response = await axiosInstance.get('/api/learning-paths/my-assigned'); // <-- Modificado
+            const response = await axiosInstance.get('/api/learning-paths/my-assigned');
+            console.log("Respuesta completa del backend:", response.data); 
+            console.log("Datos de rutas asignadas desde el backend:", response.data.data);
+            if (response.data.data && response.data.data.length > 0) {
+                console.log("Primera ruta de aprendizaje recibida:", response.data.data[0]); // <-- ¡Necesito ver esto!
+            }
 
             // Asume que el backend devuelve el array de rutas directamente (response.data) o en un campo 'data' (response.data.data)
             // Si tu backend devuelve { data: [...] }, usa response.data.data. Si devuelve [...], usa response.data
@@ -139,8 +137,8 @@ function StudentLearningPathsPage() {
                     </ListItemIcon>
                     <ListItemText
                       primary={<Typography variant="h6">{path.nombre}</Typography>}
-                      // Muestra el grupo si lo populaste en el backend
-                      secondary={path.group_id?.nombre ? `Grupo: ${path.group_id.nombre}` : 'Sin grupo especificado'}
+                      // CAMBIO CRUCIAL AQUÍ: ACCEDE A path.group_name DIRECTAMENTE
+                      secondary={path.group_name ? `Grupo: ${path.group_name}` : 'Sin grupo especificado'}
                     />
                   </ListItemButton>
                   {index < learningPaths.length - 1 && <Divider component="li" />}

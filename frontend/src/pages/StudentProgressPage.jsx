@@ -7,28 +7,25 @@ import {
 function StudentProgressPage() {
   const { user, isAuthenticated, isAuthInitialized } = useAuth();
   const [learningPaths, setLearningPaths] = useState([]);
-  const [selectedPath, setSelectedPath] = useState(null);
+  // selectedPath ahora podría almacenar un objeto más completo si es necesario,
+  // pero lo esencial es que debe contener el _id de la ruta y el group_id asociado.
+  const [selectedPath, setSelectedPath] = useState(null); 
   const [progress, setProgress] = useState(null);
   const [activities, setActivities] = useState([]);
-  const [loading, setLoading] = useState(false); 
+  const [loading, setLoading] = useState(false);
   const [loadingPaths, setLoadingPaths] = useState(false);
-  const [snackbarOpen, setSnackbarOpen] = useState(false); // State for Snackbar
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
 
-  // Traducción de estados para el progreso de la ruta y estado de actividades
+  // Traducción de estados
   const STATUS_TRANSLATIONS = {
-    // Para path_status desde el backend
-    'completado': 'completed',
-    'en progreso': 'in progress',
-    'no iniciado': 'not started',
-    // Para estados de actividades/asignaciones (existentes)
+    'completado': 'Completado',
+    'en progreso': 'En Progreso',
+    'no iniciado': 'No Iniciada',
     open: 'Abierto',
     closed: 'Cerrado',
     draft: 'Borrador',
-    // Para estados de entrega (existentes)
-    pending: 'Pendiente', // Usado para actividad.lastSubmission no existente
-    submitted: 'Entregado', // Usado para actividad.lastSubmission.estado_envio
-    graded: 'Calificado', // Usado para actividad.lastSubmission.estado_envio
-    // Nuevos estados para la interfaz de actividades (si es necesario, o usar los de arriba)
+    submitted: 'Entregado',
+    graded: 'Calificado',
     'pendiente de entrega': 'Pendiente de entrega',
     'pendiente de calificar': 'Pendiente de calificar'
   };
@@ -36,7 +33,7 @@ function StudentProgressPage() {
   const translateStatus = (statusKey) => {
     if (!statusKey) return 'Desconocido';
     const lowerStatusKey = statusKey.toLowerCase();
-    return STATUS_TRANSLATIONS[lowerStatusKey] || 
+    return STATUS_TRANSLATIONS[lowerStatusKey] ||
            statusKey.charAt(0).toUpperCase() + statusKey.slice(1);
   };
 
@@ -44,51 +41,75 @@ function StudentProgressPage() {
   useEffect(() => {
     if (isAuthenticated) {
       setLoadingPaths(true);
+      // Asumo que tu endpoint /api/learning-paths/my-assigned
+      // ahora devuelve el group_id asociado a cada ruta de aprendizaje que el estudiante tiene asignada.
+      // Si un estudiante tiene la misma ruta asignada en múltiples grupos,
+      // este endpoint debería devolver entradas separadas para cada combinación ruta-grupo.
       axiosInstance.get('/api/learning-paths/my-assigned')
+      
         .then(res => {
-          // res.data.data es el array de rutas
+          console.log("Rutas asignadas recibidas:", res.data.data);
           const paths = Array.isArray(res.data.data) ? res.data.data : [];
           setLearningPaths(paths);
+          // Si solo hay una ruta, seleccionarla automáticamente
+          if (paths.length > 0 && !selectedPath) {
+              setSelectedPath(paths[0]);
+          }
         })
-        .catch(() => setLearningPaths([]))
+        .catch(error => {
+            console.error("Error cargando rutas de aprendizaje asignadas:", error);
+            setLearningPaths([]);
+        })
         .finally(() => setLoadingPaths(false));
     }
   }, [isAuthenticated]);
 
-  // 2. Cuando el estudiante selecciona una ruta, cargar progreso y actividades
+  // 2. Cuando el estudiante selecciona una ruta (que incluye el group_id), cargar progreso y actividades
   useEffect(() => {
-    if (selectedPath) {
+    // Asegúrate de que selectedPath tenga learningPathId y groupId
+    if (selectedPath && selectedPath._id && selectedPath.group_id) {
       setLoading(true);
-      setProgress(null); 
+      setProgress(null);
       setActivities([]);
-      setSnackbarOpen(false); // Close snackbar when new path is selected or data is being fetched
-      
-      Promise.all([
-        axiosInstance.get(`/api/progress/my/${selectedPath._id}`),
-        axiosInstance.get(`/api/learning-paths/${selectedPath._id}/activities/student`)
-      ]).then(([progressRes, activitiesRes]) => {
-        const newProgressData = progressRes.data;
-        setProgress(newProgressData); 
-        setActivities(activitiesRes.data.activities || []); 
+      setSnackbarOpen(false);
 
-        if (newProgressData && newProgressData.path_status === 'No Iniciado') {
+      // --- CAMBIO CLAVE AQUÍ: Pasar groupId al endpoint de progreso ---
+      // El endpoint de progreso ahora es /api/progress/:learningPathId/:groupId/student
+      Promise.all([
+        axiosInstance.get(`/api/progress/${selectedPath._id}/${selectedPath.group_id}/student`),
+        axiosInstance.get(`/api/learning-paths/${selectedPath._id}/activities/student`) // Este endpoint podría necesitar un groupId también si las actividades son específicas de grupo
+      ]).then(([progressRes, activitiesRes]) => {
+        console.log("Progreso recibido:", progressRes.data);
+        console.log("Actividades recibidas:", activitiesRes.data.activities);
+        // --- CAMBIO CLAVE AQUÍ: Manejar la respuesta del backend para el progreso ---
+        // El backend ahora devuelve { progress, calculated_data }
+        const { progress: dbProgress, calculated_data: latestCalculatedData } = progressRes.data;
+
+        // Utilizamos los datos calculados más recientes para la visualización del progreso
+        // y el documento 'progress' de la DB si necesitamos sus detalles (como completed_themes)
+        setProgress({
+            ...dbProgress, // Los datos de la DB
+            ...latestCalculatedData // Sobreescribimos con los datos calculados más recientes
+        }); 
+
+        setActivities(activitiesRes.data.activities || []);
+
+        if (latestCalculatedData && latestCalculatedData.path_status === 'No Iniciado') {
           setSnackbarOpen(true);
         } else {
-          setSnackbarOpen(false); 
+          setSnackbarOpen(false);
         }
       }).catch(error => {
-        console.error('Error loading progress or activities:', error);
-        setProgress(null); 
+        console.error('Error loading progress or activities:', error.response?.data || error.message);
+        setProgress(null);
         setActivities([]);
-        setSnackbarOpen(false); // Ensure snackbar is closed on error
-        // Opcional: mostrar mensaje de error
+        setSnackbarOpen(false);
       }).finally(() => {
         setLoading(false);
       });
     }
-  }, [selectedPath]);
+  }, [selectedPath]); // Asegúrate de que se re-ejecute cuando selectedPath cambia
 
-  // Mostrar loading solo si la autenticación no ha sido inicializada
   if (!isAuthInitialized) {
     return (
       <Container maxWidth="md" sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -97,7 +118,6 @@ function StudentProgressPage() {
     );
   }
 
-  // Si no está autenticado, mostrar mensaje o redirigir
   if (!isAuthenticated) {
     return (
       <Container maxWidth="md">
@@ -117,26 +137,25 @@ function StudentProgressPage() {
         {loadingPaths ? (
           <CircularProgress size={24} />
         ) : (
+          // Asegúrate de que `lp` contenga tanto `_id` como `group_id` de la ruta asignada
           learningPaths.map(lp => (
             <Chip
-              key={lp._id}
-              label={lp.nombre}
-              color={selectedPath?._id === lp._id ? 'primary' : 'default'}
-              onClick={() => setSelectedPath(lp)}
+              key={`${lp._id}-${lp.group_id}`} // Clave única por ruta-grupo
+              label={`${lp.nombre} (Grupo: ${lp.group_name || lp.group_id})`} // Mostrar nombre del grupo si lo tienes
+              color={selectedPath?._id === lp._id && selectedPath?.group_id === lp.group_id ? 'primary' : 'default'}
+              onClick={() => setSelectedPath(lp)} // lp ya debería ser el objeto completo con _id y group_id
               sx={{ mr: 1, mb: 1 }}
             />
           ))
         )}
       </Box>
 
-      {/* Mostrar loading solo cuando se está cargando el progreso de una ruta específica */}
       {loading && (
         <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
           <CircularProgress />
         </Box>
       )}
 
-      {/* Mostrar progreso solo si hay una ruta seleccionada y no está cargando */}
       {selectedPath && !loading && progress && (
         <Paper sx={{ p: 3, mb: 3 }}>
           <Typography variant="h6" gutterBottom>
@@ -147,6 +166,7 @@ function StudentProgressPage() {
             <>
               <LinearProgress
                 variant="determinate"
+                // Asegúrate de que graded_activities y total_activities provengan de 'calculated_data'
                 value={(progress.graded_activities / progress.total_activities) * 100}
                 sx={{ height: 10, borderRadius: 5, my: 2 }}
               />
@@ -156,37 +176,36 @@ function StudentProgressPage() {
             </>
           ) : (
             <Typography variant="body2" color="text.secondary" sx={{ my: 2 }}>
-              {progress.path_status === 'Completado' 
-                ? 'Completado (sin actividades asignadas)' 
+              {progress.path_status === 'Completado'
+                ? 'Completado (sin actividades asignadas)'
                 : 'No hay actividades asignadas en esta ruta para medir el progreso.'}
             </Typography>
           )}
         </Paper>
       )}
 
-      {/* Mostrar actividades solo si hay una ruta seleccionada y no está cargando */}
       {selectedPath && !loading && (
-         <Paper sx={{ p: 3, mt: 3 }}> {/* Añadido margen superior para separar de la sección de progreso */}
+          <Paper sx={{ p: 3, mt: 3 }}>
           <Typography variant="h6" gutterBottom>Detalle de Actividades</Typography>
-          {activities && activities.length > 0 ? ( // Comprobar que activities existe y tiene items
+          {activities && activities.length > 0 ? (
             <List>
               {activities.map(act => (
-                <React.Fragment key={act.activity_id?._id || act._id}> {/* Usar activity_id._id si está poblado, sino act._id */}
+                <React.Fragment key={act.assignment_id || act._id}> {/* Usar assignment_id como clave si está disponible */}
                   <ListItem>
                     <ListItemText
-                      primary={act.activity_id?.title || 'Título no disponible'} // Acceder al título desde activity_id poblado
+                      primary={act.activity_id?.title || 'Título no disponible'}
                       secondary={
                         <>
                           <Typography variant="body2">
-                            Estado de la asignación: {translateStatus(act.status)} 
+                            Estado de la asignación: {translateStatus(act.status)}
                           </Typography>
                           <Typography variant="body2">
                             Tu calificación: {act.lastSubmission?.calificacion !== undefined && act.lastSubmission?.calificacion !== null
                               ? act.lastSubmission.calificacion
-                              : 'N/A'} 
+                              : 'Sin calificar'}
                           </Typography>
                            <Typography variant="body2">
-                            Estado de tu entrega: {act.lastSubmission 
+                            Estado de tu entrega: {act.lastSubmission
                                 ? translateStatus(act.lastSubmission.estado_envio)
                                 : translateStatus('pendiente de entrega')
                             }
@@ -194,11 +213,11 @@ function StudentProgressPage() {
                         </>
                       }
                     />
-                     <Chip
+                      <Chip
                         label={
                             !act.lastSubmission
-                            ? translateStatus('pendiente de entrega') // Usar translateStatus
-                            : translateStatus(act.lastSubmission.estado_envio) // Usar translateStatus
+                            ? translateStatus('pendiente de entrega')
+                            : translateStatus(act.lastSubmission.estado_envio)
                         }
                         color={
                             !act.lastSubmission
@@ -207,9 +226,9 @@ function StudentProgressPage() {
                                 ? 'success'
                                 : act.lastSubmission.estado_envio === 'Enviado'
                                     ? 'warning'
-                                    : 'default' // Para 'Pendiente' u otros
+                                    : 'default'
                         }
-                        />
+                      />
                   </ListItem>
                   <Divider />
                 </React.Fragment>
@@ -223,14 +242,12 @@ function StudentProgressPage() {
         </Paper>
       )}
 
-      {/* Mensaje cuando no hay ruta seleccionada */}
       {!selectedPath && !loadingPaths && learningPaths.length > 0 && (
         <Alert severity="info">
           Selecciona una ruta de aprendizaje para ver tu progreso.
         </Alert>
       )}
 
-      {/* Mensaje cuando no hay rutas asignadas */}
       {!loadingPaths && learningPaths.length === 0 && (
         <Alert severity="info">
           No tienes rutas de aprendizaje asignadas.

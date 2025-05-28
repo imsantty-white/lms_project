@@ -679,17 +679,35 @@ const getMyAssignedLearningPaths = async (req, res) => {
 
         const approvedGroupIds = approvedMemberships.map(membership => membership.grupo_id);
 
-        const assignedLearningPaths = await LearningPath.find({
+        // 1. Popula la ruta de aprendizaje y el grupo
+        const rawAssignedPaths = await LearningPath.find({
             group_id: { $in: approvedGroupIds }
-        }).populate('group_id', 'nombre activo');
+        })
+        .populate('group_id', 'nombre'); // Solo necesitamos el nombre del grupo
+
+        // 2. Mapea los resultados para formatearlos como el frontend espera
+        const formattedAssignedPaths = rawAssignedPaths.map(lp => {
+            // Verifica que lp.group_id no sea nulo antes de intentar acceder a sus propiedades
+            if (!lp.group_id) {
+                console.warn(`Ruta de aprendizaje ${lp._id} tiene una referencia de grupo nula.`);
+                return null; // O puedes devolver un objeto con group_id: 'Desconocido'
+            }
+            return {
+                _id: lp._id, // ID de la ruta de aprendizaje
+                nombre: lp.nombre, // Nombre de la ruta de aprendizaje
+                group_id: lp.group_id._id, // **ID real del grupo (cadena)**
+                group_name: lp.group_id.nombre // **Nombre legible del grupo**
+            };
+        }).filter(item => item !== null); // Filtra cualquier entrada nula si se produjo alguna
 
         res.status(200).json({
             success: true,
-            count: assignedLearningPaths.length,
-            data: assignedLearningPaths
+            count: formattedAssignedPaths.length,
+            data: formattedAssignedPaths
         });
 
     } catch (error) {
+        console.error('Error al obtener las rutas de aprendizaje asignadas:', error);
         res.status(500).json({
             success: false,
             message: error.message || 'Error al obtener las rutas de aprendizaje asignadas.'
@@ -1465,7 +1483,9 @@ const updateContentAssignmentStatus = async (req, res, next) => {
     }
 };
 
-// Obtener todas las actividades asignadas a un estudiante en una ruta de aprendizaje
+// @desc    Obtener todas las actividades asignadas a un estudiante en una ruta de aprendizaje
+// @route   GET /api/learning-paths/:learningPathId/student-activities
+// @access  Privado/Estudiante
 const getStudentActivitiesForLearningPath = async (req, res) => {
   try {
     const { learningPathId } = req.params;
@@ -1473,14 +1493,14 @@ const getStudentActivitiesForLearningPath = async (req, res) => {
 
     // 1. Buscar todos los temas de la ruta
     const modules = await Module.find({ learning_path_id: learningPathId });
-
     const moduleIds = modules.map(m => m._id);
     const themes = await Theme.find({ module_id: { $in: moduleIds } });
     const themeIds = themes.map(t => t._id);
 
     // 2. Buscar todas las asignaciones de actividades en esos temas
+    // ¡Aquí el populate ya se está haciendo correctamente!
     const assignments = await ContentAssignment.find({ theme_id: { $in: themeIds }, type: 'Activity' })
-      .populate('activity_id');
+      .populate('activity_id'); // Esto pobla activity_id con el documento Activity completo
 
     // 3. Para cada asignación, buscar la última entrega del estudiante
     const results = await Promise.all(assignments.map(async (assignment) => {
@@ -1490,12 +1510,13 @@ const getStudentActivitiesForLearningPath = async (req, res) => {
       }).sort({ fecha_envio: -1 });
 
       return {
-        _id: assignment._id,
-        title: assignment.activity_id?.title || 'Sin título',
-        type: assignment.activity_id?.type || 'N/A',
+        _id: assignment._id, // Esto es el _id de ContentAssignment
+        activity_id: assignment.activity_id, // **¡Envía el objeto activity_id poblado!**
+        // Ya no necesitas title: assignment.activity_id?.title aquí,
+        // porque el frontend lo leerá directamente de activity_id
         fecha_inicio: assignment.fecha_inicio,
         fecha_fin: assignment.fecha_fin,
-        status: assignment.status,
+        status: assignment.status, // Esto parece ser el estado de la asignación
         lastSubmission: lastSubmission ? {
           calificacion: lastSubmission.calificacion,
           estado_envio: lastSubmission.estado_envio,
