@@ -13,7 +13,8 @@ import {
   InputLabel,
   Chip,
   Stack,
-  CircularProgress
+  CircularProgress,
+  Tooltip // Import Tooltip
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -60,6 +61,10 @@ const AssignmentItem = React.memo(({
   const contentItem = assignment.resource_id || assignment.activity_id;
   const statusOption = ASSIGNMENT_STATUS_OPTIONS.find(option => option.value === assignment.status);
   const statusLabel = statusOption ? statusOption.label : assignment.status;
+
+  // Determine if the assignment was auto-closed
+  const isAutoClosed = assignment.status === 'Closed' && assignment.fecha_fin && new Date(assignment.fecha_fin) < new Date();
+  const tooltipTitle = isAutoClosed ? "Esta actividad fue cerrada automáticamente. Para reabrirla, por favor edita la asignación y extiende su fecha de finalización." : "";
 
   return (
     <ListItem sx={{ pl: 4, borderBottom: '1px dashed, #eee' }}>
@@ -129,30 +134,35 @@ const AssignmentItem = React.memo(({
           {isThisAssignmentUpdating ? (
             <CircularProgress size={24} sx={{ mr: 1 }} />
           ) : (
-            <FormControl variant="outlined" size="small" sx={{ minWidth: 120, mr: 1 }}>
-              <InputLabel id={`status-select-label-${assignment._id}`}>Estado</InputLabel>
-              <Select
-                labelId={`status-select-label-${assignment._id}`}
-                id={`status-select-${assignment._id}`}
-                value={assignment.status || ''}
-                label="Estado"
-                onChange={(e) =>
-                  onStatusChange(
-                    assignment._id,
-                    e.target.value,
-                    contentItem?.title || 'Contenido sin título',
-                    themeName
-                  )
-                }
-                disabled={isThisAssignmentUpdating || isAnyOperationInProgress}
-              >
-                {ASSIGNMENT_STATUS_OPTIONS.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Tooltip title={tooltipTitle} arrow>
+              {/* The Tooltip wraps a span because FormControl (or disabled elements directly) might not trigger Tooltip events correctly */}
+              <span> 
+                <FormControl variant="outlined" size="small" sx={{ minWidth: 120, mr: 1 }}>
+                  <InputLabel id={`status-select-label-${assignment._id}`}>Estado</InputLabel>
+                  <Select
+                    labelId={`status-select-label-${assignment._id}`}
+                    id={`status-select-${assignment._id}`}
+                    value={assignment.status || ''}
+                    label="Estado"
+                    onChange={(e) =>
+                      onStatusChange(
+                        assignment._id,
+                        e.target.value,
+                        contentItem?.title || 'Contenido sin título',
+                        themeName
+                      )
+                    }
+                    disabled={isAutoClosed || isThisAssignmentUpdating || isAnyOperationInProgress}
+                  >
+                    {ASSIGNMENT_STATUS_OPTIONS.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </span>
+            </Tooltip>
           )}
           <Stack direction="row" spacing={0.5}>
             <IconButton

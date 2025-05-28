@@ -70,7 +70,7 @@ const translateAssignmentStatus = (status) => {
     switch (status.toLowerCase()) {
         case 'open': return 'Abierto';
         case 'closed': return 'Cerrado';
-        case 'draft': return 'Proximamente';
+        case 'draft': return 'Próximamente'; // Corrected typo
         default: return status.charAt(0).toUpperCase() + status.slice(1);
     }
 };
