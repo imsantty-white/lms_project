@@ -11,8 +11,11 @@ import {
   Button,
   Stack,
   List,
-  Divider
+  Divider,
+  useTheme,
+  Tooltip // Import Tooltip
 } from '@mui/material';
+import { motion, AnimatePresence } from 'framer-motion'; 
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -42,6 +45,7 @@ const ModuleItem = React.memo(({
 }) => {
   // Estado local para controlar el acordeón, iniciando en 'true'
   const [isExpanded, setIsExpanded] = useState(true);
+  const theme = useTheme(); // Get theme object
 
   const handleChange = (event, newExpanded) => {
     setIsExpanded(newExpanded);
@@ -51,46 +55,88 @@ const ModuleItem = React.memo(({
   };
 
   return (
-    <Paper sx={{ mb: 2, boxShadow: 3 }}>
-      <Accordion expanded={isExpanded} onChange={handleChange}>
+    // The Paper component already provides boxShadow. We'll ensure borderRadius is applied.
+    // The main motion.div for list item animation (if needed for modules themselves) would be outside this component, in the list.
+    // For expand/collapse, AnimatePresence is used inside.
+    <Paper sx={{ 
+      mb: 2, 
+      boxShadow: theme.shadows[3], // Use theme's shadow definition
+      borderRadius: theme.shape.borderRadius * 2, // Consistent rounded corners (e.g., 16px if borderRadius is 8px)
+      overflow: 'hidden' // Important for child border radius to look right
+    }}>
+      <Accordion 
+        expanded={isExpanded} 
+        onChange={handleChange}
+        // Disable default MUI transitions to let Framer Motion handle it
+        TransitionProps={{ timeout: 0, unmountOnExit: true }} 
+        elevation={0} // Remove Accordion's own shadow as Paper handles it
+      >
         <AccordionSummary
-          expandIcon={<ExpandMoreIcon />}
+          expandIcon={<ExpandMoreIcon sx={{ color: theme.palette.primary.contrastText }} />}
           aria-controls={`panel${module._id}-content`}
           id={`panel${module._id}-header`}
+          sx={{
+            backgroundColor: theme.palette.primary.main,
+            color: theme.palette.primary.contrastText,
+            borderTopLeftRadius: 'inherit', // Inherit from Paper for consistency
+            borderTopRightRadius: 'inherit',
+            // If Accordion is not the first/last child, conditional radius might be needed
+            // but Paper's overflow:hidden helps.
+          }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
             <Typography variant="h6" sx={{ flexGrow: 1 }}>
               {`Módulo ${module.orden || moduleIndex + 1}: ${module.nombre}`}
             </Typography>
-            <IconButton
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation();
-                onEditModule(module);
-              }}
-              disabled={isAnyOperationInProgress}
-              sx={{ mr: 2 }}
-            >
-              <EditIcon fontSize="small" />
-            </IconButton>
-            <IconButton
-              size="small"
-              color="error"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDeleteModule(module._id);
-              }}
-              disabled={isAnyOperationInProgress}
-              sx={{ mr: 3.5 }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
+            <Tooltip title="Editar Módulo">
+              <IconButton
+                aria-label="editar módulo"
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent Accordion toggle
+                  onEditModule(module);
+                }}
+                disabled={isAnyOperationInProgress}
+                sx={{ mr: 2, color: 'inherit' }} // Inherit color for contrast
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Eliminar Módulo">
+              <IconButton
+                aria-label="eliminar módulo"
+                size="small"
+                color="error" // Changed color
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent Accordion toggle
+                  onDeleteModule(module._id);
+                }}
+                disabled={isAnyOperationInProgress}
+                sx={{ mr: 1 }} // Adjusted margin
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Box>
         </AccordionSummary>
-        <AccordionDetails>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {module.descripcion}
-          </Typography>
+        {/* AnimatePresence for the content expand/collapse animation */}
+        <AnimatePresence initial={false}>
+          {isExpanded && (
+            <motion.section
+              key="content"
+              initial="collapsed"
+              animate="open"
+              exit="collapsed"
+              variants={{
+                open: { opacity: 1, height: 'auto' },
+                collapsed: { opacity: 0, height: 0 },
+              }}
+              transition={{ duration: 0.3, ease: [0.04, 0.62, 0.23, 0.98] }}
+            >
+              <AccordionDetails sx={{ backgroundColor: theme.palette.background.paper, pt: 2 }}> {/* Ensure padding top for details */}
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  {module.descripcion}
+                </Typography>
           <Stack
             direction="row"
             spacing={1}
@@ -98,18 +144,22 @@ const ModuleItem = React.memo(({
             alignItems="center"
             justifyContent="flex-end"
           >
-            <Button
-              variant="outlined"
-              size="small"
-              color="text.primary"
-              startIcon={<AddCircleOutlinedIcon />}
-              onClick={() => onCreateTheme(module._id)}
-              disabled={isAnyOperationInProgress}
-            >
-              Nuevo Tema
-            </Button>
+            <Tooltip title="Crear Nuevo Tema en este Módulo">
+              <motion.div whileHover={{ scale: 1.03 }} style={{ display: 'inline-block' }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  color="primary" // Changed color
+                  startIcon={<AddCircleOutlinedIcon />}
+                  onClick={() => onCreateTheme(module._id)}
+                  disabled={isAnyOperationInProgress}
+                >
+                  Nuevo Tema
+                </Button>
+              </motion.div>
+            </Tooltip>
           </Stack>
-          <Divider sx={{ borderStyle: 'dotted', borderColor: 'text.primary', my: 2 }} />
+          <Divider sx={{ borderStyle: 'dotted', borderColor: theme.palette.divider , my: 2 }} /> {/* Used theme.palette.divider */}
           <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Temas:</Typography>
           {module.themes && module.themes.length > 0 ? (
             <List dense disablePadding>

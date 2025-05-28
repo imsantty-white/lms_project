@@ -14,8 +14,9 @@ import {
   Chip,
   Stack,
   CircularProgress,
-  Tooltip // Import Tooltip
+  Tooltip 
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles'; // Import useTheme
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DescriptionIcon from '@mui/icons-material/Description';
@@ -65,17 +66,32 @@ const AssignmentItem = React.memo(({
   // Determine if the assignment was auto-closed
   const isAutoClosed = assignment.status === 'Closed' && assignment.fecha_fin && new Date(assignment.fecha_fin) < new Date();
   const tooltipTitle = isAutoClosed ? "Esta actividad fue cerrada automáticamente. Para reabrirla, por favor edita la asignación y extiende su fecha de finalización." : "";
+  const theme = useTheme(); // Get theme object
+
+  const borderColor = assignment.type === 'Activity' 
+    ? theme.palette.primary.main 
+    : theme.palette.secondary.main;
 
   return (
-    <ListItem sx={{ pl: 4, borderBottom: '1px dashed, #eee' }}>
+    <ListItem sx={{ 
+      pl: 3, // Adjusted paddingLeft
+      borderBottom: `1px dashed ${theme.palette.divider}`, // Theme consistent border
+      borderLeftWidth: '4px',
+      borderLeftStyle: 'solid',
+      borderLeftColor: borderColor,
+      my: 1, // Add some margin between items
+      backgroundColor: theme.palette.background.default, // Subtle background for item itself
+      borderRadius: theme.shape.borderRadius, // Rounded corners for the item
+      boxShadow: theme.shadows[1] // Subtle shadow for depth
+    }}>
       <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
         <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', pr: 2 }}>
-          <ListItemIcon sx={{ minWidth: 40 }}>
+          <ListItemIcon sx={{ minWidth: 40, color: borderColor }}> {/* Icon color matches border */}
             {getAssignmentIcon(assignment)}
           </ListItemIcon>
           <ListItemText
             primary={
-              <Typography variant="body1">
+              <Typography variant="body1" fontWeight="medium"> {/* Added fontWeight */}
                 {contentItem?.title || 'Contenido sin título'}
               </Typography>
             }
@@ -165,21 +181,27 @@ const AssignmentItem = React.memo(({
             </Tooltip>
           )}
           <Stack direction="row" spacing={0.5}>
-            <IconButton
-              size="small"
-              onClick={() => onEditAssignment(assignment._id, themeName)}
-              disabled={isAnyOperationInProgress || isThisAssignmentUpdating}
-            >
-              <EditIcon fontSize="small" />
-            </IconButton>
-            <IconButton
-              size="small"
-              color="error"
-              onClick={() => onDeleteAssignment(assignment._id)}
-              disabled={isAnyOperationInProgress || isThisAssignmentUpdating}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
+            <Tooltip title="Editar Asignación">
+              <IconButton
+                aria-label="editar asignación"
+                size="small"
+                onClick={() => onEditAssignment(assignment._id, themeName)}
+                disabled={isAnyOperationInProgress || isThisAssignmentUpdating}
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Eliminar Asignación">
+              <IconButton
+                aria-label="eliminar asignación"
+                size="small"
+                color="error"
+                onClick={() => onDeleteAssignment(assignment._id)}
+                disabled={isAnyOperationInProgress || isThisAssignmentUpdating}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Stack>
         </Box>
       </Box>

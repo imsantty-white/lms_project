@@ -29,9 +29,12 @@ import {
   InputLabel,
   Chip,
   Divider,
-  Skeleton
+  Skeleton,
+  Tooltip 
   // Importa componentes adicionales si los necesitas (ej: para el modal de asignación)
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles'; // Import useTheme
+import { motion } from 'framer-motion'; 
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 // EditIcon, DeleteIcon, CheckCircleOutlineIcon, DescriptionIcon, LinkIcon, PlayCircleOutlinedIcon, AssignmentIcon, QuizIcon, QuestionAnswerIcon, WorkIcon are now primarily used in sub-components
 import AddCircleOutlinedIcon from '@mui/icons-material/AddCircleOutlined';
@@ -97,6 +100,7 @@ function ManageLearningPathPage() {
   // *** Obtén isAuthInitialized del hook useAuth ***
   const { user, isAuthenticated, isAuthInitialized } = useAuth(); // <-- Añade isAuthInitialized
   const navigate = useNavigate();
+  const theme = useTheme(); // Get theme object
 
   const [learningPath, setLearningPath] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -785,60 +789,81 @@ function ManageLearningPathPage() {
 
   // --- Renderizar la estructura de la Ruta de Aprendizaje ---
   return (
-    <Container>
-      <Box sx={{ mt: 1 }}>
+    <Container maxWidth="lg" sx={{ py: 3, backgroundColor: theme.palette.background.default, minHeight: '100vh' }}> {/* Added lg, py, background, minHeight */}
+      <Box sx={{ mt: 2, mb: 4 }}> {/* Adjusted top margin */}
         {/* Título y Datos de la Ruta */}
         
-          <Typography color="text.secondary" variant="h4" gutterBottom>
-            Ruta de Aprendizaje: 
+          <Typography variant="overline" display="block" align="center" color="text.secondary"> {/* Changed to overline */}
+            Ruta de Aprendizaje
           </Typography>
-          <Typography variant="h4" align="center" gutterBottom sx={{ mb: 3 }}>
-          {learningPath.nombre}
-        </Typography>
+          <Typography variant="h4" align="center" fontWeight="bold" gutterBottom sx={{ mb: 3 }}> {/* Added fontWeight */}
+            {learningPath.nombre}
+          </Typography>
 
-        <Paper sx={{ p: 2, mb: 3, width: '40%', textAlign: 'center', margin: ' auto' }}>
+        <Paper sx={{ 
+          p: theme.spacing(3), // Use theme spacing
+          mb: theme.spacing(4), // Use theme spacing
+          maxWidth: 'sm', // Adjusted maxWidth
+          width: '100%', 
+          textAlign: 'center', 
+          mx: 'auto', // Centering
+          backgroundColor: theme.palette.background.paper,
+          boxShadow: theme.shadows[2] // Adjusted shadow
+        }}>
           <Typography variant="h6" gutterBottom>
             Información de la Ruta
           </Typography>
-          <Typography color="text.secondary" sx={{ mb: 3 }}>
-            {learningPath.descripcion}
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}> {/* Changed variant and mb */}
+            {learningPath.descripcion || "Esta ruta de aprendizaje no tiene una descripción detallada."}
           </Typography>
 
           {learningPath.group_id?.nombre && (
-            <Typography variant="body1">
-              Grupo: {learningPath.group_id.nombre}
-            </Typography>
+            <Chip 
+              label={`Grupo: ${learningPath.group_id.nombre}`} 
+              variant="outlined" 
+              sx={{ mb: 1 }} 
+            />
           )}
+          
+          <Stack direction="row" spacing={2} justifyContent="center" sx={{mt: 1}}>
+            {learningPath.fecha_inicio && (
+              <Chip 
+                label={`Inicio: ${new Date(learningPath.fecha_inicio).toLocaleDateString()}`} 
+                variant="outlined" 
+                size="small"
+              />
+            )}
 
-          {learningPath.fecha_inicio && (
-            <Typography variant="body1" color="text.secondary">
-              Inicio: {new Date(learningPath.fecha_inicio).toLocaleDateString()}
-            </Typography>
-          )}
-
-          {learningPath.fecha_fin && (
-            <Typography variant="body1" color="text.secondary">
-              Fin: {new Date(learningPath.fecha_fin).toLocaleDateString()}
-            </Typography>
-          )}
+            {learningPath.fecha_fin && (
+              <Chip 
+                label={`Fin: ${new Date(learningPath.fecha_fin).toLocaleDateString()}`} 
+                variant="outlined" 
+                size="small"
+              />
+            )}
+          </Stack>
         </Paper>
 
         {/* --- Renderizar Módulos --- */}
-        <Box display="flex" flexDirection="row" alignItems="center" justifyContent="space-between" sx={{ mt: 3 }}>
-          <Typography variant="h5" align="left" gutterBottom sx={{ mt: 2}}>
+        <Box display="flex" flexDirection="row" alignItems="center" justifyContent="space-between" sx={{ mt: 3, mb: 3 }}> {/* Adjusted mb */}
+          <Typography variant="h5" gutterBottom sx={{ mt: 2, mb: 0 }}> {/* Adjusted mb */}
             Estructura de la Ruta
           </Typography>
           
           {/* Botón de Acción General (Añadir Módulo) */}
-          <Button
-            variant="outlined"
-            color="primary.text"
-            startIcon={<AddCircleOutlinedIcon />}
-            onClick={handleOpenCreateModuleModal}
-            disabled={isAnyOperationInProgress}
-          >
-            Nuevo Módulo
-          </Button>
+          <Tooltip title="Crear Nuevo Módulo">
+            <motion.div whileHover={{ scale: 1.03 }} style={{ display: 'inline-block' }}>
+              <Button
+                variant="contained" // Changed variant
+                color="primary" // Changed color
+                startIcon={<AddCircleOutlinedIcon />}
+                onClick={handleOpenCreateModuleModal}
+                disabled={isAnyOperationInProgress}
+              >
+                Nuevo Módulo
+              </Button>
+            </motion.div>
+          </Tooltip>
         </Box>
 
         {learningPath.modules && learningPath.modules.length > 0 ? (

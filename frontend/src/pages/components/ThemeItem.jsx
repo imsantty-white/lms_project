@@ -11,8 +11,11 @@ import {
   Button,
   Stack,
   List,
-  Divider
+  Divider,
+  useTheme,
+  Tooltip // Import Tooltip
 } from '@mui/material';
+import { motion, AnimatePresence } from 'framer-motion';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -35,60 +38,115 @@ const ThemeItem = React.memo(({
   updatingAssignmentStatus,
   isAnyOperationInProgress
 }) => {
+  const themeMaterial = useTheme(); // Renamed to avoid conflict with 'theme' prop
+
   return (
-    <Paper sx={{ mb: 1, ml: 2, boxShadow: 5 }}>
-      <Accordion expanded={expanded} onChange={onAccordionChange}>
-        <AccordionSummary
-          expandIcon={<ExpandMoreIcon />}
-          aria-controls={`panel${theme._id}-content`}
-          id={`panel${theme._id}-header`}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-            <Typography variant="subtitle1" sx={{ flexGrow: 1 }}>
-              {`Tema ${theme.orden || themeIndex + 1}: ${theme.nombre}`}
-            </Typography>
+    // Removed Paper wrapper, Accordion will be styled directly
+    <Accordion 
+      expanded={expanded} 
+      onChange={onAccordionChange}
+      sx={{
+        border: `1px solid ${themeMaterial.palette.divider}`,
+        borderRadius: themeMaterial.shape.borderRadius,
+        boxShadow: themeMaterial.shadows[1],
+        '&:not(:last-child)': { mb: 1 },
+        // Ensure nested accordions don't have strange borders if MUI adds them by default
+        '&:before': { 
+          display: 'none',
+        },
+      }}
+      // Disable default MUI transitions to let Framer Motion handle it
+      TransitionProps={{ timeout: 0, unmountOnExit: true }}
+      elevation={0} // Use sx.boxShadow instead of elevation prop for consistency
+    >
+      <AccordionSummary
+        expandIcon={<ExpandMoreIcon />}
+        aria-controls={`panel${theme._id}-content`}
+        id={`panel${theme._id}-header`}
+        sx={{
+          backgroundColor: themeMaterial.palette.action.hover,
+          color: themeMaterial.palette.text.primary,
+          minHeight: 48, // Denser summary
+          '& .MuiAccordionSummary-content': { // Reduce margin around content
+            my: 0,
+          },
+          // Apply border radius to match Accordion, but only to top if expanded or always if not
+          // This is tricky with conditional rendering, simpler to let Accordion handle rounding
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+          <Typography variant="subtitle1" sx={{ flexGrow: 1, fontWeight: 'medium' }}>
+            {`Tema ${theme.orden || themeIndex + 1}: ${theme.nombre}`}
+          </Typography>
+          <Tooltip title="Editar Tema">
             <IconButton
+              aria-label="editar tema"
               size="small"
               onClick={(e) => {
-                e.stopPropagation();
+                e.stopPropagation(); // Prevent Accordion toggle
                 onEditTheme(theme);
               }}
               disabled={isAnyOperationInProgress}
-              sx={{ mr: 2 }}
+              sx={{ mr: 1 }} // Adjusted margin
             >
               <EditIcon fontSize="small" />
             </IconButton>
+          </Tooltip>
+          <Tooltip title="Eliminar Tema">
             <IconButton
+              aria-label="eliminar tema"
               size="small"
-              color="error"
+              color="error" // Keep error color for delete
               onClick={(e) => {
-                e.stopPropagation();
+                e.stopPropagation(); // Prevent Accordion toggle
                 onDeleteTheme(theme._id);
               }}
               disabled={isAnyOperationInProgress}
-              sx={{ mr: 2 }}
+              sx={{ mr: 0.5 }} // Adjusted margin
             >
               <DeleteIcon fontSize="small" />
             </IconButton>
-          </Box>
-        </AccordionSummary>
-        <AccordionDetails>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {theme.descripcion}
-          </Typography>
-          <Stack direction="row" spacing={1} sx={{ mb: 2 }} alignItems="center">
-            <Button
-              variant="outlined"
-              size="small"
-              color="text.primary"
-              startIcon={<AddCircleOutlinedIcon />}
-              onClick={() => onAddContentAssignment(theme._id, theme.nombre)}
-              disabled={isAnyOperationInProgress}
-            >
-              Asignar Contenido
-            </Button>
+          </Tooltip>
+        </Box>
+      </AccordionSummary>
+      {/* AnimatePresence for the content expand/collapse animation */}
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.section
+            key="content"
+            initial="collapsed"
+            animate="open"
+            exit="collapsed"
+            variants={{
+              open: { opacity: 1, height: 'auto' },
+              collapsed: { opacity: 0, height: 0 },
+            }}
+            transition={{ duration: 0.3, ease: [0.04, 0.62, 0.23, 0.98] }}
+          >
+            <AccordionDetails sx={{ 
+              backgroundColor: themeMaterial.palette.background.paper,
+              p: 2, // Standard padding
+            }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                {theme.descripcion}
+              </Typography>
+          <Stack direction="row" spacing={1} sx={{ mb: 2 }} alignItems="center" justifyContent="flex-end"> {/* justifyContent added */}
+            <Tooltip title="Asignar Contenido a este Tema">
+              <motion.div whileHover={{ scale: 1.03 }} style={{ display: 'inline-block' }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  color="primary" // Changed color
+                  startIcon={<AddCircleOutlinedIcon />}
+                  onClick={() => onAddContentAssignment(theme._id, theme.nombre)}
+                  disabled={isAnyOperationInProgress}
+                >
+                  Asignar Contenido
+                </Button>
+              </motion.div>
+            </Tooltip>
           </Stack>
-          <Divider sx={{ borderStyle: 'dotted', borderColor: 'text.primary', my: 2 }} />
+          <Divider sx={{ borderStyle: 'dotted', borderColor: themeMaterial.palette.divider, my: 2 }} /> {/* Used themeMaterial.palette.divider */}
           <Typography variant="subtitle1" sx={{ mt: 2, mb: 1 }}>
             Contenido:
           </Typography>
