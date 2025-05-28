@@ -1366,7 +1366,7 @@ const getContentAssignmentById = async (req, res, next) => {
 // @access  Privado/Docente, Admin
 const updateContentAssignmentStatus = async (req, res, next) => {
     const { assignmentId } = req.params;
-    const { status } = req.body; // Esperamos el nuevo estado en el body
+    const { status } = req.body;
 
     // Validar que el estado recibido sea uno de los permitidos
     const allowedStatuses = ['Draft', 'Open', 'Closed'];
@@ -1383,24 +1383,12 @@ const updateContentAssignmentStatus = async (req, res, next) => {
             return res.status(404).json({ message: 'Asignación no encontrada.' });
         }
 
-        // *** Verificar permisos: Solo el docente propietario (o un Admin si tu lógica lo permite) puede cambiar el estado ***
-        // Asumimos que req.user._id contiene el ID del usuario autenticado
-        // Y que tu middleware 'authorize' ya verificó que es 'Docente' o 'Admin'.
-        // Aquí verificamos que el docente sea el propietario de la asignación.
-        // Si un Admin puede modificar cualquier asignación, necesitarías una verificación adicional aquí.
+        // Verificar permisos
         if (assignment.docente_id.toString() !== req.user._id.toString() && req.user.userType !== 'Administrador') {
-            // Asumo que req.user.userType está disponible y tiene el tipo de usuario
             return res.status(403).json({ message: 'No tienes permiso para modificar el estado de esta asignación.' });
         }
-        // Puedes añadir una verificación adicional para Admins si es necesario:
-        // if (req.user.userType === 'Administrador') { /* Permitir */ } else if (assignment.docente_id.equals(req.user._id)) { /* Permitir */ } else { /* Denegar */ }
 
-
-        // *** Lógica de Transición de Estados Opcional (puedes añadir reglas aquí) ***
-        // Por ejemplo, quizás no se puede pasar directamente de 'Closed' a 'Open' sin validación,
-        // o solo se puede pasar a 'Closed' si todas las entregas han sido revisadas.
-        // Por ahora, permitiremos cualquier transición válida ('Draft' -> 'Open', 'Open' -> 'Closed', etc.)
-        // Solo verificamos que el estado actual no sea ya el estado deseado.
+        // Si el estado no ha cambiado, no hacer nada más
         if (assignment.status === status) {
             return res.status(200).json({ message: `La asignación ya se encuentra en estado "${status}".`, assignment });
         }
@@ -1411,6 +1399,7 @@ const updateContentAssignmentStatus = async (req, res, next) => {
         assignment.status = status;
         await assignment.save();
 
+        // Si la asignación pasa a estado 'Open' desde otro estado, enviar notificaciones
         if (status === 'Open' && oldStatus !== 'Open') {
             try {
                 // Populate necessary details for the notification message and link
@@ -1430,7 +1419,7 @@ const updateContentAssignmentStatus = async (req, res, next) => {
                         }
                     });
 
-                if (detailedAssignment && 
+                if (detailedAssignment &&
                     detailedAssignment.theme_id &&
                     detailedAssignment.theme_id.module_id &&
                     detailedAssignment.theme_id.module_id.learning_path_id &&
@@ -1439,12 +1428,15 @@ const updateContentAssignmentStatus = async (req, res, next) => {
                     const groupId = detailedAssignment.theme_id.module_id.learning_path_id.group_id;
                     const assignmentTitle = detailedAssignment.activity_id?.title || detailedAssignment.resource_id?.title || 'Unnamed Assignment';
                     const learningPathName = detailedAssignment.theme_id.module_id.learning_path_id.nombre;
-                    
+
                     // Find approved members of the group
                     const approvedMembers = await Membership.find({
                         grupo_id: groupId,
                         estado_solicitud: 'Aprobado'
                     }).populate('usuario_id', 'tipo_usuario'); // Populate to check if user is Estudiante
+
+                    // --- ACCEDE A LA INSTANCIA GLOBAL DE SOCKET.IO ---
+                    const io = global.io; // Aquí accedes a la instancia de Socket.IO que hiciste global en server.js
 
                     for (const member of approvedMembers) {
                         // Ensure the member is a student
@@ -1453,13 +1445,24 @@ const updateContentAssignmentStatus = async (req, res, next) => {
                             // TODO: Confirm actual frontend URL structure for student assignment view
                             const link = `/student/learning-paths/${detailedAssignment.theme_id.module_id.learning_path_id._id}/themes/${detailedAssignment.theme_id._id}/assignments/${detailedAssignment._id}`;
 
-                            await NotificationService.createNotification({
+                            // 1. Crear la notificación en la base de datos
+                            const newNotification = await NotificationService.createNotification({
                                 recipient: member.usuario_id._id, // Send to the student's User ID
                                 sender: req.user._id, // The teacher who triggered the update
                                 type: 'NEW_ASSIGNMENT',
                                 message: message,
                                 link: link
                             });
+
+                            // 2. Emitir la notificación en tiempo real vía WebSockets
+                            if (io) { // Asegurarse de que la instancia de io esté disponible
+                                // Emitir el evento 'new_notification' a la sala específica del usuario.
+                                // La sala se nombró con el _id del usuario cuando se conectó el socket.
+                                io.to(member.usuario_id._id.toString()).emit('new_notification', newNotification);
+                                console.log(`Notification emitted to user room: ${member.usuario_id._id.toString()} for notification ID: ${newNotification._id}`);
+                            } else {
+                                console.warn('Socket.IO instance (global.io) not available. Real-time notifications might not be working.');
+                            }
                         }
                     }
                 } else {
@@ -1467,7 +1470,7 @@ const updateContentAssignmentStatus = async (req, res, next) => {
                 }
             } catch (notificationError) {
                 console.error('Failed to send new assignment notifications:', notificationError);
-                // Do not let notification errors break the main response
+                // No se debe detener la respuesta principal por un error de notificación.
             }
         }
 
@@ -1479,7 +1482,7 @@ const updateContentAssignmentStatus = async (req, res, next) => {
             return res.status(400).json({ message: 'ID de asignación inválido.' });
         }
         console.error('Error al actualizar estado de asignación:', error);
-        next(error); // Pasa el error al siguiente middleware
+        next(error); // Pasa el error al siguiente middleware para manejo centralizado
     }
 };
 

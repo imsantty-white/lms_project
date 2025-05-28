@@ -1,49 +1,61 @@
 // backend/src/server.js
-const http = require('http'); // Import the http module
-const { Server } = require('socket.io'); // Import Server from socket.io
-const app = require('./app'); // Importa la aplicación Express configurada
-const connectDB = require('./config/db.config'); // Importa la función de conexión a BD
+const http = require('http');
+const { Server } = require('socket.io');
+const app = require('./app');
+const connectDB = require('./config/db.config');
 
-// Carga las variables de entorno (aunque ya se hizo en db.config.js, es buena práctica aquí también)
 require('dotenv').config();
 
-const PORT = process.env.PORT || 5000; // Obtiene el puerto del .env o usa 5000 por defecto
+const PORT = process.env.PORT || 5000;
 
-// Inicia el servidor
 const startServer = async () => {
-  try {
-    // Primero intenta conectar a la base de datos
-    await connectDB();
+    try {
+        await connectDB();
 
-    // Si la conexión a BD es exitosa, inicia el servidor Express
-    const httpServer = http.createServer(app); // Create HTTP server
+        const httpServer = http.createServer(app);
 
-    const io = new Server(httpServer, {
-      cors: {
-        origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-        methods: ['GET', 'POST'],
-      },
-    });
+        const io = new Server(httpServer, {
+            cors: {
+                origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+                methods: ['GET', 'POST'],
+            },
+        });
 
-    global.io = io; // Make io globally accessible
+        global.io = io; // Make io globally accessible
 
-    io.on('connection', (socket) => {
-      console.log('A user connected:', socket.id);
-      // Placeholder for joining user-specific rooms if needed later
-      // socket.join(socket.handshake.query.userId); 
-      socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
-      });
-    });
+        io.on('connection', (socket) => {
+            console.log('A user connected:', socket.id);
 
-    httpServer.listen(PORT, () => {
-      console.log(`Servidor corriendo en el puerto ${PORT}`);
-      console.log(`Visita http://localhost:${PORT}/`);
-    });
-  } catch (err) {
-    console.error('Error al iniciar el servidor:', err.message);
-    process.exit(1); // Sale del proceso si no se puede iniciar el servidor
-  }
+            // --- ¡AJUSTE CLAVE AQUÍ! ---
+            // Obtener el userId de los parámetros de la query enviados desde el frontend
+            const userId = socket.handshake.query.userId;
+            if (userId) {
+                // Unir el socket a una sala con el ID del usuario
+                socket.join(userId);
+                console.log(`Socket ${socket.id} joined room for user: ${userId}`);
+            } else {
+                console.warn(`Socket connected without userId in query: ${socket.id}`);
+            }
+            // --- FIN AJUSTE CLAVE ---
+
+            socket.on('disconnect', () => {
+                console.log('User disconnected:', socket.id);
+                // Opcional: remover el socket de la sala al desconectar
+                if (userId) {
+                    socket.leave(userId);
+                    console.log(`Socket ${socket.id} left room for user: ${userId}`);
+                }
+            });
+        });
+
+        httpServer.listen(PORT, () => {
+            console.log(`Servidor corriendo en el puerto ${PORT}`);
+            console.log(`Visita http://localhost:${PORT}/`);
+        });
+    } catch (err) {
+        console.error('Error al iniciar el servidor:', err.message);
+        process.exit(1);
+    }
 };
 
-startServer(); // Llama a la función para iniciar todo
+startServer();

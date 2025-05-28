@@ -384,7 +384,7 @@ function TeacherGroupsPage() {
         onClose={() => { setIsArchiveConfirmOpen(false); setGroupToArchive(null); }}
         onConfirm={handleConfirmArchive}
         title="Confirmar Archivar Grupo"
-        message={groupToArchive ? `¿Estás seguro de que quieres archivar el grupo "${groupToArchive.nombre}"? El grupo se ocultará de la lista principal y los estudiantes no podrán unirse a nuevos grupos. Podrás restaurarlo más tarde si esta funcionalidad está habilitada.` : ''}
+        message={groupToArchive ? `¿Estás seguro de que quieres archivar el grupo "${groupToArchive.nombre}"? El grupo se ocultará de la lista principal y los estudiantes no podrán unirse al grupo. Podrás restaurarlo más tarde si esta está habilitado.` : ''}
         confirmButtonText="Archivar"
         cancelButtonText="Cancelar"
         isActionInProgress={isArchiving}

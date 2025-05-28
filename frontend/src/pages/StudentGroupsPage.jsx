@@ -6,15 +6,22 @@ import {
   Box, 
   CircularProgress, 
   Alert, 
-  List, 
-  ListItem, 
-  ListItemText, 
-  Paper, 
-  Divider,
-  Chip // Importamos Chip de Material UI
+  Card,
+  CardContent,
+  Chip,
+  Avatar,
+  Stack,
+  Fade,
+  Skeleton
 } from '@mui/material';
-import { grey } from '@mui/material/colors'; // Import grey color
-import GroupsIcon from '@mui/icons-material/Groups'; // For EmptyState
+import { alpha } from '@mui/material/styles';
+import { motion, AnimatePresence } from 'framer-motion';
+import GroupsIcon from '@mui/icons-material/Groups';
+import PersonIcon from '@mui/icons-material/Person';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import PendingIcon from '@mui/icons-material/Pending';
+import CancelIcon from '@mui/icons-material/Cancel';
+import ArchiveIcon from '@mui/icons-material/Archive';
 
 import { useAuth, axiosInstance } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
@@ -22,6 +29,179 @@ import { toast } from 'react-toastify';
 // Reusable Components
 import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
+
+// Componente de Loading mejorado
+const GroupsSkeleton = () => (
+  <Box sx={{ mt: 4 }}>
+    {[1, 2, 3].map((item) => (
+      <Card key={item} sx={{ mb: 3, p: 2 }}>
+        <CardContent>
+          <Stack direction="row" spacing={2} alignItems="flex-start">
+            <Skeleton variant="circular" width={56} height={56} />
+            <Box sx={{ flex: 1 }}>
+              <Skeleton variant="text" sx={{ fontSize: '1.5rem', width: '60%' }} />
+              <Skeleton variant="text" sx={{ fontSize: '1rem', width: '80%', mt: 1 }} />
+              <Box sx={{ mt: 2 }}>
+                <Skeleton variant="rounded" width={120} height={24} />
+              </Box>
+            </Box>
+          </Stack>
+        </CardContent>
+      </Card>
+    ))}
+  </Box>
+);
+
+// Componente de tarjeta de grupo mejorado
+const GroupCard = ({ group, index }) => {
+  const getStatusDisplay = (status) => {
+    switch (status) {
+      case 'Pendiente':
+        return { 
+          text: 'Pendiente de aprobación', 
+          color: 'warning', 
+          icon: <PendingIcon sx={{ fontSize: 16 }} />,
+          bgColor: (theme) => alpha(theme.palette.warning.main, 0.1)
+        };
+      case 'Aprobado':
+        return { 
+          text: 'Miembro activo', 
+          color: 'success', 
+          icon: <CheckCircleIcon sx={{ fontSize: 16 }} />,
+          bgColor: (theme) => alpha(theme.palette.success.main, 0.1)
+        };
+      case 'Rechazado':
+        return { 
+          text: 'Solicitud rechazada', 
+          color: 'error', 
+          icon: <CancelIcon sx={{ fontSize: 16 }} />,
+          bgColor: (theme) => alpha(theme.palette.error.main, 0.1)
+        };
+      default:
+        return { 
+          text: 'Estado desconocido', 
+          color: 'default', 
+          icon: null,
+          bgColor: (theme) => alpha(theme.palette.grey[500], 0.1)
+        };
+    }
+  };
+
+  const statusInfo = getStatusDisplay(group.student_status);
+  const isArchived = group.activo === false;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: index * 0.1 }}
+      whileHover={{ y: -4 }}
+    >
+      <Card 
+        sx={{ 
+          mb: 3,
+          position: 'relative',
+          overflow: 'visible',
+          transition: 'all 0.3s ease-in-out',
+          border: '1px solid',
+          borderColor: 'divider',
+          backgroundColor: isArchived ? 
+            (theme) => alpha(theme.palette.grey[500], 0.05) : 
+            'background.paper',
+          '&:hover': {
+            borderColor: 'primary.main',
+            boxShadow: (theme) => `0 8px 40px ${alpha(theme.palette.primary.main, 0.12)}`,
+          }
+        }}
+      >
+        {isArchived && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 16,
+              right: 16,
+              zIndex: 1
+            }}
+          >
+            <Chip
+              icon={<ArchiveIcon sx={{ fontSize: 16 }} />}
+              label="Archivado"
+              size="small"
+              color="default"
+              variant="outlined"
+            />
+          </Box>
+        )}
+        
+        <CardContent sx={{ p: 3 }}>
+          <Stack direction="row" spacing={3} alignItems="flex-start">
+            {/* Avatar del grupo */}
+            <Avatar
+              sx={{
+                width: 56,
+                height: 56,
+                bgcolor: 'primary.main',
+                fontSize: '1.5rem'
+              }}
+            >
+              <GroupsIcon />
+            </Avatar>
+
+            {/* Información del grupo */}
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  fontWeight: 600,
+                  mb: 1,
+                  color: isArchived ? 'text.secondary' : 'text.primary'
+                }}
+              >
+                {group.nombre}
+              </Typography>
+
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Docente:</strong> {group.docente ? 
+                    `${group.docente.nombre} ${group.docente.apellidos}`.trim() : 
+                    'Desconocido'
+                  }
+                </Typography>
+              </Stack>
+
+              {/* Estado de membresía */}
+              <Box
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  px: 2,
+                  py: 1,
+                  borderRadius: 2,
+                  backgroundColor: statusInfo.bgColor,
+                  border: '1px solid',
+                  borderColor: `${statusInfo.color}.main`
+                }}
+              >
+                {statusInfo.icon}
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    fontWeight: 500,
+                    color: `${statusInfo.color}.main`
+                  }}
+                >
+                  {statusInfo.text}
+                </Typography>
+              </Box>
+            </Box>
+          </Stack>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+};
 
 function StudentGroupsPage() {
   const { user, isAuthenticated, isAuthInitialized } = useAuth();
@@ -71,100 +251,162 @@ function StudentGroupsPage() {
     }
   }, [isAuthInitialized, isAuthenticated, user]);
 
-  const getStatusDisplay = (status) => {
-    switch (status) {
-      case 'Pendiente':
-        return { text: 'Pendiente de aprobación', color: 'warning', variant: 'outlined' };
-      case 'Aprobado':
-        return { text: 'Miembro activo', color: 'success', variant: 'filled' };
-      case 'Rechazado':
-        return { text: 'Solicitud rechazada', color: 'error', variant: 'outlined' };
-      default:
-        console.warn(`Estado de membresía desconocido recibido del backend: ${status}`);
-        return { text: 'Estado desconocido', color: 'default', variant: 'outlined' };
-    }
-  };
-
   return (
-    <Container>
-      <Box sx={{ mt: 4 }}>
-        <PageHeader title="Mis Grupos" />
-        <Typography variant="body1" color="text.secondary">Mira todos los grupos donde ya eres parte y  a los que pronto puedes unirte.</Typography>
-
-        {/* Removed custom loading/error/empty rendering, will use EmptyState or direct rendering */}
-        
-        {isLoading && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-            <CircularProgress />
-            <Typography variant="body1" color="text.secondary" sx={{ ml: 2 }}>Cargando tus grupos...</Typography>
-          </Box>
-        )}
-
-        {error && !isLoading && (
-          <Alert severity="error" sx={{ mt: 3, width: '100%' }}> {/* Ensure Alert can take full width if needed */}
-            {error}
-          </Alert>
-        )}
-
-        {!isLoading && !error && groups.length === 0 && (
-           <EmptyState 
-            message="Aún no perteneces a ningún grupo. ¡Únete a uno usando el código de tu docente!"
-            icon={GroupsIcon} // Example icon
-            containerProps={{sx: {mt: 3}}}
-           />
-        )}
-
-        {!isLoading && !error && groups.length > 0 && (
-          <List
-              sx={{
-                mt: 3,
-                display: "flex",
+    <Container maxWidth="lg">
+      <Box sx={{ py: 4 }}>
+        {/* Header con animación */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Box sx={{ textAlign: 'center', mb: 4 }}>
+            <PageHeader title="Mis Grupos" />
+            <Typography 
+              variant="body1" 
+              color="text.secondary" 
+              sx={{ 
+                mt: 2, 
+                maxWidth: 600, 
+                mx: 'auto',
+                fontSize: '1.1rem'
               }}
             >
- 
-            {groups.map((group) => {
-              const statusInfo = getStatusDisplay(group.student_status);
+              Aquí puedes ver todos los grupos donde ya eres parte y a los que pronto puedes unirte.
+            </Typography>
+          </Box>
+        </motion.div>
 
-              return (
-                <Paper 
-                  key={group._id} 
+        {/* Contenido principal */}
+        <Box sx={{ mt: 4 }}>
+          <AnimatePresence mode="wait">
+            {/* Loading */}
+            {isLoading && (
+              <motion.div
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <GroupsSkeleton />
+              </motion.div>
+            )}
+
+            {/* Error */}
+            {error && !isLoading && (
+              <motion.div
+                key="error"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Alert 
+                  severity="error" 
                   sx={{ 
-                    mb: 2, 
-                    p: 2, 
-                    backgroundColor: group.activo === false ? grey[100] : 'transparent' 
+                    mt: 3,
+                    borderRadius: 2,
+                    '& .MuiAlert-message': {
+                      fontSize: '1rem'
+                    }
                   }}
                 >
-                  <ListItem disablePadding>
-                    <ListItemText
-                      primary={
-                        <Typography variant="h6">
-                          {group.nombre} {group.activo === false && "(Archivado)"}
-                        </Typography>
-                      }
-                      secondary={
-                        <>
-                          <Typography sx={{ display: 'inline' }} component="span" variant="body2" color="text.secondary">
-                            Docente: {group.docente ? `${group.docente.nombre} ${group.docente.apellidos}`.trim() : 'Desconocido'}
-                          </Typography>
-                          <Divider sx={{ my: 1 }} />
-                          <Box sx={{ mt: 1 }}>
-                            <Chip 
-                              label={statusInfo.text}
-                              color={statusInfo.color}
-                              variant={statusInfo.variant}
-                              size="small"
-                            />
+                  {error}
+                </Alert>
+              </motion.div>
+            )}
+
+            {/* Empty State */}
+            {!isLoading && !error && groups.length === 0 && (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.3 }}
+              >
+                <EmptyState 
+                  message="Aún no perteneces a ningún grupo. ¡Únete a uno usando el código de tu docente!"
+                  icon={GroupsIcon}
+                  containerProps={{
+                    sx: { 
+                      mt: 6,
+                      py: 6,
+                      borderRadius: 3,
+                      backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.02),
+                      border: '1px dashed',
+                      borderColor: (theme) => alpha(theme.palette.primary.main, 0.2)
+                    }
+                  }}
+                />
+              </motion.div>
+            )}
+
+            {/* Groups List */}
+            {!isLoading && !error && groups.length > 0 && (
+              <motion.div
+                key="groups"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Box sx={{ mt: 4 }}>
+                  {/* Estadísticas rápidas */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.2 }}
+                  >
+                    <Card sx={{ mb: 4, background: 'linear-gradient(135deg, #5d4aab 0%, #7c6fd1 100%)' }}>
+                      <CardContent sx={{ py: 3 }}>
+                        <Stack direction="row" spacing={4} justifyContent="center" alignItems="center">
+                          <Box sx={{ textAlign: 'center' }}>
+                            <Typography variant="h4" sx={{ color: 'white', fontWeight: 700 }}>
+                              {groups.length}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>
+                              {groups.length === 1 ? 'Grupo' : 'Grupos'}
+                            </Typography>
                           </Box>
-                        </>
-                      }
-                    />
-                  </ListItem>
-                </Paper>
-              );
-            })}
-          </List>
-        )}
+                          <Box sx={{ textAlign: 'center' }}>
+                            <Typography variant="h4" sx={{ color: 'white', fontWeight: 700 }}>
+                              {groups.filter(g => g.student_status === 'Aprobado').length}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>
+                              Activos
+                            </Typography>
+                          </Box>
+                          <Box sx={{ textAlign: 'center' }}>
+                            <Typography variant="h4" sx={{ color: 'white', fontWeight: 700 }}>
+                              {groups.filter(g => g.student_status === 'Pendiente').length}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>
+                              Pendientes
+                            </Typography>
+                          </Box>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  {/* Lista de grupos */}
+                  <Box>
+                    {groups.map((group, index) => (
+                      <GroupCard 
+                        key={group._id} 
+                        group={group} 
+                        index={index}
+                      />
+                    ))}
+                  </Box>
+                </Box>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </Box>
+      </Box>
     </Container>
   );
 }

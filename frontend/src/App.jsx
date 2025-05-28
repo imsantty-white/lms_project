@@ -84,7 +84,7 @@ function App() {
         <Box sx={{ 
           display: 'flex', 
           flexGrow: 1, 
-          pt: location.pathname === '/' ? 0 : '64px' // <-- Cambia aquí
+          //pt: location.pathname === '/' ? 0 : '64px' // <-- Cambia aquí
         }}>
 
           {shouldShowSidebar && sidebarOpen && (
