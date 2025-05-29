@@ -336,7 +336,7 @@ function StudentViewLearningPathPage() {
                                         aria-controls={`panel${module._id}-content`}
                                         id={`panel${module._id}-header`}
                                         sx={{
-                                            backgroundColor: theme.palette.primary.dark,
+                                            backgroundColor: theme.palette.primary.main,
                                             color: theme.palette.primary.contrastText,
                                             '& .MuiAccordionSummary-content': {
                                                 alignItems: 'center'
@@ -378,10 +378,11 @@ function StudentViewLearningPathPage() {
                                                             key={themeItem._id}
                                                             elevation={0}
                                                             sx={{
-                                                                border: '0.7px dotted',
+                                                                boxShadow: 2,
+                                                                //border: '2px dotted',
                                                                 borderRadius: theme.shape.borderRadius,
                                                                 '&:before': { display: 'none' },
-                                                                backgroundColor: theme.palette.background.default,
+                                                                backgroundColor: theme.palette.action.hover,
                                                                 '&:not(:last-child)': { mb: 1 },
                                                                 overflow: 'hidden'
                                                             }}
@@ -458,7 +459,7 @@ function StudentViewLearningPathPage() {
                                                                                         <ListItemIcon sx={{ minWidth: 40 }}>{getContentIcon(assignment)}</ListItemIcon>
                                                                                         <ListItemText
                                                                                             primary={
-                                                                                                <Typography variant="subtitle1" component="span" sx={{ fontSize: '0.95rem', fontWeight: 'normal', color: theme.palette.text.primary }}>
+                                                                                                <Typography variant="subtitle1" component="span" sx={{ fontSize: '0.95rem', fontWeight: 'bold', color: theme.palette.text.primary }}>
                                                                                                     {contentItem?.title || 'Contenido no encontrado'}
                                                                                                 </Typography>
                                                                                             }
@@ -479,7 +480,7 @@ function StudentViewLearningPathPage() {
                                                                                                     )}
                                                                                                     <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
                                                                                                         {assignment.puntos_maximos !== undefined && (
-                                                                                                            <Chip label={`Pts: ${assignment.puntos_maximos}`} size="small" variant="outlined" />
+                                                                                                            <Chip label={`Calificación Máxima: ${assignment.puntos_maximos}`} size="small" variant="outlined" />
                                                                                                         )}
                                                                                                         {assignment.intentos_permitidos !== undefined && (
                                                                                                             <Chip label={`Intentos: ${assignment.intentos_permitidos}`} size="small" variant="outlined" />
@@ -494,7 +495,7 @@ function StudentViewLearningPathPage() {
                                                                                     </ListItemButton>
                                                                                 </ListItem>
                                                                                 {index < themeItem.assignments.length - 1 && (
-                                                                                        <Divider component="li" sx={{ my: 0.7, borderStyle: 'dotted' }} />
+                                                                                        <Divider component="li" sx={{ my: 0.7, borderBottomWidth: '1px', borderStyle: 'dashed' }} />
                                                                                     )}
                                                                                 </React.Fragment>
                                                                             );
@@ -548,38 +549,38 @@ function StudentViewLearningPathPage() {
                     aria-labelledby="activity-confirm-title"
                     aria-describedby="activity-confirm-description"
                     TransitionProps={{
-                        onExited: handleExitedActivityDialog // <--- ¡AÑADE ESTA PROP!
+                        onExited: handleExitedActivityDialog // <--- ¡Importante PROP!
                     }}
                 >
-                    <DialogTitle id="activity-confirm-title">
-                        {`Iniciar ${activityToConfirm?.activity_id?.type || 'Actividad'}: ${activityToConfirm?.activity_id?.title || 'Desconocido'}`}
+                    <DialogTitle id="activity-confirm-title" color="text.primary">
+                        {`... Iniciando ${activityToConfirm?.activity_id?.type || 'Actividad'}: ${activityToConfirm?.activity_id?.title || 'Desconocido'}`}
                     </DialogTitle>
                     <DialogContent>
-                        <DialogContentText id="activity-confirm-description" sx={{ mb: 1 }}>
+                        <DialogContentText id="activity-confirm-description" variant="body1" color="secondary.dark" sx={{ mb: 1 }}>
                             Estás a punto de comenzar este {activityToConfirm?.activity_id?.type || 'actividad'}.
                         </DialogContentText>
                         <Stack spacing={0.5} sx={{ mt: 1 }}>
                             {activityToConfirm?.puntos_maximos !== undefined && (
-                                <Typography variant="body2">
-                                    **Puntos Máximos:** {activityToConfirm.puntos_maximos}
+                                <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                                    Puntos Máximos: {activityToConfirm.puntos_maximos}
                                 </Typography>
                             )}
                             {activityToConfirm?.intentos_permitidos !== undefined && (
-                                <Typography variant="body2">
-                                    **Intentos Permitidos:** {activityToConfirm.intentos_permitidos}
+                                <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                                    Intentos Permitidos: {activityToConfirm.intentos_permitidos}
                                 </Typography>
                             )}
                             {activityToConfirm?.tiempo_limite !== undefined && (
-                                <Typography variant="body2">
-                                    **Tiempo Límite:** {tiempoLimiteActividad}
+                                <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                                    Tiempo Límite: {tiempoLimiteActividad}
                                 </Typography>
                             )}
                             {activityToConfirm?.fecha_fin && (
-                                <Typography variant="body2">
-                                    **Fecha Límite:** {fechaFinActividad}
+                                <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                                    Fecha Límite: {fechaFinActividad}
                                 </Typography>
                             )}
-                            <Typography variant="body2" sx={{ mt: 2, fontWeight: 'bold' }}>
+                            <Typography variant="body2" color="secondary.dark" sx={{ mt: 2 }}>
                                 ¿Deseas continuar?
                             </Typography>
                         </Stack>

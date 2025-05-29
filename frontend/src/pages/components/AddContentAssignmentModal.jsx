@@ -138,7 +138,7 @@ function AddContentAssignmentDialog({ open, onClose, onSubmitAssignment, onReque
   const validateForm = () => {
     const newErrors = {};
     // Usamos new Date() para comparar con la hora actual
-    const now = new Date();
+    // const now = new Date();
 
 
     if (!selectedContent) {
@@ -151,11 +151,11 @@ function AddContentAssignmentDialog({ open, onClose, onSubmitAssignment, onReque
         if (isNaN(fechaInicioDate.getTime())) {
             newErrors.fechaInicio = 'Fecha y hora de inicio inválidas.';
         }
-        // *** NUEVA VALIDACIÓN: Fecha/Hora de inicio no puede ser anterior a la actual ***
+        // ***VALIDACIÓN: Fecha/Hora de inicio no puede ser anterior a la actual ***
         // Comparamos la fecha seleccionada con la fecha/hora actual
-        if (fechaInicioDate < now) {
-            newErrors.fechaInicio = 'La fecha y hora de inicio no pueden ser anteriores a la hora actual.';
-        }
+        //if (fechaInicioDate < now) {
+       //     newErrors.fechaInicio = 'La fecha y hora de inicio no pueden ser anteriores a la hora actual.';
+       // }
     } else {
          // Considerar si fechaInicio es obligatorio. Si es así:
         // newErrors.fechaInicio = 'La fecha y hora de inicio son obligatorias.';
@@ -299,7 +299,9 @@ function AddContentAssignmentDialog({ open, onClose, onSubmitAssignment, onReque
             {/* Sección de selección de contenido (mantener) */}
             <Box>
               <Typography variant="h6">Seleccionar Contenido del Banco</Typography>
-              <Button onClick={onRequestCreateNewContent} disabled={isLoadingContent || isAssigning} sx={{ my: 1 }}>
+              <Button onClick={onRequestCreateNewContent} disabled={isLoadingContent || isAssigning} sx={{ my: 1 }}
+              color='secondary'
+              >
                 ¿No encuentras el contenido? Crea uno nuevo.
               </Button>
               <TextField
@@ -452,7 +454,7 @@ function AddContentAssignmentDialog({ open, onClose, onSubmitAssignment, onReque
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={onClose} disabled={isAssigning}>Cancelar</Button>
+          <Button onClick={onClose} disabled={isAssigning} color='secondary'>Cancelar</Button>
           <Button
             type="submit"
             form="assignment-form"

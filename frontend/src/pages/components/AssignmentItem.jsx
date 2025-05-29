@@ -75,7 +75,6 @@ const AssignmentItem = React.memo(({
   return (
     <ListItem sx={{ 
       pl: 3, // Adjusted paddingLeft
-      borderBottom: `1px dashed ${theme.palette.divider}`, // Theme consistent border
       borderLeftWidth: '4px',
       borderLeftStyle: 'solid',
       borderLeftColor: borderColor,

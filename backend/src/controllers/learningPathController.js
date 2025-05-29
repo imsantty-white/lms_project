@@ -628,6 +628,8 @@ const getLearningPathStructure = async (req, res) => {
                         fecha_inicio: assign.fecha_inicio,
                         fecha_fin: assign.fecha_fin,
                         puntos_maximos: assign.puntos_maximos,
+                        intentos_permitidos: assign.intentos_permitidos,
+                        tiempo_limite: assign.tiempo_limite,
                         resource_id: assign.type === 'Resource' && assign.resource_id ? {
                             _id: assign.resource_id._id,
                             title: assign.resource_id.title,

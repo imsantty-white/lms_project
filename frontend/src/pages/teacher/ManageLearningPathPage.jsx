@@ -793,59 +793,90 @@ function ManageLearningPathPage() {
       <Box sx={{ mt: 2, mb: 4 }}> {/* Adjusted top margin */}
         {/* Título y Datos de la Ruta */}
         
-          <Typography variant="overline" display="block" align="center" color="text.secondary"> {/* Changed to overline */}
-            Ruta de Aprendizaje
-          </Typography>
-          <Typography variant="h4" align="center" fontWeight="bold" gutterBottom sx={{ mb: 3 }}> {/* Added fontWeight */}
-            {learningPath.nombre}
-          </Typography>
+          <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'flex-start', // Alinea ambos elementos al inicio (arriba)
+                justifyContent: 'space-between',
+                flexWrap: { xs: 'wrap', md: 'nowrap' } // Hace que se apilen en pantallas pequeñas, si es necesario
+              }}
+            >
+              <Box 
+                sx={{ 
+                      flex: 1, textAlign: 'right',
+                      mr: 2, mt: 6,
+                }}>
+                <Typography
+                  variant="overline"
+                  display="block"
+                  align="right"
+                  color="text.secondary"
+                >
+                  Ruta de Aprendizaje
+                </Typography>
+                <Typography
+                  variant="h4"
+                  align="right"
+                  //fontWeight="bold"
+                  gutterBottom
+                  sx={{ mb: 3 }}
+                >
+                  {learningPath.nombre}
+                </Typography>
+              </Box>
 
-        <Paper sx={{ 
-          p: theme.spacing(3), // Use theme spacing
-          mb: theme.spacing(4), // Use theme spacing
-          maxWidth: 'sm', // Adjusted maxWidth
-          width: '100%', 
-          textAlign: 'center', 
-          mx: 'auto', // Centering
-          backgroundColor: theme.palette.background.paper,
-          boxShadow: theme.shadows[2] // Adjusted shadow
-        }}>
-          <Typography variant="h6" gutterBottom>
-            Información de la Ruta
-          </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}> {/* Changed variant and mb */}
-            {learningPath.descripcion || "Esta ruta de aprendizaje no tiene una descripción detallada."}
-          </Typography>
+              <Box
+                sx={{
+                  p: theme.spacing(3), // Usa el espaciado del theme
+                  mb: theme.spacing(4), // Define margen inferior
+                  maxWidth: 'sm', // Tamaño máximo
+                  width: '100%',
+                  textAlign: 'left',
+                  mx: 'auto', 
+                }}
+              >
+                <Typography variant="h6" gutterBottom>
+                  Detalles de la Ruta
+                </Typography>
+                <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+                  {learningPath.descripcion ||
+                    "Esta ruta de aprendizaje no tiene una descripción detallada."}
+                </Typography>
 
-          {learningPath.group_id?.nombre && (
-            <Chip 
-              label={`Grupo: ${learningPath.group_id.nombre}`} 
-              variant="outlined" 
-              sx={{ mb: 1 }} 
-            />
-          )}
-          
-          <Stack direction="row" spacing={2} justifyContent="center" sx={{mt: 1}}>
-            {learningPath.fecha_inicio && (
-              <Chip 
-                label={`Inicio: ${new Date(learningPath.fecha_inicio).toLocaleDateString()}`} 
-                variant="outlined" 
-                size="small"
-              />
-            )}
+                {learningPath.group_id?.nombre && (
+                  <Chip
+                    label={`Grupo: ${learningPath.group_id.nombre}`}
+                    variant="outlined"
+                    sx={{ mb: 1 }}
+                  />
+                )}
 
-            {learningPath.fecha_fin && (
-              <Chip 
-                label={`Fin: ${new Date(learningPath.fecha_fin).toLocaleDateString()}`} 
-                variant="outlined" 
-                size="small"
-              />
-            )}
-          </Stack>
-        </Paper>
+                <Stack
+                  direction="row"
+                  spacing={2}
+                  justifyContent="left"
+                  sx={{ mt: 1 }}
+                >
+                  {learningPath.fecha_inicio && (
+                    <Chip
+                      label={`Inicio: ${new Date(learningPath.fecha_inicio).toLocaleDateString()}`}
+                      variant="outlined"
+                      size="small"
+                    />
+                  )}
+                  {learningPath.fecha_fin && (
+                    <Chip
+                      label={`Fin: ${new Date(learningPath.fecha_fin).toLocaleDateString()}`}
+                      variant="outlined"
+                      size="small"
+                    />
+                  )}
+                </Stack>
+              </Box>
+            </Box>
 
         {/* --- Renderizar Módulos --- */}
-        <Box display="flex" flexDirection="row" alignItems="center" justifyContent="space-between" sx={{ mt: 3, mb: 3 }}> {/* Adjusted mb */}
+        <Box display="flex" flexDirection="row" alignItems="center" justifyContent="space-between" sx={{ mt: 0, mb: 2 }}> {/* Adjusted mb */}
           <Typography variant="h5" gutterBottom sx={{ mt: 2, mb: 0 }}> {/* Adjusted mb */}
             Estructura de la Ruta
           </Typography>

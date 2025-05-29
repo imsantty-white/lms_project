@@ -20,7 +20,7 @@ function StudentProgressPage() {
   const STATUS_TRANSLATIONS = {
     'completado': 'Completado',
     'en progreso': 'En Progreso',
-    'no iniciado': 'No Iniciada',
+    'no iniciado': 'Sin Iniciar',
     open: 'Abierto',
     closed: 'Cerrado',
     draft: 'Borrador',

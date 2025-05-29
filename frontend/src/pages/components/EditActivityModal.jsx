@@ -214,7 +214,7 @@ function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
   };
 
   // Determinar si el formulario es válido para habilitar el botón (basado en el estado de errores)
-  const isFormValid = Object.keys(errors).length === 0;
+  const _isFormValid = Object.keys(errors).length === 0;
 
 
   // --- Maneja el envío del formulario para actualizar la actividad ---
@@ -357,6 +357,7 @@ function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
               ))}
               <Button
                 variant="outlined"
+                color='secondary'
                 startIcon={<AddCircleOutlineIcon />}
                 onClick={handleAddCuestionarioQuestion}
                 disabled={isSaving}
@@ -411,6 +412,7 @@ function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
                   ))}
                   <Button
                     variant="outlined"
+                    color='secondary'
                     size="small"
                     startIcon={<AddCircleOutlineIcon />}
                     onClick={() => handleAddQuizOption(qIndex)}
@@ -448,6 +450,7 @@ function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
               ))}
               <Button
                 variant="outlined"
+                color='secondary'
                 startIcon={<AddCircleOutlineIcon />}
                 onClick={handleAddQuizQuestion}
                 disabled={isSaving}

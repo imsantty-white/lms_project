@@ -149,7 +149,7 @@ const ModuleItem = React.memo(({
                 <Button
                   variant="outlined"
                   size="small"
-                  color="primary" // Changed color
+                  color="secondary" // Changed color
                   startIcon={<AddCircleOutlinedIcon />}
                   onClick={() => onCreateTheme(module._id)}
                   disabled={isAnyOperationInProgress}
@@ -159,8 +159,8 @@ const ModuleItem = React.memo(({
               </motion.div>
             </Tooltip>
           </Stack>
-          <Divider sx={{ borderStyle: 'dotted', borderColor: theme.palette.divider , my: 2 }} /> {/* Used theme.palette.divider */}
-          <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Temas:</Typography>
+          <Divider sx={{ borderBottomWidth: '3px', borderStyle: 'dashed', borderColor: theme.palette.divider , my: 2 }} /> {/* Used theme.palette.divider */}
+          <Typography variant="h5" sx={{ mt: 2, mb: 1 }}>Temas:</Typography>
           {module.themes && module.themes.length > 0 ? (
             <List dense disablePadding>
               {module.themes.map((theme, themeIndex) => (
@@ -188,6 +188,9 @@ const ModuleItem = React.memo(({
             </Typography>
           )}
         </AccordionDetails>
+            </motion.section>
+          )}
+        </AnimatePresence>
       </Accordion>
     </Paper>
   );

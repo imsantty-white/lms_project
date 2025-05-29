@@ -46,7 +46,7 @@ const ThemeItem = React.memo(({
       expanded={expanded} 
       onChange={onAccordionChange}
       sx={{
-        border: `1px solid ${themeMaterial.palette.divider}`,
+        // Removemos el border del Accordion principal
         borderRadius: themeMaterial.shape.borderRadius,
         boxShadow: themeMaterial.shadows[1],
         '&:not(:last-child)': { mb: 1 },
@@ -54,6 +54,8 @@ const ThemeItem = React.memo(({
         '&:before': { 
           display: 'none',
         },
+        // Aplicamos overflow hidden para que el contenido respete el borderRadius
+        overflow: 'hidden',
       }}
       // Disable default MUI transitions to let Framer Motion handle it
       TransitionProps={{ timeout: 0, unmountOnExit: true }}
@@ -67,11 +69,12 @@ const ThemeItem = React.memo(({
           backgroundColor: themeMaterial.palette.action.hover,
           color: themeMaterial.palette.text.primary,
           minHeight: 48, // Denser summary
+          // Añadimos el border solo al summary
+          border: `1px solid ${themeMaterial.palette.divider}`,
+          // El borderRadius se aplicará automáticamente por el overflow hidden del padre
           '& .MuiAccordionSummary-content': { // Reduce margin around content
             my: 0,
           },
-          // Apply border radius to match Accordion, but only to top if expanded or always if not
-          // This is tricky with conditional rendering, simpler to let Accordion handle rounding
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
@@ -126,6 +129,10 @@ const ThemeItem = React.memo(({
             <AccordionDetails sx={{ 
               backgroundColor: themeMaterial.palette.background.paper,
               p: 2, // Standard padding
+              // Añadimos border para los lados y abajo cuando está expandido
+              borderLeft: `1px solid ${themeMaterial.palette.divider}`,
+              borderRight: `1px solid ${themeMaterial.palette.divider}`,
+              borderBottom: `1px solid ${themeMaterial.palette.divider}`,
             }}>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 {theme.descripcion}
@@ -136,7 +143,7 @@ const ThemeItem = React.memo(({
                 <Button
                   variant="outlined"
                   size="small"
-                  color="primary" // Changed color
+                  color="secondary" // Changed color
                   startIcon={<AddCircleOutlinedIcon />}
                   onClick={() => onAddContentAssignment(theme._id, theme.nombre)}
                   disabled={isAnyOperationInProgress}
@@ -146,8 +153,8 @@ const ThemeItem = React.memo(({
               </motion.div>
             </Tooltip>
           </Stack>
-          <Divider sx={{ borderStyle: 'dotted', borderColor: themeMaterial.palette.divider, my: 2 }} /> {/* Used themeMaterial.palette.divider */}
-          <Typography variant="subtitle1" sx={{ mt: 2, mb: 1 }}>
+          <Divider sx={{ borderBottomWidth: '3px', borderStyle: 'dashed', borderColor: themeMaterial.palette.divider, my: 2 }} /> {/* Used themeMaterial.palette.divider */}
+          <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
             Contenido:
           </Typography>
           {theme.assignments && theme.assignments.length > 0 ? (
@@ -172,9 +179,11 @@ const ThemeItem = React.memo(({
             </Typography>
           )}
         </AccordionDetails>
-      </Accordion>
-    </Paper>
-  );
+          </motion.section>
+                  )}
+          </AnimatePresence>
+        </Accordion>
+    );
 });
 
 export default ThemeItem;

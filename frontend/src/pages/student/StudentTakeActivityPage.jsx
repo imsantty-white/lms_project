@@ -22,8 +22,11 @@ import {
   Chip,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
   List, ListItem, ListItemText,
-  Stack, FormHelperText // Para organizar elementos
+  Stack, FormHelperText, // Para organizar elementos
+  Collapse, // Añadido para el efecto de colapso
+  IconButton // Añadido para el botón de colapso
 } from '@mui/material';
+import { ExpandMore, ExpandLess } from '@mui/icons-material'; // Añadido para los iconos
 
 // *** Importar useAuth (ahora incluyendo isAuthInitialized y isAuthenticated) Y axiosInstance ***
 import { useAuth, axiosInstance } from '../../contexts/AuthContext';
@@ -38,7 +41,6 @@ function StudentTakeActivityPage() {
   const { user, isAuthenticated, isAuthInitialized } = useAuth();
 
   const navigate = useNavigate();
-
 
   // Estados para los datos de la actividad, carga y error
   const [assignmentDetails, setAssignmentDetails] = useState(null);
@@ -64,6 +66,8 @@ function StudentTakeActivityPage() {
 
   const [isGraded, setIsGraded] = useState(false);
 
+  // *** NUEVO ESTADO: Para controlar si la sección de última entrega está expandida ***
+  const [isLastSubmissionExpanded, setIsLastSubmissionExpanded] = useState(false);
 
   // Efecto para cargar los detalles de la actividad y la asignación
   useEffect(() => {
@@ -89,6 +93,9 @@ function StudentTakeActivityPage() {
 
           setHasSubmitted(false); // Reiniciar estado de envío
           setSubmissionDetails(null);
+
+          // *** REINICIAR ESTADO DE EXPANSIÓN ***
+          setIsLastSubmissionExpanded(false);
 
           try {
               // *** LLAMADA GET AL BACKEND USANDO axiosInstance ***
@@ -313,6 +320,11 @@ function StudentTakeActivityPage() {
       setIsSubmitting(false); // Desactiva estado de envío
     }
   };
+
+  // *** NUEVA FUNCIÓN: Togglear expansión de última entrega ***
+  const handleToggleLastSubmission = () => {
+    setIsLastSubmissionExpanded(prev => !prev);
+  };
   // --- FIN Lógica para enviar respuestas ---
 
   // --- Renderizado de la Página ---
@@ -331,7 +343,6 @@ function StudentTakeActivityPage() {
       </Container>
     );
   }
-
 
   // Mostrar error de carga (incluye errores de permiso 403 del backend manejados por axiosInstance)
   if (fetchError) {
@@ -403,91 +414,124 @@ return (
           )}
         </Stack>
 
-        {/* *** MOSTRAR DETALLES DE LA ÚLTIMA ENTREGA SI EXISTE *** */}
-      {lastSubmissionDetails && (
-        <Paper elevation={2} sx={{ p: 3, mb: 4 }}> {/* Añadir mb para espacio si aparece el formulario después */}
-          <Typography variant="h5" gutterBottom>
-            Última Entrega (Intento #{lastSubmissionDetails.attempt_number})
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Enviada el: {lastSubmissionDetails.fecha_envio ? format(new Date(lastSubmissionDetails.fecha_envio), 'dd/MM/yyyy HH:mm') : 'No especificada'}
-            {lastSubmissionDetails.is_late && <Chip label="Tardía" color="warning" size="small" sx={{ ml: 1 }} />}
-          </Typography>
-
-          {/* Mostrar contenido de la última entrega según el tipo de actividad */}
-          {activityDetails.type === 'Quiz' && lastSubmissionDetails.respuesta?.quiz_answers && (
-            <Box>
-              <Typography variant="h6" gutterBottom>Respuestas:</Typography>
-              {lastSubmissionDetails.calificacion !== undefined && lastSubmissionDetails.calificacion !== null && (
-                <Alert severity={lastSubmissionDetails.calificacion >= (assignmentDetails?.puntos_maximos || 0) * 0.7 ? 'success' : 'info'} sx={{ mb: 2 }}>
-                  Calificación: {lastSubmissionDetails.calificacion.toFixed(2)} / {assignmentDetails?.puntos_maximos !== undefined ? assignmentDetails.puntos_maximos : 'N/A'}
-                </Alert>
-              )}
-              <List dense>
-                {/* Mapear respuestas del Quiz */}
-                {lastSubmissionDetails.respuesta.quiz_answers.map((answer, qIndex) => {
-                  // Encontrar la pregunta original usando el question_index de la respuesta
-                  // Nota: Tu código original usaba find(q => questionsToRender.indexOf(q) === answer.question_index)
-                  // Si questionsToRender es un array simple, esto funciona. Si cada pregunta es un objeto con _id, find(q => q._id === answer.question_id) sería más robusto si answer.question_id existe.
-                  const originalQuestion = Array.isArray(questionsToRender) && questionsToRender[answer.question_index] ? questionsToRender[answer.question_index] : null;
-                  return (
-                    <ListItem key={qIndex}>
-                      <ListItemText
-                        primary={`Q${answer.question_index + 1}: ${originalQuestion ? originalQuestion.text : 'Pregunta desconocida'}`}
-                        secondary={`Tu respuesta: ${Array.isArray(answer.student_answer) ? answer.student_answer.join(', ') : answer.student_answer || 'Sin respuesta'}`}
-                      />
-                    </ListItem>
-                  );
-                })}
-              </List>
+        {/* *** SECCIÓN DE ÚLTIMA ENTREGA COLAPSABLE *** */}
+        {lastSubmissionDetails && (
+          <Paper elevation={2} sx={{ mb: 4 }}>
+            {/* Encabezado clickeable para expandir/colapsar */}
+            <Box 
+              sx={{ 
+                p: 2, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+                '&:hover': {
+                  backgroundColor: 'action.hover'
+                }
+              }}
+              onClick={handleToggleLastSubmission}
+            >
+              <Box>
+                <Typography variant="h6">
+                  Última Entrega (Intento #{lastSubmissionDetails.attempt_number})
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Enviada el: {lastSubmissionDetails.fecha_envio ? format(new Date(lastSubmissionDetails.fecha_envio), 'dd/MM/yyyy HH:mm') : 'No especificada'}
+                  {lastSubmissionDetails.is_late && <Chip label="Tardía" color="warning" size="small" sx={{ ml: 1 }} />}
+                </Typography>
+              </Box>
+              <IconButton>
+                {isLastSubmissionExpanded ? <ExpandLess /> : <ExpandMore />}
+              </IconButton>
             </Box>
-          )}
 
-          {activityDetails.type === 'Cuestionario' && lastSubmissionDetails.respuesta?.cuestionario_answers && (
-            <Box>
-              <Typography variant="h6" gutterBottom>Respuestas:</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Estado: {lastSubmissionDetails.estado_envio}</Typography>
-              {lastSubmissionDetails.calificacion !== undefined && lastSubmissionDetails.calificacion !== null && (
-                <Alert severity={lastSubmissionDetails.calificacion >= (assignmentDetails?.puntos_maximos || 0) * 0.7 ? 'success' : 'info'} sx={{ mb: 2 }}>
-                  Calificación: {lastSubmissionDetails.calificacion.toFixed(2)} / {assignmentDetails?.puntos_maximos !== undefined ? assignmentDetails.puntos_maximos : 'N/A'}
-                </Alert>
-              )}
-              <List dense>
-                {/* Mapear respuestas del Cuestionario */}
-                {lastSubmissionDetails.respuesta.cuestionario_answers.map((answer, qIndex) => {
-                  const originalQuestion = Array.isArray(questionsToRender) && questionsToRender[answer.question_index] ? questionsToRender[answer.question_index] : null;
-                  return (
-                    <ListItem key={qIndex}>
-                      <ListItemText
-                        primary={`Q${answer.question_index + 1}: ${originalQuestion ? originalQuestion.text : 'Pregunta desconocida'}`}
-                        secondary={`Tu respuesta: ${answer.student_answer || 'Sin respuesta'}`}
-                      />
-                    </ListItem>
-                  );
-                })}
-              </List>
-            </Box>
-          )}
+            {/* Contenido colapsable */}
+            <Collapse in={isLastSubmissionExpanded}>
+              <Box sx={{ p: 3, pt: 0 }}>
+                <Divider sx={{ mb: 2 }} />
+                
+                {/* Mostrar contenido de la última entrega según el tipo de actividad */}
+                {activityDetails.type === 'Quiz' && lastSubmissionDetails.respuesta?.quiz_answers && (
+                  <Box>
+                    <Typography variant="h6" gutterBottom>Reporte de Respuestas:</Typography>
+                    
+                    <List dense>
+                      {/* Mapear respuestas del Quiz */}
+                      {lastSubmissionDetails.respuesta.quiz_answers.map((answer, qIndex) => {
+                        // Encontrar la pregunta original usando el question_index de la respuesta
+                        const originalQuestion = Array.isArray(questionsToRender) && questionsToRender[answer.question_index] ? questionsToRender[answer.question_index] : null;
+                        
+                        // Determinar si hay una respuesta para esta pregunta
+                        // HAY QUE AJUSTAR EL BACKEND PARA QUE NO MANDE LA RESPUESTA, SOLAMENTE SE MOSTRARA SI HAY RESPUESTA O NO
+                        // PARA EVITAR TRAMPAS
+                        const hasAnswer = (Array.isArray(answer.student_answer) && answer.student_answer.length > 0) || 
+                                          (typeof answer.student_answer === 'string' && answer.student_answer.trim() !== '');
 
-          {activityDetails.type === 'Trabajo' && lastSubmissionDetails.respuesta?.link_entrega && (
-            <Box>
-              <Typography variant="h6" gutterBottom>Enlace de Entrega:</Typography>
-              <Typography variant="body1" sx={{ wordBreak: 'break-all' }}>
-                <a href={lastSubmissionDetails.respuesta.link_entrega} target="_blank" rel="noopener noreferrer">
-                  {lastSubmissionDetails.respuesta.link_entrega}
-                </a>
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Estado: {lastSubmissionDetails.estado_envio}</Typography>
-              {lastSubmissionDetails.calificacion !== undefined && lastSubmissionDetails.calificacion !== null && (
-                <Alert severity={lastSubmissionDetails.calificacion >= (assignmentDetails?.puntos_maximos || 0) * 0.7 ? 'success' : 'info'} sx={{ mb: 2 }}>
-                  Calificación: {lastSubmissionDetails.calificacion.toFixed(2)} / {assignmentDetails?.puntos_maximos !== undefined ? assignmentDetails.puntos_maximos : 'N/A'}
-                </Alert>
-              )}
-            </Box>
-          )}
-        </Paper>
-      )}
-      {/* *** FIN MOSTRAR DETALLES DE LA ÚLTIMA ENTREGA SI EXISTE *** */}
+                        return (
+                          <ListItem key={qIndex}>
+                            <ListItemText
+                              primary={`Q${answer.question_index + 1}: ${originalQuestion ? originalQuestion.text : 'Pregunta desconocida'}`}
+                              secondary={hasAnswer ? 'Respuesta Seleccionada' : 'Respuesta NO seleccionada'}
+                            />
+                          </ListItem>
+                        );
+                      })}
+                    </List>
+                    {lastSubmissionDetails.calificacion !== undefined && lastSubmissionDetails.calificacion !== null && (
+                      <Alert severity={lastSubmissionDetails.calificacion >= (assignmentDetails?.puntos_maximos || 0) * 0.7 ? 'success' : 'info'} sx={{ mb: 2 }}>
+                        Calificación: {lastSubmissionDetails.calificacion.toFixed(2)} / {assignmentDetails?.puntos_maximos !== undefined ? assignmentDetails.puntos_maximos : 'N/A'}
+                      </Alert>
+                    )}
+                  </Box>
+                )}
+
+                {activityDetails.type === 'Cuestionario' && lastSubmissionDetails.respuesta?.cuestionario_answers && (
+                  <Box>
+                    <Typography variant="h6" gutterBottom>Respuestas:</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Estado: {lastSubmissionDetails.estado_envio}</Typography>
+                    {lastSubmissionDetails.calificacion !== undefined && lastSubmissionDetails.calificacion !== null && (
+                      <Alert severity={lastSubmissionDetails.calificacion >= (assignmentDetails?.puntos_maximos || 0) * 0.7 ? 'success' : 'info'} sx={{ mb: 2 }}>
+                        Calificación: {lastSubmissionDetails.calificacion.toFixed(2)} / {assignmentDetails?.puntos_maximos !== undefined ? assignmentDetails.puntos_maximos : 'N/A'}
+                      </Alert>
+                    )}
+                    <List dense>
+                      {/* Mapear respuestas del Cuestionario */}
+                      {lastSubmissionDetails.respuesta.cuestionario_answers.map((answer, qIndex) => {
+                        const originalQuestion = Array.isArray(questionsToRender) && questionsToRender[answer.question_index] ? questionsToRender[answer.question_index] : null;
+                        return (
+                          <ListItem key={qIndex}>
+                            <ListItemText
+                              primary={`Q${answer.question_index + 1}: ${originalQuestion ? originalQuestion.text : 'Pregunta desconocida'}`}
+                              secondary={`Tu respuesta: ${answer.student_answer || 'Sin respuesta'}`}
+                            />
+                          </ListItem>
+                        );
+                      })}
+                    </List>
+                  </Box>
+                )}
+
+                {activityDetails.type === 'Trabajo' && lastSubmissionDetails.respuesta?.link_entrega && (
+                  <Box>
+                    <Typography variant="h6" gutterBottom>Enlace de Entrega:</Typography>
+                    <Typography variant="body1" sx={{ wordBreak: 'break-all' }}>
+                      <a href={lastSubmissionDetails.respuesta.link_entrega} target="_blank" rel="noopener noreferrer">
+                        {lastSubmissionDetails.respuesta.link_entrega}
+                      </a>
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Estado: {lastSubmissionDetails.estado_envio}</Typography>
+                    {lastSubmissionDetails.calificacion !== undefined && lastSubmissionDetails.calificacion !== null && (
+                      <Alert severity={lastSubmissionDetails.calificacion >= (assignmentDetails?.puntos_maximos || 0) * 0.7 ? 'success' : 'info'} sx={{ mb: 2 }}>
+                        Calificación: {lastSubmissionDetails.calificacion.toFixed(2)} / {assignmentDetails?.puntos_maximos !== undefined ? assignmentDetails.puntos_maximos : 'N/A'}
+                      </Alert>
+                    )}
+                  </Box>
+                )}
+              </Box>
+            </Collapse>
+          </Paper>
+        )}
+        {/* *** FIN SECCIÓN DE ÚLTIMA ENTREGA COLAPSABLE *** */}
 
       {/* *** MOSTRAR FORMULARIO DE INTENTO SOLO SI canTakeNewAttempt ES TRUE *** */}
       {canTakeNewAttempt ? (
@@ -522,7 +566,7 @@ return (
                                                               disabled={hasSubmitted || !canTakeNewAttempt}
                                                           >
                                                               {question.options.map((option, optionIndex) => (
-                                                                  <FormControlLabel key={optionIndex} value={option} control={<Radio />} label={option} />
+                                                                  <FormControlLabel key={optionIndex} value={option} control={<Radio sx={{ '&.Mui-checked': { color: '#f00c8d' }}}/>} label={option} />
                                                               ))}
                                                           </RadioGroup>
                                                       </FormControl>

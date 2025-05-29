@@ -366,7 +366,7 @@ function TeacherAssignmentsListPage() {
                   <TableRow sx={{ backgroundColor: theme.palette.background.paper }}>
                     <TableCell sx={{ fontWeight: 'bold' }}>Nombre de Actividad</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Tipo</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Estado</TableCell> {/* New Header */}
+                    <TableCell sx={{ fontWeight: 'bold' }}>Estado</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Ubicación</TableCell>
                     <TableCell align="center" sx={{ fontWeight: 'bold' }}>Entregas</TableCell>
                     <TableCell align="center" sx={{ fontWeight: 'bold' }}>Pendientes</TableCell>
@@ -388,7 +388,7 @@ function TeacherAssignmentsListPage() {
                           <Avatar sx={{ bgcolor: 'primary.light', width: 32, height: 32 }}>
                             <ActivityTypeIcon type={assignment.activity_id?.type || assignment.type} />
                           </Avatar>
-                          <Typography variant="body1" fontWeight="medium">
+                          <Typography variant="body2" >
                             {assignment.activity_id?.title || assignment.title || 'Título desconocido'}
                           </Typography>
                         </Box>
@@ -397,7 +397,7 @@ function TeacherAssignmentsListPage() {
                         <Chip 
                           label={assignment.activity_id?.type || assignment.type || 'Desconocido'} 
                           size="small" 
-                          color="primary" 
+                          color="text.primary" 
                           variant="outlined"
                         />
                       </TableCell>
@@ -409,7 +409,7 @@ function TeacherAssignmentsListPage() {
                           variant="outlined"
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', width: '200px', minWidth: '200px', maxWidth: '200px' }}>
                         <LocationHierarchy assignment={assignment} />
                       </TableCell>
                       <TableCell align="center">
