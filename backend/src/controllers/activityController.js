@@ -15,6 +15,13 @@ const mongoose = require('mongoose');
 const { isApprovedGroupMember, isTeacherOfContentAssignment, isTeacherOfSubmission } = require('../utils/permissionUtils');
 const NotificationService = require('../services/NotificationService'); // Adjust path if necessary
 
+// Helper function to shuffle an array (Fisher-Yates shuffle)
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]]; // Swap elements
+    }
+}
 
 // @desc    Obtener los detalles de una Actividad asignada para que un estudiante la inicie
 // @route   GET /api/activities/student/:assignmentId/start
@@ -70,6 +77,13 @@ const getStudentActivityForAttempt = async (req, res, next) => {
 
         const activityDetails = assignmentDetails.activity_id;
 
+        // Remove correct_answer from quiz_questions if activity type is Quiz
+        if (activityDetails && activityDetails.type === 'Quiz' && activityDetails.quiz_questions && Array.isArray(activityDetails.quiz_questions)) {
+            activityDetails.quiz_questions.forEach(question => {
+                delete question.correct_answer;
+            });
+        }
+
 
         // Verificar que el estudiante es miembro aprobado del grupo (mantener)
         let group = null;
@@ -105,11 +119,25 @@ const getStudentActivityForAttempt = async (req, res, next) => {
             return res.status(400).json({ message: `Tipo de actividad (${activityDetails.type}) no soportado para visualización en esta página.` });
         }
 
+        // Shuffle questions if they exist
+        if (activityDetails.quiz_questions && Array.isArray(activityDetails.quiz_questions) && activityDetails.quiz_questions.length > 0) {
+            shuffleArray(activityDetails.quiz_questions);
+            // Now, shuffle options for each quiz question
+            activityDetails.quiz_questions.forEach(question => {
+                if (question.options && Array.isArray(question.options) && question.options.length > 0) {
+                    shuffleArray(question.options);
+                }
+            });
+        }
+        if (activityDetails.cuestionario_questions && Array.isArray(activityDetails.cuestionario_questions) && activityDetails.cuestionario_questions.length > 0) {
+            shuffleArray(activityDetails.cuestionario_questions);
+        }
+
 
         // Enviar los detalles de la asignación, la actividad base, los intentos usados y la última entrega (mantener)
         res.status(200).json({
             assignmentDetails: assignmentDetails, // Esto incluye el estado
-            activityDetails: activityDetails,
+            activityDetails: activityDetails, // This will now have quiz_questions without correct_answer
             attemptsUsed: attemptsUsed,
             lastSubmission: lastSubmission
         });
