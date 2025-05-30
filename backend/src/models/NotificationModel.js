@@ -25,6 +25,11 @@ const notificationSchema = new mongoose.Schema({
       'CONTENT_SHARED',
       'GENERAL_INFO',
       'GROUP_ARCHIVED',
+      'NUEVO_USUARIO_REGISTRADO',
+      'NOTIFICACION_SISTEMA_GENERAL',
+      'NOTIFICACION_SISTEMA_DOCENTES',
+      'NOTIFICACION_SISTEMA_ESTUDIANTES',
+      'NOTIFICACION_SISTEMA_INDIVIDUAL',
     ],
   },
   message: {

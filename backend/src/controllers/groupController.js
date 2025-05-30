@@ -336,6 +336,21 @@ const respondJoinRequest = async (req, res) => {
                           message: message,
                           link: link
                       });
+
+                      // Actualizar el grupo_id del estudiante en UserModel
+                      try {
+                          const studentToUpdate = await User.findById(studentId);
+                          if (studentToUpdate) {
+                              studentToUpdate.grupo_id = updatedPopulatedMembership.grupo_id._id; // Asignar el ID del grupo
+                              await studentToUpdate.save();
+                              console.log(`Campo grupo_id actualizado para el estudiante ${studentId} al grupo ${updatedPopulatedMembership.grupo_id._id}`);
+                          } else {
+                              console.error(`Estudiante con ID ${studentId} no encontrado, no se pudo actualizar su grupo_id.`);
+                          }
+                      } catch (userUpdateError) {
+                          console.error(`Error al actualizar el grupo_id para el estudiante ${studentId}:`, userUpdateError);
+                          // No fallar la operación principal por esto, pero es importante registrarlo.
+                      }
                   }
               } else {
                   console.error('Could not send join request response notification: Missing details from populated membership.');

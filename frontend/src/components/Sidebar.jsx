@@ -23,7 +23,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import GroupIcon from '@mui/icons-material/Group';
 import SettingsIcon from '@mui/icons-material/Settings';
-import PersonIcon from '@mui/icons-material/Person';
+// import PersonIcon from '@mui/icons-material/Person'; // No usado directamente en navConfig
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
 import GroupsIcon from '@mui/icons-material/Groups';
 import DonutLargeIcon from '@mui/icons-material/DonutLarge';
@@ -32,6 +32,12 @@ import ViewListIcon from '@mui/icons-material/ViewList';
 import RuleIcon from '@mui/icons-material/Rule';
 import SupervisedUserCircleSharpIcon from '@mui/icons-material/SupervisedUserCircleSharp';
 import LogoutIcon from '@mui/icons-material/Logout';
+
+// Nuevos iconos para Admin
+import NotificationsIcon from '@mui/icons-material/Notifications'; // o CampaignIcon
+import AssessmentIcon from '@mui/icons-material/Assessment'; // o SummarizeIcon
+import ContactMailIcon from '@mui/icons-material/ContactMail'; // o ForumIcon
+
 import { toast } from 'react-toastify'; // Import toast for notifications
 
 const drawerWidth = 280;
@@ -101,7 +107,7 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
         {
           title: 'Panel de Control',
           items: [
-            { text: 'Estadísticas', icon: <DashboardIcon />, path: '/dashboard-admin' },
+            { text: 'Panel de Administración', icon: <DashboardIcon />, path: '/admin/dashboard' }, // Actualizado
           ]
         },
         {
@@ -109,11 +115,14 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
           items: [
             { text: 'Usuarios', icon: <SupervisedUserCircleSharpIcon />, path: '/admin/user-management' },
             { text: 'Grupos', icon: <GroupsIcon />, path: '/admin/groups' },
+            { text: 'Gestión de Reportes', icon: <AssessmentIcon />, path: '/admin/report-management' }, // Nuevo
+            { text: 'Mensajes de Soporte', icon: <ContactMailIcon />, path: '/admin/contact-messages' }, // Nuevo
           ]
         },
         {
           title: 'Sistema',
           items: [
+            { text: 'Enviar Notificaciones', icon: <NotificationsIcon />, path: '/admin/system-notifications' }, // Nuevo
             { text: 'Configuración', icon: <SettingsIcon />, path: '/admin/config' },
           ]
         }

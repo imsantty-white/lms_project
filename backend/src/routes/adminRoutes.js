@@ -11,7 +11,14 @@ const {
   getUserById,
   updateUserStatus,
   getAllGroupsForAdmin,
-  deleteGroupAsAdmin
+  deleteGroupAsAdmin,
+  // Nuevas funciones añadidas:
+  createSystemNotification,
+  getTechnicalSupportReports,
+  getComplaintsAndClaims,
+  getAdminContactMessages,
+  getSystemStatistics,
+  markMessageAsResolved // Importar la nueva función
 } = require('../controllers/adminController');
 
 // Aplica protección y autorización a todas las rutas de este router
@@ -227,5 +234,151 @@ router.get('/groups', getAllGroupsForAdmin);
  *         description: Error interno del servidor.
  */
 router.delete('/groups/:groupId', deleteGroupAsAdmin);
+
+// --- Nuevas Rutas ---
+
+/**
+ * @swagger
+ * /api/admin/notifications/system:
+ *   post:
+ *     summary: Crear una notificación del sistema para una audiencia específica
+ *     tags: [Administración]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 description: Contenido del mensaje de la notificación.
+ *               audience:
+ *                 type: string
+ *                 enum: [todos, docentes, estudiantes, usuario_especifico]
+ *                 description: A quién va dirigida la notificación.
+ *               recipient_id:
+ *                 type: string
+ *                 description: ID del usuario si la audiencia es 'usuario_especifico'.
+ *               link:
+ *                 type: string
+ *                 description: Enlace opcional para la notificación.
+ *             required:
+ *               - message
+ *               - audience
+ *     responses:
+ *       201:
+ *         description: Notificación(es) del sistema creada(s) exitosamente.
+ *       400:
+ *         description: Error en la solicitud (ej. datos faltantes, audiencia inválida).
+ *       404:
+ *         description: Usuario no encontrado (si la audiencia es 'usuario_especifico').
+ */
+router.post('/notifications/system', createSystemNotification);
+
+/**
+ * @swagger
+ * /api/admin/reports/technical-support:
+ *   get:
+ *     summary: Obtener reportes de soporte técnico (placeholder)
+ *     tags: [Administración]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Respuesta placeholder.
+ */
+router.get('/reports/technical-support', getTechnicalSupportReports);
+
+/**
+ * @swagger
+ * /api/admin/reports/complaints:
+ *   get:
+ *     summary: Obtener quejas y reclamos (placeholder)
+ *     tags: [Administración]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Respuesta placeholder.
+ */
+router.get('/reports/complaints', getComplaintsAndClaims);
+
+/**
+ * @swagger
+ * /api/admin/contact-messages:
+ *   get:
+ *     summary: Obtener mensajes enviados al administrador (placeholder)
+ *     tags: [Administración]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Respuesta placeholder.
+ */
+router.get('/contact-messages', getAdminContactMessages);
+
+/**
+ * @swagger
+ * /api/admin/statistics:
+ *   get:
+ *     summary: Obtener estadísticas del sistema para el dashboard
+ *     tags: [Administración]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Estadísticas del sistema.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalUsers:
+ *                   type: integer
+ *                 totalTeachers:
+ *                   type: integer
+ *                 totalStudents:
+ *                   type: integer
+ *                 activeGroups:
+ *                   type: integer
+ *                 pendingTeacherApprovals:
+ *                   type: integer
+ */
+router.get('/statistics', getSystemStatistics);
+
+/**
+ * @swagger
+ * /api/admin/contact-messages/{messageId}/resolve:
+ *   put:
+ *     summary: Marcar un mensaje de contacto como resuelto
+ *     tags: [Administración]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: messageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del mensaje de contacto a marcar como resuelto
+ *     responses:
+ *       200:
+ *         description: Mensaje marcado como resuelto exitosamente.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ContactMessage' # Asumiendo que tienes este esquema definido
+ *       400:
+ *         description: ID de mensaje inválido.
+ *       404:
+ *         description: Mensaje de contacto no encontrado.
+ *       500:
+ *         description: Error interno del servidor.
+ */
+router.put('/contact-messages/:messageId/resolve', markMessageAsResolved);
+
 
 module.exports = router;
