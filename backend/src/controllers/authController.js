@@ -1,6 +1,7 @@
 //authController
 const User = require('../models/UserModel');
 const jwt = require('jsonwebtoken');
+const NotificationService = require('../services/NotificationService'); // Importar NotificationService
 
 // Función del controlador para manejar el registro de usuarios
 const registerUser = async (req, res) => {
@@ -35,6 +36,27 @@ const registerUser = async (req, res) => {
     });
 
     if (user) {
+      // Notificar a los administradores sobre el nuevo registro
+      try {
+        const admins = await User.find({ tipo_usuario: 'Administrador' });
+        const message = `Un nuevo usuario '${user.nombre} ${user.apellidos}' (${user.email}) se ha registrado como ${user.tipo_usuario}.`;
+        const link = '/admin/user-management';
+
+        for (const admin of admins) {
+          await NotificationService.createNotification({
+            recipient: admin._id,
+            sender: user._id,
+            type: 'NUEVO_USUARIO_REGISTRADO',
+            message: message,
+            link: link,
+          });
+        }
+        console.log('Notificaciones de nuevo usuario enviadas a los administradores.');
+      } catch (notificationError) {
+        console.error('Error al enviar notificación de nuevo usuario a los administradores:', notificationError);
+        // No es necesario devolver un error al cliente por esto, el registro fue exitoso.
+      }
+
       res.status(201).json({
         _id: user._id,
         nombre: user.nombre,

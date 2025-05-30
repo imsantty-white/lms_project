@@ -37,6 +37,17 @@ const userSchema = new mongoose.Schema({
     enum: ['Estudiante', 'Docente', 'Administrador'], // Solo permite estos valores
     default: 'Estudiante' // Por defecto, un usuario registrado es Estudiante
   },
+  // Campo específico para Estudiantes
+  grupo_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Group',
+    default: null
+  },
+  // Campo específico para Docentes
+  numero_grupos_asignados: {
+    type: Number,
+    default: 0
+  },
   tipo_identificacion: { // Campos opcionales
     type: String,
     trim: true,

@@ -57,5 +57,40 @@ const authorize = (...roles) => {
   };
 };
 
+// Middleware de autenticación opcional:
+// Intenta autenticar al usuario si se proporciona un token,
+// pero no falla si el token no está presente o no es válido.
+// Simplemente establece req.user si la autenticación es exitosa.
+const protectOptional = async (req, res, next) => {
+  let token;
 
-module.exports = { protect, authorize };
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    try {
+      token = req.headers.authorization.split(' ')[1];
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      
+      // Busca el usuario y verifica que esté activo y aprobado
+      const user = await User.findById(decoded._id).select('-contrasena_hash');
+
+      if (user && user.activo && user.aprobado) {
+        req.user = user; // Establece req.user solo si el usuario es válido y está activo/aprobado
+      } else {
+        // Si el usuario no se encuentra, no está activo, o no está aprobado, no se establece req.user.
+        // No se envía error, simplemente se procede sin usuario autenticado.
+        // Puedes añadir un log aquí si es necesario para depuración.
+        // console.log('ProtectOptional: User found but not active/approved, or token invalid.');
+      }
+
+    } catch (error) {
+      // Si hay un error en la verificación del token (ej. inválido, expirado),
+      // no se establece req.user y no se envía error.
+      // console.error('ProtectOptional: Error verifying token:', error.message);
+    }
+  }
+  // Si no hay token o si hubo un error/usuario no válido, simplemente llama a next()
+  // req.user no estará definido o será null.
+  next();
+};
+
+
+module.exports = { protect, authorize, protectOptional };
