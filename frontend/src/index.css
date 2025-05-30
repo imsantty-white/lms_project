@@ -1,15 +1,28 @@
 /* index.css */
-#root {
-  width: 100%;
-  height: 100%;
-}
 
-body, html {
+html {
   margin: 0;
   padding: 0;
   width: 100%;
-  height: 100%;
-  overflow-x: hidden; /* Previene scroll horizontal */
+  /* Es mejor que html y body puedan crecer para que window.scrollY funcione correctamente.
+     min-height asegura que ocupen al menos la altura de la ventana. */
+  min-height: 100%;
+  overflow-x: hidden; /* Previene scroll horizontal global */
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh; /* Permite que el body crezca y asegura que ocupa al menos toda la altura del viewport */
+  /* overflow-x: hidden; ya está en html, pero no daña aquí */
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh; /* Asegura que la app React ocupe al menos toda la altura */
+  display: flex;      /* Si tu App.js usa un layout flex principal */
+  flex-direction: column; /* Si tu App.js usa un layout flex principal */
 }
 
 :root {
@@ -18,8 +31,9 @@ body, html {
   font-weight: 400;
 
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #f7f7f7;
+  /* Los colores y fondos base son mejor manejados por ThemeProvider de MUI y CssBaseline.
+     Si los defines aquí, asegúrate de que no entren en conflicto.
+     Por defecto, CssBaseline establece un fondo basado en theme.palette.background.default. */
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -27,21 +41,46 @@ body, html {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Estilos para :root basados en el esquema de color del sistema.
+   Estos pueden servir como fallback si JavaScript (MUI ThemeProvider) no se carga o tarda. */
+@media (prefers-color-scheme: light) {
+  :root {
+    /* color: #213547;  MUI lo manejará */
+    /* background-color: #ffffff; MUI lo manejará */
+  }
+  /* a:hover {
+    color: #747bff; /* Considera dejar que el tema de MUI maneje los :hover de enlaces */
+  /* } */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* color: rgba(255, 255, 255, 0.87); MUI lo manejará */
+    /* background-color: #242424;      MUI lo manejará */
+  }
+}
+
 a {
   font-weight: 500;
-  color:rgb(35, 230, 18);
-  text-decoration: inherit;
+  /* color:rgb(35, 230, 18); /* Es mejor que el color de los enlaces venga del tema de MUI */
+  text-decoration: inherit; /* Esto está bien si no quieres subrayado por defecto */
 }
-a:hover {
-  color:rgb(192, 28, 77);
-}
+/* a:hover {
+  color:rgb(192, 28, 77); /* Dejar que el tema de MUI maneje esto */
+/* } */
 
 
 h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+  /* font-size: 3.2em; /* MUI Typography controlará mejor los tamaños de h1 */
+  /* line-height: 1.1; */
 }
 
+/* Es altamente recomendable NO definir estilos globales para 'button'
+   si estás usando MUI, ya que el componente Button de MUI tiene sus propios
+   estilos muy específicos y personalizables a través del tema.
+   Estos estilos globales pueden causar conflictos difíciles de depurar.
+   Si necesitas un reset, CssBaseline de MUI ya hace mucho trabajo. */
+/*
 button {
   border-radius: 8px;
   border: 1px solid transparent;
@@ -60,32 +99,81 @@ button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
+*/
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
-}
-
+/* Si usas .app-container en #root o body */
 .app-container {
   width: 100%;
-  height: 100%;
+  min-height: 100vh; /* Cambiado de height: 100% */
   display: flex;
   flex-direction: column;
 }
 
+/* Esta clase es la causa más probable de tus problemas en HomePage */
 .home-page-container {
   width: 100%;
-  height: 100vh;
+  min-height: 100vh; /* Cambiado de height: 100vh para permitir crecimiento si es necesario */
   padding: 0;
   margin: 0;
-  overflow: hidden;
-  position: relative;
+  /* ¡IMPORTANTE! Quitar o cambiar 'overflow: hidden;' */
+  /* overflow: hidden; */ /* Elimina esta línea o cámbiala */
+  overflow-y: auto;   /* Permite scroll vertical si el contenido excede la altura */
+  overflow-x: hidden; /* Mantiene la prevención de scroll horizontal */
+  position: relative; /* position: relative está bien */
+}
+
+
+/* === Estilos para Toasts Compactos (react-toastify) === */
+
+/* Contenedor principal de cada toast individual */
+.Toastify__toast {
+  padding: 8px 12px !important; /* Reduce el padding interno */
+  min-height: auto !important;   /* Permite que la altura se ajuste al contenido, haciéndolo más pequeño si el texto es corto */
+  margin-bottom: 0.75rem !important; /* Espacio entre toasts, ajusta si es necesario */
+  border-radius: 6px !important; /* Bordes ligeramente menos redondeados, opcional */
+  font-family: "Inter Variable", "Open Sans Variable", "Roboto", sans-serif !important;
+}
+
+/* Cuerpo del toast (donde va el mensaje) */
+.Toastify__toast-body {
+  font-size: 0.875rem !important; /* Tamaño de fuente más pequeño (ej. 14px si tu base es 16px) */
+  padding: 0 !important;         /* El padding principal está en .Toastify__toast */
+  margin: 0 !important;
+  line-height: 1.4 !important;   /* Ajusta la altura de línea para el nuevo tamaño de fuente */
+}
+
+/* Iconos de tipo (success, error, info, warning) si los usas */
+.Toastify__toast-icon {
+  width: 16px !important;             /* Tamaño del icono de tipo (ej. el check de success) */
+  height: 16px !important;            /* Asegura que sea cuadrado */
+  margin-inline-end: 10px !important; /* Espacio entre el icono y el texto */
+  flex-shrink: 0 !important;          /* Evita que el icono se encoja */
+}
+
+/* Botón de cierre */
+.Toastify__close-button {
+  align-self: center !important; /* Centra el botón verticalmente */
+}
+
+.Toastify__close-button > svg {
+  width: 16px !important;  /* Tamaño del icono 'x' de cierre */
+  height: 16px !important;
+}
+
+/* Barra de progreso */
+.Toastify__progress-bar {
+  height: 3px !important; /* Hace la barra de progreso más delgada */
+}
+
+/* Si quieres que los toasts por defecto (sin tipo específico) también sean compactos */
+.Toastify__toast--default {
+  /* Puedes añadir estilos específicos para el toast por defecto aquí si es necesario */
+}
+
+/* Ajustes para los diferentes tipos para asegurar consistencia con el tamaño compacto */
+.Toastify__toast--info,
+.Toastify__toast--success,
+.Toastify__toast--warning,
+.Toastify__toast--error {
+  /* Los estilos de .Toastify__toast ya se aplican, pero puedes refinar aquí si es necesario */
 }

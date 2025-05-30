@@ -1,6 +1,5 @@
 // src/components/Header.jsx
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react'; // Importar useRef
 import { AppBar, Toolbar, Typography, IconButton, Box, Badge, Avatar, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -8,7 +7,7 @@ import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import { useAuth } from '../contexts/AuthContext';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import NotificationPanel from './Notifications/NotificationPanel';
 import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-toastify';
@@ -22,16 +21,22 @@ import {
 } from '../services/notificationService';
 
 const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode }) => {
-    const { isAuthenticated, user } = useAuth(); // Removed logout here
+    const { isAuthenticated, user } = useAuth();
     const navigate = useNavigate();
     const socket = useSocket();
     const theme = useTheme();
+    const location = useLocation();
+
+    const isHomePage = location.pathname === '/';
 
     const [unreadCount, setUnreadCount] = useState(0);
     const [notifications, setNotifications] = useState([]);
-    const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+    const [isLoadingNotifications, setIsLoadingNotifications] = useState(false); // Estado para la UI (spinner, etc.)
     const [panelOpen, setPanelOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
+
+    // Ref para controlar si una carga de notificaciones ya está en progreso
+    const isLoadingGuard = useRef(false);
 
     const fetchNotifications = useCallback(async () => {
         if (!isAuthenticated) {
@@ -39,35 +44,41 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
             setUnreadCount(0);
             return;
         }
-        if (isLoadingNotifications) {
+
+        // Usar el ref para la guarda de reentrada
+        if (isLoadingGuard.current) {
             return;
         }
-        setIsLoadingNotifications(true);
+
+        isLoadingGuard.current = true; // Bloquear nuevas llamadas
+        setIsLoadingNotifications(true); // Activar indicador de carga para la UI
+
         try {
             const data = await getNotifications(1, 10);
             setNotifications(data.notifications || []);
             setUnreadCount(data.notifications?.filter(n => !n.isRead).length || 0);
         } catch (error) {
             console.error('Failed to fetch notifications:', error);
-            toast.error('Error al cargar notificaciones.');
+            // Considera si este toast es necesario aquí, especialmente si hay reintentos o se llama en segundo plano
+            // toast.error('Error al cargar notificaciones.');
         } finally {
-            setIsLoadingNotifications(false);
+            setIsLoadingNotifications(false); // Desactivar indicador de carga para la UI
+            isLoadingGuard.current = false; // Liberar el bloqueo
         }
-    }, [isAuthenticated]);
-
-    // Removed handleLogout as it's moved to Sidebar.jsx
+    }, [isAuthenticated]); // fetchNotifications solo debe redefinirse si cambia isAuthenticated
 
     const handleNotificationBellClick = (event) => {
         setAnchorEl(event.currentTarget);
         setPanelOpen(true);
-        fetchNotifications();
+        fetchNotifications(); // Cargar notificaciones al abrir el panel
     };
 
     const handleNotificationPanelClose = () => {
         setPanelOpen(false);
         setAnchorEl(null);
     };
-
+    
+    // ... (tus otros manejadores: handleMarkAllRead, handleMarkSingleNotificationRead, etc. sin cambios) ...
     const handleMarkAllRead = async () => {
         try {
             await markAllNotificationsAsRead();
@@ -102,12 +113,11 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
         try {
             if (!notificationToUpdate.isRead) {
                 await markNotificationAsRead(notificationToUpdate._id);
-                   setNotifications(prevNotifications =>
+                setNotifications(prevNotifications =>
                     prevNotifications.map(n => n._id === notificationToUpdate._id ? { ...n, isRead: true } : n)
                 );
                 setUnreadCount(prevCount => prevCount > 0 ? prevCount - 1 : 0);
             }
-
             if (notificationToUpdate.link) {
                 navigate(notificationToUpdate.link);
                 setPanelOpen(false);
@@ -117,7 +127,6 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
             toast.error('Error al procesar la notificación.');
         }
     };
-
 
     const handleDeleteNotification = async (notificationId) => {
         try {
@@ -148,52 +157,63 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
         }
     };
 
+
     useEffect(() => {
         if (isAuthenticated && user) {
-            fetchNotifications();
+            fetchNotifications(); // Carga inicial al autenticar o cambiar de usuario
         } else if (!isAuthenticated) {
+            // Limpiar notificaciones si el usuario cierra sesión
             setNotifications([]);
             setUnreadCount(0);
         }
     }, [isAuthenticated, user, fetchNotifications]);
 
     useEffect(() => {
-        if (socket) {
+        if (socket && isAuthenticated) { // Asegurarse de que el socket solo escuche si está autenticado
             const handleNewNotification = (newNotification) => {
-                fetchNotifications();
+                // Podrías añadir la nueva notificación directamente al estado para una UI más reactiva
+                // o simplemente re-hacer fetch para obtener la lista actualizada.
+                // console.log('New notification received via socket:', newNotification);
+                toast.info(`Nueva notificación: ${newNotification.message}`);
+                fetchNotifications(); 
             };
-
             socket.on('new_notification', handleNewNotification);
-
             return () => {
                 socket.off('new_notification', handleNewNotification);
             };
         }
-    }, [socket, fetchNotifications]);
+    }, [socket, isAuthenticated, fetchNotifications]);
 
 
     return (
         <AppBar
-            position="sticky"
+            position="fixed" 
             elevation={0}
             sx={{
-                background: 'rgba(255,255,255,0)',
-                backdropFilter: 'blur(1.5px)',
-                boxShadow: 'none',
-                color: '#222',
+                background: isHomePage
+                    ? 'transparent'
+                    : alpha(theme.palette.background.paper, 0.85),
+                backdropFilter: isHomePage
+                    ? 'none'
+                    : 'blur(8px)',
+                boxShadow: isHomePage
+                    ? 'none'
+                    : `0 1px 0 ${alpha(theme.palette.divider, 0.08)}`,
+                color: isHomePage ? theme.palette.common.white : theme.palette.text.primary,
                 zIndex: (theme) => theme.zIndex.drawer + 1,
+                transition: 'background 0.3s ease-in-out, backdrop-filter 0.3s ease-in-out, color 0.3s ease-in-out',
             }}
         >
+            {/* ... El resto de tu Toolbar y elementos del Header sin cambios ... */}
             <Toolbar sx={{ minHeight: 56, px: 2, display: 'flex', justifyContent: 'space-between' }}>
                 {onToggleSidebar && (
                     <IconButton
-                        color="inherit"
+                        color="text.primary" 
                         edge="start"
                         onClick={onToggleSidebar}
                         sx={{
                             mr: 2,
                             display: { xs: 'inline-flex', sm: 'inline-flex' },
-                            color: mode === 'dark' ? '#fff' : '#222',
                         }}
                     >
                         <MenuIcon />
@@ -203,33 +223,30 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
                 <Typography
                     variant="h6"
                     component={Link}
-                    // to="/" esta mal configurado
+                    to={isAuthenticated ? "/dashboard" : "/"} 
                     sx={{
                         textDecoration: 'none',
-                        color: 'primary.light',
+                        color: isHomePage ? 'text.primary' : (theme.palette.mode === 'dark' ? 'primary.light' : 'primary.main'),
                         fontWeight: 700,
                         letterSpacing: 1,
                         fontSize: { xs: 18, sm: 20 },
                         flexGrow: 1,
-                        textShadow: '2px 2px 6px rgba(0,0,0,0.35)',
+                        textShadow: isHomePage ? '1px 1px 3px rgba(0,0,0,0.4)' : 'none', 
                         transition: 'color 0.2s',
                         '&:hover': {
-                            color: '#ffe066',
+                            color: isHomePage ? alpha(theme.palette.text.secondary, 0.85) : theme.palette.secondary.main,
                         },
                     }}
                 >
-                    LMS - Learning Management System
+                    LMS
                 </Typography>
 
                 {isAuthenticated && (
                     <>
                         <IconButton
-                            color="inherit"
+                            color="inherit" 
                             onClick={handleNotificationBellClick}
-                            sx={{
-                                ml: 1, mr: 2,
-                                color: mode === 'dark' ? '#fff' : '#222',
-                            }}
+                            sx={{ ml: 1, mr: {xs: 0, sm: 1} }}
                         >
                             <Badge badgeContent={unreadCount} color="error">
                                 <NotificationsNoneIcon />
@@ -240,7 +257,7 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
                             anchorEl={anchorEl}
                             onClose={handleNotificationPanelClose}
                             notifications={notifications}
-                            isLoading={isLoadingNotifications}
+                            isLoading={isLoadingNotifications} // Pasas el estado de carga
                             onMarkAllRead={handleMarkAllRead}
                             onNotificationClick={handleNotificationClick}
                             onMarkSingleNotificationRead={handleMarkSingleNotificationRead}
@@ -251,38 +268,34 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
                 )}
 
                 {isAuthenticated && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: {xs: 0, sm: 1} }}>
                         <Avatar sx={{
-                                    width: 36,
-                                    height: 36,
-                                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-                                    fontSize: '0.9rem',
-                                    fontWeight: 600,
-                                    boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.25)}`,
-                                }}>
-                            {`${(user?.nombre?.[0] || '')}${(user?.apellidos?.[0] || '')}`.toUpperCase()}
+                            width: 36, height: 36,
+                            background: `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.dark} 100%)`,
+                            fontSize: '0.9rem', fontWeight: 600,
+                            boxShadow: `0 2px 8px ${alpha(theme.palette.secondary.main, 0.25)}`,
+                            color: theme.palette.secondary.contrastText,
+                        }}>
+                            {`${(user?.nombre?.[0] || '')}${(user?.apellidos?.[0] || '')}`.toUpperCase() || 'U'}
                         </Avatar>
                         <Typography
                             variant="body2"
                             sx={{
                                 fontWeight: 500,
-                                color: mode === 'dark' ? '#fff' : '#222',
+                                color: 'inherit', 
                                 marginLeft: 1,
+                                display: { xs: 'none', md: 'block' } 
                             }}
                         >
                             {`${user?.nombre || ''} ${user?.apellidos || ''}`.trim() || user?.email || 'Usuario'}
                         </Typography>
-
-                        {/* Logout button removed from Header */}
                     </Box>
                 )}
+
                 <IconButton
-                    color="inherit"
+                    color="text.primary" 
                     onClick={onToggleMode}
-                    sx={{
-                        ml: 1,
-                        color: mode === 'dark' ? '#fff' : '#222',
-                    }}
+                    sx={{ ml: 1 }}
                 >
                     {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
                 </IconButton>
