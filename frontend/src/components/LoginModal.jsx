@@ -1,3 +1,4 @@
+// src/components/LoginModal.jsx
 import React, { useState, forwardRef } from 'react';
 import {
   Modal,
@@ -7,9 +8,7 @@ import {
   Button,
   Stack,
   IconButton,
-  CircularProgress, // Importamos CircularProgress para el estado de carga
-  Snackbar, // Para mostrar mensajes de error/éxito
-  Alert, // Para un diseño más atractivo del mensaje de Snackbar
+  CircularProgress,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,43 +22,33 @@ const modalStyle = {
   boxShadow: 8,
   p: 4,
   borderRadius: 4,
-  outline: 'none', // Importante para accesibilidad y evitar el borde de foco por defecto
+  outline: 'none',
 };
 
-// Componente MotionBox para animaciones con Framer Motion
+// Componente MotionBox
 const MotionBox = motion(Box);
 
-// Usamos forwardRef para permitir que el componente reciba una ref si es necesario
 const LoginModal = forwardRef(({ open, onClose }, ref) => {
-  const { login } = useAuth();
+  const { login } = useAuth(); // La función login del contexto ya muestra toasts
   const navigate = useNavigate();
 
-  // Estados para los campos del formulario
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  // Estado para controlar el proceso de carga (spinner)
   const [isLoading, setIsLoading] = useState(false);
-  // Estado para manejar mensajes de error/éxito del Snackbar
-  const [snackbar, setSnackbar] = useState({
-    open: false,
-    message: '',
-    severity: 'info', // 'error', 'warning', 'info', 'success'
-  });
+  // Ya no se necesita el estado 'snackbar' local
 
-  // Manejador del envío del formulario
   const handleSubmit = async (event) => {
-    event.preventDefault(); // Previene el comportamiento por defecto del formulario
-    setIsLoading(true); // Activa el spinner de carga
-    setSnackbar({ ...snackbar, open: false }); // Cierra cualquier snackbar previo
+    event.preventDefault();
+    setIsLoading(true);
 
     try {
-      const result = await login(email, password);
+      const result = await login(email, password); // login() ya muestra toast.success o toast.error
+
       if (result.success) {
-        setSnackbar({ open: true, message: '¡Inicio de sesión exitoso!', severity: 'success' });
-        // Retrasamos el cierre del modal y la navegación para que el usuario vea el mensaje
+        // El toast de éxito ya fue mostrado por AuthContext.login()
+        // Esperamos un poco para que el usuario vea el toast antes de cerrar/redirigir
         setTimeout(() => {
-          onClose(); // Cierra el modal
-          // Redirección basada en el tipo de usuario
+          onClose();
           switch (result.userType) {
             case 'Docente':
               navigate('/teacher/panel');
@@ -68,124 +57,112 @@ const LoginModal = forwardRef(({ open, onClose }, ref) => {
               navigate('/student/panel');
               break;
             case 'Administrador':
-              navigate('/dashboard-admin');
+              // Asegúrate que esta ruta exista o ajústala a la correcta, ej: '/admin/dashboard'
+              navigate('/admin/dashboard'); 
               break;
             default:
               navigate('/');
               break;
           }
-        }, 1000); // Pequeño retraso
+        }, 1000); // Pequeño retraso para ver el toast de éxito
       } else {
-        // Manejo de errores de inicio de sesión
-        setSnackbar({ open: true, message: result.message || 'Credenciales inválidas. Intenta de nuevo.', severity: 'error' });
-        setPassword(''); // Limpia la contraseña para que el usuario la reintroduzca
+        // El toast de error ya fue mostrado por AuthContext.login()
+        // Solo limpiamos la contraseña si el login falló
+        setPassword('');
       }
     } catch (error) {
-      console.error('Error durante el inicio de sesión:', error);
-      setSnackbar({ open: true, message: 'Ocurrió un error inesperado. Por favor, inténtalo más tarde.', severity: 'error' });
+      // Este catch es por si la promesa de login() misma es rechazada (poco probable si login() ya maneja sus errores)
+      // AuthContext.login() ya debería haber mostrado un toast.error.
+      console.error('Error inesperado durante el proceso de inicio de sesión en LoginModal:', error);
+      // Podrías mostrar un toast genérico aquí si es un error no capturado por login()
+      // import { toast } from 'react-toastify'; // Necesitarías importarlo si lo usas aquí
+      // toast.error('Ocurrió un error inesperado.');
+      setPassword('');
     } finally {
-      setIsLoading(false); // Desactiva el spinner de carga
+      setIsLoading(false);
     }
   };
 
-  // Manejador para cerrar el Snackbar
-  const handleCloseSnackbar = (event, reason) => {
-    if (reason === 'clickaway') {
-      return;
-    }
-    setSnackbar({ ...snackbar, open: false });
-  };
+  // Ya no se necesita handleCloseSnackbar
 
   return (
-    <>
-      <Modal
-        open={open}
-        onClose={onClose}
-        aria-labelledby="login-modal-title"
-        aria-describedby="login-modal-description"
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <AnimatePresence>
-          {open && (
-            <MotionBox
-              ref={ref} // Pasamos la ref al MotionBox
-              sx={modalStyle}
-              component="form"
-              onSubmit={handleSubmit}
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ duration: 0.1 }}
+    // El Fragment <> </> ya no es necesario si solo devolvemos el Modal
+    <Modal
+      open={open}
+      onClose={onClose}
+      aria-labelledby="login-modal-title"
+      aria-describedby="login-modal-description"
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <AnimatePresence>
+        {open && (
+          <MotionBox
+            ref={ref}
+            sx={modalStyle}
+            component="form"
+            onSubmit={handleSubmit}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.1 }} // Duración más corta para la animación del modal
+          >
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="center"
+              sx={{ mb: 3 }}
             >
-              <Stack
-                direction="row"
-                justifyContent="space-between"
-                alignItems="center"
-                sx={{ mb: 3 }} // Aumentamos el margen inferior para más espacio
+              <Typography id="login-modal-title" variant="h5" component="h2" gutterBottom sx={{ textShadow: '1px 1px 2px rgba(0, 0, 0, 0.7)' }}>
+                Iniciar Sesión
+              </Typography>
+              <IconButton onClick={onClose} aria-label="cerrar modal">
+                <CloseIcon />
+              </IconButton>
+            </Stack>
+
+            <Stack spacing={2.5}>
+              <TextField
+                label="Email"
+                type="email"
+                fullWidth
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                variant="outlined"
+                autoComplete="email"
+                InputProps={{sx: { borderRadius: '24px',}}}
+              />
+              <TextField
+                label="Contraseña"
+                type="password"
+                fullWidth
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                variant="outlined"
+                autoComplete="current-password"
+                InputProps={{sx: { borderRadius: '24px',}}}
+              />
+              <Button
+                variant="contained"
+                color="primary"
+                type="submit"
+                fullWidth
+                disabled={isLoading}
+                sx={{ mt: 2, borderRadius: '24px', py: 1.5 /* Padding vertical */ }} // Ajuste de estilo para el botón
               >
-                <Typography id="login-modal-title" variant="h5" component="h2" gutterBottom sx={{  textShadow: '1px 1px 2px rgba(0, 0, 0, 0.7)' }}> 
-                  Iniciar Sesión
-                </Typography>
-                <IconButton onClick={onClose} aria-label="cerrar modal">
-                  <CloseIcon />
-                </IconButton>
-              </Stack>
-
-              <Stack spacing={2.5}> {/* Ajustamos el espaciado entre elementos */}
-                <TextField
-                  label="Email"
-                  type="email"
-                  fullWidth
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  variant="outlined" // Usamos el diseño outlined
-                  autoComplete="email" // Sugerencia de autocompletado
-                   InputProps={{sx: { borderRadius: '24px',},}}
-                />
-                <TextField
-                  label="Contraseña"
-                  type="password"
-                  fullWidth
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  variant="outlined" // Usamos el diseño outlined
-                  autoComplete="current-password" // Sugerencia de autocompletado
-                   InputProps={{sx: { borderRadius: '24px',},}}
-                />
-                <Button
-                  variant="contained"
-                  color="primary"
-                  type="submit"
-                  fullWidth
-                  disabled={isLoading} // Deshabilita el botón durante la carga
-                  sx={{ mt: 2 }} // Margen superior para separar del último TextField
-                >
-                  {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Ingresar'}
-                </Button>
-              </Stack>
-            </MotionBox>
-          )}
-        </AnimatePresence>
-      </Modal>
-
-      {/* Snackbar para mostrar mensajes al usuario */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </>
+                {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Ingresar'}
+              </Button>
+            </Stack>
+          </MotionBox>
+        )}
+      </AnimatePresence>
+    </Modal>
+    // El Snackbar y Alert han sido eliminados de aquí
   );
 });
 

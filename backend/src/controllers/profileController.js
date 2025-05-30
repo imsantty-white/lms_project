@@ -1,26 +1,38 @@
-const User = require('../models/UserModel');
-const Group = require('../models/GroupModel'); // Added GroupModel
-const Membership = require('../models/MembershipModel'); // Added MembershipModel
+// src/controllers/profileController.js
 
-// Obtener perfil del usuario autenticado
-exports.getProfile = async (req, res) => {
+const User = require('../models/UserModel');
+const Group = require('../models/GroupModel');
+const Membership = require('../models/MembershipModel');
+const mongoose = require('mongoose');
+
+// @desc    Obtener perfil del usuario autenticado
+// @route   GET /api/profile
+// @access  Privado
+const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('-contrasena_hash');
-    if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
-    res.json(user);
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+    res.json(user.toObject());
   } catch (error) {
+    console.error('Error al obtener el perfil:', error);
     res.status(500).json({ message: 'Error al obtener el perfil', error: error.message });
   }
 };
 
-// Actualizar perfil del usuario autenticado
-exports.updateProfile = async (req, res) => {
+// @desc    Actualizar perfil del usuario autenticado
+// @route   PUT /api/profile
+// @access  Privado
+const updateProfile = async (req, res) => {
   try {
     const { nombre, apellidos, telefono, institucion, fecha_nacimiento, tipo_identificacion, numero_identificacion } = req.body;
     const user = await User.findById(req.user._id);
-    if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
 
-    // Solo actualiza los campos permitidos
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
     if (nombre !== undefined) user.nombre = nombre;
     if (apellidos !== undefined) user.apellidos = apellidos;
     if (telefono !== undefined) user.telefono = telefono;
@@ -30,57 +42,59 @@ exports.updateProfile = async (req, res) => {
     if (numero_identificacion !== undefined) user.numero_identificacion = numero_identificacion;
 
     await user.save();
-    res.json({ message: 'Perfil actualizado correctamente', user: user.toObject() });
+    res.json({ 
+        success: true,
+        message: 'Perfil actualizado correctamente', 
+        user: user.toObject() 
+    });
   } catch (error) {
+    console.error('Error al actualizar el perfil:', error);
     res.status(500).json({ message: 'Error al actualizar el perfil', error: error.message });
   }
 };
 
-// Obtener perfil de un estudiante específico por parte de un docente
-exports.getStudentProfileForTeacher = async (req, res) => {
+// @desc    Obtener perfil de un estudiante específico por parte de un docente
+// @route   GET /api/profile/:userId  (Asegúrate que esta ruta corresponda a la de tu router)
+// @access  Privado (Docente)
+const getStudentProfileForTeacher = async (req, res) => {
   try {
-    // 1. Autenticación: Verificar que el usuario es un Docente
+    const teacherId = req.user._id;
+    const studentIdToView = req.params.userId;
+
+    if (!mongoose.Types.ObjectId.isValid(studentIdToView)) {
+        return res.status(400).json({ message: 'ID de estudiante inválido.' });
+    }
+
     if (req.user.tipo_usuario !== 'Docente') {
       return res.status(403).json({ message: 'Acceso denegado. Solo los docentes pueden realizar esta acción.' });
     }
 
-    const teacherId = req.user._id;
-    const studentIdToView = req.params.userId;
-
-    // 2. Fetch Target User (Estudiante)
     const studentUser = await User.findById(studentIdToView).select('-contrasena_hash');
     if (!studentUser) {
       return res.status(404).json({ message: 'Estudiante no encontrado.' });
     }
-    // Adicionalmente, asegurarse que el usuario encontrado es un Estudiante
     if (studentUser.tipo_usuario !== 'Estudiante') {
         return res.status(403).json({ message: 'El perfil solicitado no pertenece a un estudiante.' });
     }
 
-    // 3. Autorización: Verificar la relación Docente-Estudiante
-    // Encontrar los grupos donde el docente es el creador
     const teacherGroups = await Group.find({ docente_id: teacherId }).select('_id');
     if (!teacherGroups.length) {
-      // El docente no tiene grupos, por lo tanto no puede tener estudiantes aprobados.
-      return res.status(403).json({ message: 'No estás autorizado para ver el perfil de este estudiante.' });
+      return res.status(403).json({ message: 'No estás autorizado para ver este perfil (no tienes grupos).' });
     }
 
     const teacherGroupIds = teacherGroups.map(group => group._id);
 
-    // Verificar si el estudiante es miembro APROBADO o PENDIENTE de alguno de los grupos del docente
     const membership = await Membership.findOne({
       grupo_id: { $in: teacherGroupIds },
       usuario_id: studentIdToView,
-      estado_solicitud: { $in: ['Aprobado', 'Pendiente'] }, // <-- permite ambos estados
+      estado_solicitud: { $in: ['Aprobado', 'Pendiente'] },
     });
 
     if (!membership) {
-      // Si no se encuentra una membresía que cumpla con los criterios, el docente no está autorizado.
-      return res.status(403).json({ message: 'No estás autorizado para ver el perfil de este estudiante o el estudiante no está aprobado en tus grupos.' });
+      return res.status(403).json({ message: 'No estás autorizado para ver el perfil de este estudiante o no pertenece a tus grupos aprobados/pendientes.' });
     }
 
-    // 4. Return Profile
-    res.json(studentUser);
+    res.json(studentUser.toObject());
 
   } catch (error) {
     console.error('Error en getStudentProfileForTeacher:', error);
@@ -88,19 +102,37 @@ exports.getStudentProfileForTeacher = async (req, res) => {
   }
 };
 
-// Obtener perfil de cualquier usuario por parte de un administrador
-exports.getUserProfileForAdmin = async (req, res) => {
+// @desc    Obtener perfil de cualquier usuario por parte de un administrador
+// @route   GET /api/profile/admin/:userId (Asegúrate que esta ruta corresponda a la de tu router)
+// @access  Privado (Administrador)
+const getUserProfileForAdmin = async (req, res) => {
   try {
+    const userIdToView = req.params.userId;
+
+    if (!mongoose.Types.ObjectId.isValid(userIdToView)) {
+        return res.status(400).json({ message: 'ID de usuario inválido.' });
+    }
+
     if (req.user.tipo_usuario !== 'Administrador') {
       return res.status(403).json({ message: 'Acceso denegado. Solo los administradores pueden realizar esta acción.' });
     }
-    const userIdToView = req.params.userId;
+
     const user = await User.findById(userIdToView).select('-contrasena_hash');
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado.' });
     }
-    res.json(user);
+    res.json(user.toObject());
+
   } catch (error) {
+    console.error('Error en getUserProfileForAdmin:', error);
     res.status(500).json({ message: 'Error al obtener el perfil del usuario', error: error.message });
   }
+};
+
+// Único bloque de exportación al final del archivo
+module.exports = {
+    getProfile,
+    updateProfile,
+    getStudentProfileForTeacher,
+    getUserProfileForAdmin,
 };

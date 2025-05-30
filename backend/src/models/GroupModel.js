@@ -12,16 +12,16 @@ const groupSchema = new mongoose.Schema({
   codigo_acceso: {
     type: String,
     required: [true, 'El código de acceso es obligatorio'],
-    unique: true, // Cada código debe ser único
+    unique: true,
     trim: true,
-    uppercase: true, // Convertir a mayúsculas
-    minlength: [6, 'El código de acceso debe tener al menos 6 caracteres'], // Puedes ajustar la longitud
-    maxlength: [10, 'El código de acceso no puede exceder los 10 caracteres'], // Puedes ajustar la longitud
+    uppercase: true,
+    minlength: [6, 'El código de acceso debe tener al menos 6 caracteres'],
+    maxlength: [10, 'El código de acceso no puede exceder los 10 caracteres'],
     index: true
   },
-  docente_id: {
-    type: mongoose.Schema.Types.ObjectId, // Tipo especial para IDs de MongoDB
-    ref: 'User', // Referencia al modelo 'User' (el docente que creó el grupo)
+  docente_id: { // Esto ya estaba y es correcto para "un docente"
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
     required: [true, 'El docente creador es obligatorio'],
     index: true
   },
@@ -33,20 +33,27 @@ const groupSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  limite_estudiantes: { // Para futuras limitaciones
+  limite_estudiantes: {
     type: Number,
-    default: 0 // 0 podría significar sin límite por defecto, o puedes poner un valor inicial
+    default: 0 // 0 podría significar sin límite
   },
-  archivedAt: { // Fecha en que el grupo fue archivado
+  archivedAt: {
     type: Date,
     default: null
-  }
-  // Podrías añadir más campos aquí si los necesitas para el grupo (ej: descripción)
+  },
+  learning_path_ids: [{ // Este es el campo que añadimos antes para las rutas de aprendizaje
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'LearningPath'
+  }],
+  // NUEVO CAMPO PARA REFERENCIAR A LOS ESTUDIANTES DEL GRUPO
+  estudiantes_ids: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User' // Referencia al modelo 'User' (específicamente a usuarios que son estudiantes)
+  }]
 }, {
-  timestamps: false // O true si quieres createdAt y updatedAt
+  timestamps: false
 });
 
-// Creamos el modelo a partir del esquema
 const Group = mongoose.model('Group', groupSchema);
 
-module.exports = Group; // Exportamos el modelo
+module.exports = Group;

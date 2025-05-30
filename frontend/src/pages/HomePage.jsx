@@ -280,7 +280,7 @@ function HomePage() {
                       size="large"
                       startIcon={<LoginIcon />}
                       onClick={handleOpenLoginModal}
-                      sx={{ py: 1.5, px: 4, borderRadius: 8, textTransform: 'none', fontWeight: 600, fontSize: '1rem', boxShadow: `0 8px 25px ${alpha(theme.palette.secondary.main, 0.4)}`, '&:hover': { boxShadow: `0 12px 35px ${alpha(theme.palette.secondary.main, 0.5)}`, transform: 'translateY(-2px)' }, transition: 'all 0.3s ease' }}
+                      sx={{ color:'black', py: 1.5, px: 4, borderRadius: 8, textTransform: 'none', fontWeight: 600, fontSize: '1rem', boxShadow: `0 8px 25px ${alpha(theme.palette.secondary.main, 0.4)}`, '&:hover': { boxShadow: `0 12px 35px ${alpha(theme.palette.secondary.main, 0.5)}`, transform: 'translateY(-2px)' }, transition: 'all 0.3s ease' }}
                     >
                       Iniciar Sesión
                     </Button>

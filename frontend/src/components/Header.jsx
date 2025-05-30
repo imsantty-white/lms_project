@@ -199,16 +199,16 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
                 boxShadow: isHomePage
                     ? 'none'
                     : `0 1px 0 ${alpha(theme.palette.divider, 0.08)}`,
-                color: isHomePage ? theme.palette.common.white : theme.palette.text.primary,
+                color: isHomePage ? theme.palette.text.primary : theme.palette.text.primary,
                 zIndex: (theme) => theme.zIndex.drawer + 1,
                 transition: 'background 0.3s ease-in-out, backdrop-filter 0.3s ease-in-out, color 0.3s ease-in-out',
             }}
         >
             {/* ... El resto de tu Toolbar y elementos del Header sin cambios ... */}
             <Toolbar sx={{ minHeight: 56, px: 2, display: 'flex', justifyContent: 'space-between' }}>
-                {onToggleSidebar && (
+                {onToggleSidebar && isAuthenticated && (
                     <IconButton
-                        color="text.primary" 
+                        color="inherit" 
                         edge="start"
                         onClick={onToggleSidebar}
                         sx={{
@@ -222,8 +222,8 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
 
                 <Typography
                     variant="h6"
-                    component={Link}
-                    to={isAuthenticated ? "/dashboard" : "/"} 
+                    component="span"
+                    //to={isAuthenticated ? "/profile" : "/"} 
                     sx={{
                         textDecoration: 'none',
                         color: isHomePage ? 'text.primary' : (theme.palette.mode === 'dark' ? 'primary.light' : 'primary.main'),
@@ -271,10 +271,10 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: {xs: 0, sm: 1} }}>
                         <Avatar sx={{
                             width: 36, height: 36,
-                            background: `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.dark} 100%)`,
+                            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
                             fontSize: '0.9rem', fontWeight: 600,
-                            boxShadow: `0 2px 8px ${alpha(theme.palette.secondary.main, 0.25)}`,
-                            color: theme.palette.secondary.contrastText,
+                            boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.25)}`,
+                            color: theme.palette.primary.contrastText,
                         }}>
                             {`${(user?.nombre?.[0] || '')}${(user?.apellidos?.[0] || '')}`.toUpperCase() || 'U'}
                         </Avatar>
@@ -293,7 +293,7 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
                 )}
 
                 <IconButton
-                    color="text.primary" 
+                    color="inherit" 
                     onClick={onToggleMode}
                     sx={{ ml: 1 }}
                 >

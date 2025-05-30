@@ -1001,8 +1001,8 @@ module.exports = {
   getGroupStudents,
   getMyApprovedGroups,
   updateGroup,
-  deleteGroup, // This is actually archiveGroup now
-  restoreGroup, // Added restoreGroup
+  deleteGroup,
+  restoreGroup,
   removeStudentFromGroup,
   getMyOwnedGroups,
   getMyMembershipsWithStatus,

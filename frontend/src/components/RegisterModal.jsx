@@ -1,3 +1,4 @@
+// src/components/RegisterModal.jsx
 import React, { useState, forwardRef } from 'react';
 import {
   Modal,
@@ -11,36 +12,32 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Divider,
-  CircularProgress, // Para indicar carga
-  Snackbar, // Para mensajes de notificación
-  Alert, // Para estilos de los mensajes de notificación
+  // Divider, // Puedes quitar los dividers si el espaciado del Stack es suficiente
+  CircularProgress,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ConfirmationModal from './ConfirmationModal'; // Asegúrate de que la ruta sea correcta
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-toastify';
 
-// Estilos del modal
+// Estilos del modal (sin cambios)
 const modalStyle = {
   width: { xs: '90%', sm: 400 },
   bgcolor: 'background.paper',
   boxShadow: 8,
   p: 4,
   borderRadius: 2,
-  maxHeight: '90vh', // Limita la altura del modal
-  overflowY: 'auto', // Permite scroll si el contenido es muy largo
-  outline: 'none', // Importante para accesibilidad
+  maxHeight: '90vh',
+  overflowY: 'auto',
+  outline: 'none',
 };
 
-// Componente MotionBox para animaciones con Framer Motion
 const MotionBox = motion(Box);
 
-// Usamos forwardRef para permitir que el componente reciba una ref si es necesario
 const RegisterModal = forwardRef(({ open, onClose }, ref) => {
   const { register } = useAuth();
 
-  // Estados para los campos del formulario
   const [nombre, setNombre] = useState('');
   const [apellidos, setApellidos] = useState('');
   const [email, setEmail] = useState('');
@@ -48,93 +45,98 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [userType, setUserType] = useState('Estudiante');
 
-  // Estados de UI/manejo de errores
   const [isLoading, setIsLoading] = useState(false);
-  const [passwordMatchError, setPasswordMatchError] = useState(false); // Booleano para el error de coincidencia
-  const [snackbar, setSnackbar] = useState({
-    open: false,
-    message: '',
-    severity: 'info', // 'error', 'warning', 'info', 'success'
-  });
+  const [passwordMatchError, setPasswordMatchError] = useState(false);
 
-  // Estados para el modal de confirmación
+  // Estado para el modal de confirmación y los datos pendientes
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [confirmModalContent, setConfirmModalContent] = useState({
+  const [confirmModalProps, setConfirmModalProps] = useState({
     title: '',
     message: '',
+    onConfirm: () => {},
+    confirmText: 'Confirmar',
+    showCancelButton: true,
+    cancelText: 'Cancelar' // Asumiendo que tu ConfirmationModal puede tener un texto para cancelar
   });
+  const [registrationDataToSubmit, setRegistrationDataToSubmit] = useState(null);
 
-  // Manejador del envío del formulario
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setPasswordMatchError(false); // Limpiar error de coincidencia previo
-    setSnackbar({ ...snackbar, open: false }); // Cerrar cualquier snackbar previo
-
-    if (password !== confirmPassword) {
-      setPasswordMatchError(true);
-      setSnackbar({ open: true, message: 'Las contraseñas no coinciden.', severity: 'error' });
+  // Función que realmente ejecuta el registro
+  const performRegistration = async (data) => {
+    if (!data) {
+      toast.error("Error interno: No hay datos para el registro.");
       return;
     }
-
-    setIsLoading(true); // Activa el spinner de carga
-
-    const registrationData = { nombre, apellidos, email, password, tipo_usuario: userType };
-
+    setIsLoading(true);
     try {
-      const result = await register(registrationData);
+      const result = await register(data); // register es de useAuth()
 
       if (result.success) {
-        // Limpiar los campos del formulario
+        toast.success(result.message || (data.tipo_usuario === 'Docente' 
+          ? 'Solicitud de registro de Docente enviada para aprobación.' 
+          : '¡Registro exitoso!')
+        );
+        
+        // Limpiar campos del formulario
         setNombre('');
         setApellidos('');
         setEmail('');
         setPassword('');
         setConfirmPassword('');
-        setUserType('Estudiante');
+        // setUserType('Estudiante'); // Opcional: resetear tipo de usuario
 
-        if (result.userType === 'Docente') {
-          setConfirmModalContent({
-            title: 'Registro de Docente Completado',
-            message:
-              'Tu cuenta como Docente ha sido creada con éxito. Estará activa una vez que un administrador apruebe tu solicitud. Te notificaremos por correo electrónico.',
-          });
-          setIsConfirmModalOpen(true);
-        } else {
-          setSnackbar({ open: true, message: '¡Registro exitoso!', severity: 'success' });
-          // Retrasamos el cierre del modal para que el usuario vea el mensaje
-          setTimeout(() => {
-            onClose(); // Cierra el modal de registro
-          }, 1000);
-        }
+        setTimeout(() => {
+          onClose(); // Cierra el modal principal de registro
+        }, 1500); // Dar tiempo para ver el toast
       } else {
-        // Mostrar error específico del backend si está disponible
-        setSnackbar({ open: true, message: result.message || 'Error al registrar usuario. Intenta de nuevo.', severity: 'error' });
+        toast.error(result.message || 'Error al registrar el usuario.');
       }
     } catch (error) {
-      console.error('Error durante el registro:', error);
-      setSnackbar({ open: true, message: 'Ocurrió un error inesperado. Por favor, inténtalo más tarde.', severity: 'error' });
+      console.error("Error en performRegistration:", error);
+      toast.error("Ocurrió un error inesperado durante el registro.");
     } finally {
-      setIsLoading(false); // Desactiva el spinner de carga
+      setIsLoading(false);
+      setRegistrationDataToSubmit(null); // Limpiar datos pendientes
     }
   };
 
-  // Manejador para cerrar el modal de confirmación y el de registro
-  const handleCloseConfirmModal = () => {
-    setIsConfirmModalOpen(false);
-    onClose(); // Cierra el modal de registro después de la confirmación
-  };
+  // Manejador del envío del formulario principal
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setPasswordMatchError(false);
 
-  // Manejador para la acción de confirmar (en este caso, solo cierra el modal de confirmación)
-  const handleConfirmAction = () => {
-    handleCloseConfirmModal();
-  };
-
-  // Manejador para cerrar el Snackbar
-  const handleCloseSnackbar = (event, reason) => {
-    if (reason === 'clickaway') {
+    if (password !== confirmPassword) {
+      setPasswordMatchError(true);
+      toast.error('Las contraseñas no coinciden.');
       return;
     }
-    setSnackbar({ ...snackbar, open: false });
+
+    const currentData = { nombre, apellidos, email, password, tipo_usuario: userType };
+
+    if (userType === 'Docente') {
+      setRegistrationDataToSubmit(currentData); // Guardar datos para usarlos después de la confirmación
+      setConfirmModalProps({
+        title: 'Confirmación de Registro de Docente',
+        message: 'Las cuentas para "Docente" requieren una aprobación administrativa antes de ser activadas. Al confirmar, tu solicitud será enviada para revisión. ¿Deseas continuar?',
+        onConfirm: () => {
+          setIsConfirmModalOpen(false); // Cerrar modal de confirmación
+          if (registrationDataToSubmit) {
+            performRegistration(registrationDataToSubmit); // Proceder con el registro
+          }
+        },
+        confirmText: 'Sí, continuar',
+        showCancelButton: true,
+        cancelText: 'Cancelar',
+      });
+      setIsConfirmModalOpen(true);
+    } else { // Para 'Estudiante' u otros tipos de registro directo
+      await performRegistration(currentData);
+    }
+  };
+
+  // Manejador para cerrar el modal de confirmación (si el usuario cancela o cierra)
+  const handleCloseConfirmationModal = () => {
+    setIsConfirmModalOpen(false);
+    setRegistrationDataToSubmit(null); // Limpiar datos pendientes si se cancela la confirmación
   };
 
   return (
@@ -144,16 +146,12 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
         onClose={onClose}
         aria-labelledby="register-modal-title"
         aria-describedby="register-modal-description"
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
+        sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
         <AnimatePresence>
           {open && (
             <MotionBox
-              ref={ref} // Pasamos la ref al MotionBox
+              ref={ref}
               sx={modalStyle}
               component="form"
               onSubmit={handleSubmit}
@@ -166,108 +164,58 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
                 direction="row"
                 justifyContent="space-between"
                 alignItems="center"
-                sx={{ mb: 3 }} // Aumentamos el margen inferior
+                sx={{ mb: 3 }}
               >
-                <Typography id="register-modal-title" variant="h5" component="h2" gutterBottom sx={{  textShadow: '1px 1px 2px rgba(0, 0, 0, 0.7)' }}>
-                  Sign Up
+                <Typography id="register-modal-title" variant="h5" component="h2" gutterBottom sx={{ textShadow: '1px 1px 2px rgba(0, 0, 0, 0.7)' }}>
+                  Crear Cuenta
                 </Typography>
                 <IconButton onClick={onClose} aria-label="cerrar modal de registro">
                   <CloseIcon />
                 </IconButton>
               </Stack>
 
-              <Stack spacing={2}> {/* Espaciado consistente */}
-                <FormControl fullWidth required disabled={isLoading} variant="outlined"
-                >
-                  <InputLabel id="user-type-label">¿ Qué eres ?</InputLabel>
+              <Stack spacing={2}>
+                <FormControl fullWidth required disabled={isLoading} variant="outlined" size="small">
+                  <InputLabel id="user-type-label">¿Qué eres?</InputLabel>
                   <Select
                     labelId="user-type-label"
                     id="user-type-select"
-                    label="Tipo Usuario" // El 'label' es necesario para el variant "outlined"
+                    label="¿Qué eres?"
                     value={userType}
                     onChange={(e) => setUserType(e.target.value)}
-                    size="small"
-                    sx={{borderRadius: '24px',}}
+                    sx={{borderRadius: '24px'}}
                   >
                     <MenuItem value="Estudiante">Estudiante</MenuItem>
                     <MenuItem value="Docente">Docente</MenuItem>
                   </Select>
                 </FormControl>
-                <Divider sx={{ mt: 4, borderBottom: '1px dotted' }} />
+                
                 <TextField
-                  label="Nombre(s)"
-                  fullWidth
-                  required
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  disabled={isLoading}
-                  variant="outlined" // Diseño outlined
-                  autoComplete="given-name" // Sugerencia de autocompletado
-                  size="small"
-                  InputProps={{sx: { borderRadius: '24px',},}}
+                  label="Nombre(s)" fullWidth required value={nombre} onChange={(e) => setNombre(e.target.value)}
+                  disabled={isLoading} variant="outlined" autoComplete="given-name" size="small" InputProps={{sx: { borderRadius: '24px'}}}
                 />
                 <TextField
-                  label="Apellidos"
-                  fullWidth
-                  required
-                  value={apellidos}
-                  onChange={(e) => setApellidos(e.target.value)}
-                  disabled={isLoading}
-                  variant="outlined"
-                  autoComplete="family-name" // Sugerencia de autocompletado
-                  size="small"
-                  InputProps={{sx: { borderRadius: '24px',},}}
+                  label="Apellidos" fullWidth required value={apellidos} onChange={(e) => setApellidos(e.target.value)}
+                  disabled={isLoading} variant="outlined" autoComplete="family-name" size="small" InputProps={{sx: { borderRadius: '24px'}}}
                 />
                 <TextField
-                  label="Email"
-                  type="email"
-                  fullWidth
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isLoading}
-                  variant="outlined"
-                  autoComplete="email"
-                  size="small"
-                  InputProps={{sx: { borderRadius: '24px',},}}
-                />
-                <Divider sx={{ mt: 4, borderBottom: '1px dotted' }} />
-                <TextField
-                  label="Contraseña"
-                  type="password"
-                  size="small"
-                  fullWidth
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading}
-                  variant="outlined"
-                  autoComplete="new-password" // Para una nueva contraseña
-                  InputProps={{sx: { borderRadius: '24px',},}}
+                  label="Email" type="email" fullWidth required value={email} onChange={(e) => setEmail(e.target.value)}
+                  disabled={isLoading} variant="outlined" autoComplete="email" size="small" InputProps={{sx: { borderRadius: '24px'}}}
                 />
                 <TextField
-                  label="Confirmar Contraseña"
-                  type="password"
-                  size="small"
-                  fullWidth
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={isLoading}
-                  variant="outlined"
-                  error={passwordMatchError} // Activa el estado de error de Material-UI
-                  helperText={passwordMatchError ? 'Las contraseñas no coinciden' : ''} // Texto de ayuda
-                  autoComplete="new-password" // Para confirmar nueva contraseña
-                  InputProps={{sx: { borderRadius: '24px',},}}
+                  label="Contraseña" type="password" size="small" fullWidth required value={password} onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading} variant="outlined" autoComplete="new-password" InputProps={{sx: { borderRadius: '24px'}}}
+                />
+                <TextField
+                  label="Confirmar Contraseña" type="password" size="small" fullWidth required value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)} disabled={isLoading} variant="outlined"
+                  error={passwordMatchError} helperText={passwordMatchError ? 'Las contraseñas no coinciden' : ''}
+                  autoComplete="new-password" InputProps={{sx: { borderRadius: '24px'}}}
                 />
                 
                 <Button
-                  variant="contained"
-                  color="primary"
-                  type="submit"
-                  fullWidth
-                  disabled={isLoading} // Deshabilita el botón durante la carga
-                  sx={{ mt: 3 }} // Margen superior
+                  variant="contained" color="primary" type="submit" fullWidth disabled={isLoading}
+                  sx={{ mt: 2, borderRadius: '24px', py: 1.5 }}
                 >
                   {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Crear Cuenta'}
                 </Button>
@@ -277,27 +225,15 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
         </AnimatePresence>
       </Modal>
 
-      {/* Snackbar para mostrar mensajes al usuario */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-
-      {/* Modal de Confirmación para Docentes */}
       <ConfirmationModal
         open={isConfirmModalOpen}
-        onClose={handleCloseConfirmModal}
-        onConfirm={handleConfirmAction} // La acción de confirmar sigue siendo cerrar
-        title={confirmModalContent.title}
-        message={confirmModalContent.message}
-        showCancelButton={false} // No es necesario un botón de cancelar en este contexto
-        confirmButtonText="Entendido" // Texto más adecuado para este tipo de confirmación
+        onClose={handleCloseConfirmationModal} // Se encarga de cerrar y limpiar datos pendientes
+        onConfirm={confirmModalProps.onConfirm} // Ejecuta la acción de confirmación (registrar al docente)
+        title={confirmModalProps.title}
+        message={confirmModalProps.message}
+        confirmButtonText={confirmModalProps.confirmText}
+        showCancelButton={confirmModalProps.showCancelButton} // Asegúrate que tu ConfirmationModal use esta prop
+        cancelButtonText={confirmModalProps.cancelText || "Cancelar"} // Y esta, si la soporta
       />
     </>
   );

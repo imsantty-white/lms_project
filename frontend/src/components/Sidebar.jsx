@@ -147,7 +147,6 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
     try {
       logout(); // Call the logout function from AuthContext
       navigate('/'); // Redirect to home page
-      toast.info('Sesión cerrada correctamente.'); // Optional: show a success message
     } catch (error) {
       console.error('Error during logout:', error);
       toast.error('Ocurrió un error al cerrar sesión.'); // Optional: show an error message
@@ -187,6 +186,7 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
             fontSize: '0.9rem',
             fontWeight: 600,
             boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.25)}`,
+            color: theme.palette.primary.contrastText,
           }}
         >
           {`${(user?.nombre?.[0] || '')}${(user?.apellidos?.[0] || '')}`.toUpperCase()}
@@ -200,7 +200,7 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
-              fontSize: '0.85rem',
+              fontSize: '0.7rem',
               lineHeight: 1.2,
             }}
           >
@@ -210,10 +210,10 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
             label={user?.userType}
             size="small"
             sx={{
-              backgroundColor: alpha(theme.palette.secondary.main, 0.15),
+              backgroundColor: alpha(theme.palette.secondary.light, 0.15),
               color: theme.palette.secondary.dark,
-              fontWeight: 500,
-              fontSize: '0.7rem',
+              fontWeight: 600,
+              fontSize: '0.6rem',
               height: 20,
               '& .MuiChip-label': {
                 px: 1,
@@ -346,11 +346,11 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
             justifyContent: 'space-between',
             alignItems: 'center',
             p: 2,
-            borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+            //borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
           }}
         >
-          <Typography variant="h6" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
-            Navegación
+          <Typography variant="body1" sx={{ fontWeight: 700, color: theme.palette.primary.light }}>
+            Menú
           </Typography>
           <IconButton
             onClick={onClose}

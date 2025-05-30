@@ -1,9 +1,10 @@
 // src/models/UserModel.js
 const mongoose = require('mongoose');
-const bcrypt = require('bcrypt'); // Importamos bcrypt para cifrar contraseñas
+const bcrypt = require('bcrypt');
 
-// Definimos el esquema de usuario
 const userSchema = new mongoose.Schema({
+  // ... (todos tus otros campos permanecen igual) ...
+
   nombre: {
     type: String,
     required: [true, 'El nombre es obligatorio'],
@@ -21,12 +22,12 @@ const userSchema = new mongoose.Schema({
   email: {
     type: String,
     required: [true, 'El email es obligatorio'],
-    unique: true, // Asegura que cada email sea único en la base de datos
-    lowercase: true, // Convierte el email a minúsculas antes de guardar
+    unique: true,
+    lowercase: true,
     trim: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Por favor, usa un email válido'] // Validación de formato de email
+    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Por favor, usa un email válido']
   },
-  contrasena_hash: { // Almacenaremos el hash de la contraseña aquí
+  contrasena_hash: {
     type: String,
     required: [true, 'La contraseña es obligatoria'],
     minlength: [8, 'La contraseña debe tener al menos 8 caracteres']
@@ -34,21 +35,33 @@ const userSchema = new mongoose.Schema({
   tipo_usuario: {
     type: String,
     required: [true, 'El tipo de usuario es obligatorio'],
-    enum: ['Estudiante', 'Docente', 'Administrador'], // Solo permite estos valores
-    default: 'Estudiante' // Por defecto, un usuario registrado es Estudiante
+    enum: ['Estudiante', 'Docente', 'Administrador'],
+    default: 'Estudiante'
   },
-  // Campo específico para Estudiantes
-  grupo_id: {
+
+  // Campo específico para Estudiantes (como lo modificamos antes)
+  grupos_ids: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Group',
-    default: null
-  },
-  // Campo específico para Docentes
+    default: [] // Opcional, pero buena práctica
+  }],
+
+  // MODIFICACIÓN AQUÍ para los campos específicos para Docentes
+  grupos_asignados_ids: [{ // Nuevo campo para almacenar los IDs de los grupos asignados al docente
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Group',
+    default: [] // Opcional, pero buena práctica
+  }],
+  // El campo numero_grupos_asignados podría volverse redundante o usarse de otra forma
+  // Por ahora lo comentaremos o puedes decidir eliminarlo si la longitud del array es suficiente
+  /*
   numero_grupos_asignados: {
     type: Number,
     default: 0
   },
-  tipo_identificacion: { // Campos opcionales
+  */
+
+  tipo_identificacion: {
     type: String,
     trim: true,
     maxlength: [30, 'El tipo de identificación no puede exceder 30 caracteres'],
@@ -62,93 +75,77 @@ const userSchema = new mongoose.Schema({
       'Pasaporte'
     ]
   },
-  numero_identificacion: { // Campos opcionales
+  numero_identificacion: {
     type: String,
     trim: true,
     maxlength: [15, 'El número de identificación no puede exceder 15 caracteres'],
     validate: {
       validator: function(v) {
-        // Solo números, opcional
         return !v || /^\d+$/.test(v);
       },
       message: 'El número de identificación solo puede contener números'
     }
   },
-  fecha_nacimiento: { // Campos opcionales
+  fecha_nacimiento: {
     type: Date,
     validate: {
       validator: function(value) {
-        // Debe ser una fecha pasada
         return !value || value < new Date();
       },
       message: 'La fecha de nacimiento debe ser una fecha pasada'
     }
   },
-  telefono: { // Campos opcionales
+  telefono: {
     type: String,
     trim: true,
     maxlength: [15, 'El teléfono no puede exceder 15 caracteres'],
     validate: {
       validator: function(v) {
-        // Solo números, opcional
         return !v || /^\d+$/.test(v);
       },
       message: 'El teléfono solo puede contener números'
     }
   },
-  institucion: { // NUEVO CAMPO
+  institucion: {
     type: String,
     trim: true,
     maxlength: [100, 'La institución no puede exceder 100 caracteres']
   },
   fecha_registro: {
     type: Date,
-    default: Date.now // Establece la fecha actual por defecto al crear un usuario
+    default: Date.now
   },
   activo: {
     type: Boolean,
-    default: true // Por defecto, la cuenta está activa
+    default: true
   },
   aprobado: {
     type: Boolean,
-    default: true // Por defecto aprobado (cambiaremos esto en la lógica de registro para docentes)
+    default: true
   }
 }, {
-  timestamps: false // Deshabilita timestamps automáticos si ya tenemos fecha_registro. Si quieres createdAt y updatedAt, pon true y elimina fecha_registro.
+  timestamps: false
 });
 
-// Middleware de Mongoose que se ejecuta ANTES de guardar un documento
-// Usaremos esto para hashear la contraseña antes de guardarla en la BD
+// ... (tu middleware pre y método matchPassword permanecen igual) ...
 userSchema.pre('save', async function(next) {
-  // Solo hashea la contraseña si ha sido modificada (o es nueva)
   if (!this.isModified('contrasena_hash')) {
-    return next(); // Si no se modificó, pasa al siguiente middleware o guarda
+    return next();
   }
-
   try {
-    // Genera un 'salt' (valor aleatorio) para mejorar la seguridad del hash
-    const salt = await bcrypt.genSalt(10); // 10 es el número de rondas de hashing
-
-    // Hashea la contraseña usando el salt
+    const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash(this.contrasena_hash, salt);
-
-    // Reemplaza la contraseña en texto plano con el hash
     this.contrasena_hash = hash;
-    next(); // Continúa con el proceso de guardado
+    next();
   } catch (err) {
-    next(err); // Pasa el error al siguiente middleware
+    next(err);
   }
 });
 
-// Método de instancia para comparar contraseñas
-// Lo usaremos al hacer login
 userSchema.methods.matchPassword = async function(enteredPassword) {
-  // Compara la contraseña proporcionada con el hash guardado
   return await bcrypt.compare(enteredPassword, this.contrasena_hash);
 };
 
-
-// Creamos el modelo a partir del esquema
 const User = mongoose.model('User', userSchema);
 
-module.exports = User; // Exportamos el modelo para usarlo en los controladores
+module.exports = User;

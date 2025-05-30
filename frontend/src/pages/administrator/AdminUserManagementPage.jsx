@@ -311,6 +311,7 @@ function AdminUserManagementPage() {
                             <Button
                                 fullWidth
                                 variant="outlined"
+                                color="info"
                                 onClick={handleRefresh}
                                 startIcon={<RefreshIcon />}
                             >

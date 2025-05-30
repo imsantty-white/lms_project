@@ -1,20 +1,19 @@
+// src/contexts/AuthContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import axios from 'axios';
-import { toast } from 'react-toastify';
+import { toast } from 'react-toastify'; // Volvemos a usar react-toastify
 import { API_BASE_URL } from '../utils/constants';
 import { jwtDecode } from 'jwt-decode';
-
 
 // Crea el contexto de autenticación
 export const AuthContext = createContext(null);
 
-// *** Configurar una instancia de Axios separada ***
-const axiosInstance = axios.create({
-    baseURL: API_BASE_URL, // Usa tu URL base aquí
+// Configurar una instancia de Axios separada
+export const axiosInstance = axios.create({ // Exportar directamente aquí
+    baseURL: API_BASE_URL,
 });
 
-
-// *** CONFIGURAR EL INTERCEPTOR DE PETICIONES DE AXIOS ***
+// CONFIGURAR EL INTERCEPTOR DE PETICIONES DE AXIOS
 axiosInstance.interceptors.request.use(
   (config) => {
     // Intenta obtener el token de localStorage justo antes de cada petición
@@ -24,7 +23,6 @@ axiosInstance.interceptors.request.use(
     if (token && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-
     return config;
   },
   (error) => {
@@ -32,24 +30,19 @@ axiosInstance.interceptors.request.use(
   }
 );
 
-
 // Componente Proveedor de Autenticación
 export const AuthProvider = ({ children }) => {
-  // Estado para el token JWT
   const [token, setToken] = useState(null);
-  // Estado para la información del usuario
   const [user, setUser] = useState(null);
-  // Estado para indicar si la inicialización de la autenticación ha terminado
   const [isAuthInitialized, setIsAuthInitialized] = useState(false);
 
-
-  // --- Efecto PRINCIPAL para cargar Auth desde localStorage al inicio ---
+  // Efecto PRINCIPAL para cargar Auth desde localStorage al inicio
   useEffect(() => {
       const loadAuthFromStorage = async () => {
           const storedToken = localStorage.getItem('token');
           const storedUser = localStorage.getItem('user');
-
           let userFromStorage = null;
+
           if (storedUser && storedUser !== 'undefined') {
               try {
                   userFromStorage = JSON.parse(storedUser);
@@ -61,7 +54,6 @@ export const AuthProvider = ({ children }) => {
           }
 
           if (storedToken && userFromStorage) {
-              // Verificar si el token ha expirado
               try {
                   const decodedToken = jwtDecode(storedToken);
                   const currentTime = Date.now() / 1000;
@@ -69,7 +61,8 @@ export const AuthProvider = ({ children }) => {
                   if (decodedToken.exp > currentTime) {
                       setToken(storedToken);
                       setUser(userFromStorage);
-                      // El interceptor se encargará de añadir el header
+                      // El interceptor se encargará de añadir el header a las nuevas peticiones
+                      // Si se había seteado axiosInstance.defaults, el interceptor lo puede sobreescribir si es necesario o añadirlo si no está.
                       console.log("Auth state set from storage.");
                   } else {
                       console.log("Token expired in storage, cleaning up.");
@@ -83,92 +76,82 @@ export const AuthProvider = ({ children }) => {
               }
           } else {
               console.log("No valid auth data found in storage.");
-           }
-
+          }
           setIsAuthInitialized(true);
           console.log("Auth initialization process finished.");
       };
-
       loadAuthFromStorage();
-
   }, []);
-
 
   // Función para manejar el Login
   const login = async (email, password) => {
     try {
-      // *** Usar axiosInstance ***
       const response = await axiosInstance.post('/api/auth/login', { email, password });
+      // Renombrar 'token' y 'user' de la respuesta para evitar conflictos de scope con el estado
+      const { token: receivedToken, _id, email: userEmail, tipo_usuario, nombre, apellidos } = response.data;
 
-      const { token, _id, email: userEmail, tipo_usuario, nombre, apellidos } = response.data;
-
-      const user = {
+      const loggedUser = {
         _id,
         email: userEmail,
-        userType: tipo_usuario,      // para el frontend
-        tipo_usuario,                // para compatibilidad (Importante)
+        userType: tipo_usuario,
+        tipo_usuario, // Mantener por compatibilidad si se usa en otros lados
         nombre,
         apellidos,
       };
 
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('token', receivedToken);
+      localStorage.setItem('user', JSON.stringify(loggedUser));
 
-      setToken(token);
-      setUser(user);
-      // Configurar el header de axiosInstance aquí también por consistencia inmediata
-      axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      setToken(receivedToken);
+      setUser(loggedUser);
+      
+      // Configurar el header de axiosInstance por defecto para esta sesión
+      // Aunque el interceptor lo hace por petición, esto asegura que la instancia lo tenga por defecto inmediatamente.
+      axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${receivedToken}`;
 
+      toast.success('¡Inicio de sesión exitoso!'); // Usar toast
 
-      toast.success('¡Inicio de sesión exitoso!');
-
-      return { success: true, userType: user.userType };
+      return { success: true, userType: loggedUser.userType };
     } catch (error) {
       console.error('Error en el login:', error.response ? error.response.data : error.message);
-      const errorMessage = error.response && error.response.data && error.response.data.message
-        ? error.response.data.message
-        : 'Error al iniciar sesión. Verifica tus credenciales.';
-      toast.error(errorMessage);
+      const errorMessage = error.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.';
+      
+      toast.error(errorMessage); // Usar toast
 
-      // Asegurarse de limpiar en caso de error de login
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       setToken(null);
       setUser(null);
-      // Limpiar el header de axiosInstance
-      delete axiosInstance.defaults.headers.common['Authorization'];
-
+      delete axiosInstance.defaults.headers.common['Authorization']; // Limpiar el header por defecto
 
       return { success: false, message: errorMessage };
     }
   };
 
-  // Función para manejar el Registro (mantener tu lógica, ajusta axiosInstance si aplica)
+  // Función para manejar el Registro
   const register = async (registrationData) => {
-      // *** Usar axiosInstance ***
     try {
       const res = await axiosInstance.post('/api/auth/register', registrationData);
+      // El componente que llama a register es responsable de mostrar el toast con res.data.message
       return { success: true, ...res.data, userType: registrationData.tipo_usuario };
     } catch (error) {
-      return { success: false, message: error.response?.data?.message || 'Error al registrar' };
+      const message = error.response?.data?.message || 'Error al registrar';
+      // El componente que llama a register es responsable de mostrar el toast con el mensaje de error
+      return { success: false, message };
     }
   };
 
-
-   // Función para manejar el Logout (mantener tu lógica, ajusta axiosInstance si aplica)
+  // Función para manejar el Logout
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
-
-    // Elimina la cabecera de autorización de axiosInstance
-    delete axiosInstance.defaults.headers.common['Authorization'];
-
-    toast.info('Sesión cerrada.');
+    delete axiosInstance.defaults.headers.common['Authorization']; // Elimina la cabecera de autorización de la instancia de axios
+    
+    toast.info('Sesión cerrada.'); // Usar toast
   };
 
-  // El valor del contexto que estará disponible para los componentes
   const contextValue = {
     token,
     user,
@@ -177,13 +160,12 @@ export const AuthProvider = ({ children }) => {
     logout,
     isAuthenticated: !!token,
     isAuthInitialized,
-    // No proveemos axiosInstance directamente en el contexto a menos que sea estrictamente necesario.
-    // Es mejor importarla directamente donde se usa.
   };
 
   return (
     <AuthContext.Provider value={contextValue}>
       {children}
+      {/* Recuerda tener <ToastContainer /> en tu App.js o en el componente raíz */}
     </AuthContext.Provider>
   );
 };
@@ -197,5 +179,4 @@ export const useAuth = () => {
   return context;
 };
 
-// *** AÑADE ESTA LÍNEA PARA EXPORTAR axiosInstance ***
-export { axiosInstance };
+// La instancia de axiosInstance ya se exporta arriba donde se define.
