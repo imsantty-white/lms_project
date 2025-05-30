@@ -70,10 +70,9 @@ const ThemeItem = React.memo(({
           color: themeMaterial.palette.text.primary,
           minHeight: 48, // Denser summary
           // Añadimos el border solo al summary
-          border: `1px solid ${themeMaterial.palette.divider}`,
           // El borderRadius se aplicará automáticamente por el overflow hidden del padre
           '& .MuiAccordionSummary-content': { // Reduce margin around content
-            my: 0,
+            my: 1.2,
           },
         }}
       >
@@ -90,7 +89,7 @@ const ThemeItem = React.memo(({
                 onEditTheme(theme);
               }}
               disabled={isAnyOperationInProgress}
-              sx={{ mr: 1 }} // Adjusted margin
+              sx={{ mr: 2 }} // Adjusted margin
             >
               <EditIcon fontSize="small" />
             </IconButton>
@@ -105,7 +104,7 @@ const ThemeItem = React.memo(({
                 onDeleteTheme(theme._id);
               }}
               disabled={isAnyOperationInProgress}
-              sx={{ mr: 0.5 }} // Adjusted margin
+              sx={{ mr: 2 }} // Adjusted margin
             >
               <DeleteIcon fontSize="small" />
             </IconButton>

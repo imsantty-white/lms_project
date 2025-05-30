@@ -194,8 +194,8 @@ function AdminUserManagementPage() {
                 <PageHeader title="Gestión de Usuarios" />
 
                 <TableContainer component={Paper} sx={{ mt: 3 }}>
-                    <Table>
-                        <TableHead>
+                    <Table size="small">
+                        <TableHead sx={{ background: 'linear-gradient(135deg,rgb(194, 166, 245) 0%,rgb(214, 146, 241) 100%)' }}>
                             <TableRow>
                                 <TableCell>Nombre Completo</TableCell>
                                 <TableCell>Email</TableCell>
@@ -220,7 +220,25 @@ function AdminUserManagementPage() {
                                         </Link>
                                     </TableCell>
                                     <TableCell>{userItem.email}</TableCell>
-                                    <TableCell>{userItem.tipo_usuario}</TableCell>
+                                    <TableCell>
+                                        <Chip
+                                            label={userItem.tipo_usuario}
+                                            sx={{
+                                            backgroundColor:
+                                                userItem.tipo_usuario === 'Administrador'
+                                                ? '#FFD700' // Dorado para Administrador
+                                                : userItem.tipo_usuario === 'Estudiante'
+                                                ? '#9aa0f5' // Azul para Estudiante
+                                                : userItem.tipo_usuario === 'Docente'
+                                                ? '#E91E63' // Rosa para Docente
+                                                : 'inherit',
+                                            color:
+                                                userItem.tipo_usuario === 'Administrador'
+                                                ? 'primary.main'
+                                                : 'text.primary',
+                                            }}
+                                        />
+                                        </TableCell>
                                     <TableCell>
                                         {userItem.tipo_usuario === 'Docente' ? (
                                             <Chip
@@ -229,7 +247,7 @@ function AdminUserManagementPage() {
                                                 size="small"
                                             />
                                         ) : (
-                                            <Typography variant="body2" color="text.secondary">N/A</Typography>
+                                            <Typography variant="body2" color="text.secondary">No Aplica</Typography>
                                         )}
                                     </TableCell>
                                     <TableCell>

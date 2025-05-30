@@ -76,7 +76,7 @@ const renderResourceDetails = (item) => {
             <Typography component="span" variant="caption" color="text.secondary" sx={{
                 display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%'
             }}>
-                Contenido: {item.content_body.substring(0, 80)}...
+                Contenido: {item.content_body.substring(0, 40)}...
             </Typography>
         );
     }

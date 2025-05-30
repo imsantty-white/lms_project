@@ -474,24 +474,77 @@ const _calculateAndUpdatePathProgress = async (studentId, learningPathId, groupI
     // --- Lógica de cálculo del path_status ---
     if (total_activities > 0) {
         const contentAssignmentIds = relevantActivityAssignments.map(ca => ca._id);
-        const submissions = await Submission.find({
-            student_id: studentId,
-            assignment_id: { $in: contentAssignmentIds },
-            estado_envio: 'Calificado'
-        });
-        graded_activities = submissions.length;
+        
+        // --- 1. Agregación para encontrar la ÚLTIMA entrega CALIFICADA por asignación ---
+        const lastGradedSubmissions = await Submission.aggregate([
+            {
+                $match: {
+                    student_id: studentId,
+                    assignment_id: { $in: contentAssignmentIds },
+                    estado_envio: 'Calificado'
+                }
+            },
+            {
+                $sort: { fecha_envio: -1 } // Ordenar de más reciente a más antigua
+            },
+            {
+                $group: {
+                    _id: '$assignment_id', // Agrupar por el ID de la asignación
+                    lastSubmission: { $first: '$$ROOT' } // Tomar el primer documento (el más reciente) de cada grupo
+                }
+            },
+            {
+                $project: {
+                    _id: '$lastSubmission._id', 
+                    assignment_id: '$lastSubmission.assignment_id'
+                }
+            }
+        ]);
+        
+        graded_activities = lastGradedSubmissions.length; 
 
-        console.log(`Actividades calificadas para el estudiante en esta ruta/grupo: ${graded_activities}`);
+        console.log(`Actividades calificadas (último intento calificado) para el estudiante en esta ruta/grupo: ${graded_activities}`);
 
-        const submittedButNotGradedCount = await Submission.countDocuments({
-            student_id: studentId,
-            assignment_id: { $in: contentAssignmentIds },
-            estado_envio: { $ne: 'Calificado' }
-        });
+        // --- 2. Agregación para encontrar la ÚLTIMA entrega NO CALIFICADA por asignación ---
+        // Excluye las asignaciones que ya tienen un intento calificado para evitar contarlos dos veces.
+        const alreadyGradedAssignmentIds = lastGradedSubmissions.map(s => s.assignment_id);
+
+        const lastPendingOrUnsubmittedSubmissions = await Submission.aggregate([
+            {
+                $match: {
+                    student_id: studentId,
+                    assignment_id: { 
+                        $in: contentAssignmentIds,
+                        $nin: alreadyGradedAssignmentIds // NO incluir asignaciones ya calificadas
+                    },
+                    estado_envio: { $ne: 'Calificado' } // Considera cualquier estado que no sea 'Calificado'
+                }
+            },
+            {
+                $sort: { fecha_envio: -1 } // Ordenar de más reciente a más antigua
+            },
+            {
+                $group: {
+                    _id: '$assignment_id', // Agrupar por el ID de la asignación
+                    lastSubmission: { $first: '$$ROOT' } // Tomar el primer documento (el más reciente) de cada grupo
+                }
+            },
+            {
+                $project: {
+                    _id: '$lastSubmission._id',
+                    assignment_id: '$lastSubmission.assignment_id'
+                }
+            }
+        ]);
+
+        const submittedButNotGradedCount = lastPendingOrUnsubmittedSubmissions.length;
+        
+        console.log(`Actividades con el último intento NO CALIFICADO: ${submittedButNotGradedCount}`);
+
 
         if (graded_activities === total_activities) {
             path_status = 'Completado';
-        } else if (graded_activities > 0 || submittedButNotGradedCount > 0) {
+        } else if (graded_activities > 0 || submittedButNotGradedCount > 0) { 
             path_status = 'En Progreso';
         } else {
             path_status = 'No Iniciado';

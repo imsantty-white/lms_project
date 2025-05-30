@@ -15,6 +15,7 @@ import {
   useTheme,
   Tooltip // Import Tooltip
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion'; 
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import EditIcon from '@mui/icons-material/Edit';
@@ -80,6 +81,7 @@ const ModuleItem = React.memo(({
             color: theme.palette.primary.contrastText,
             borderTopLeftRadius: 'inherit', // Inherit from Paper for consistency
             borderTopRightRadius: 'inherit',
+            boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.4)',
             // If Accordion is not the first/last child, conditional radius might be needed
             // but Paper's overflow:hidden helps.
           }}
@@ -97,7 +99,10 @@ const ModuleItem = React.memo(({
                   onEditModule(module);
                 }}
                 disabled={isAnyOperationInProgress}
-                sx={{ mr: 2, color: 'inherit' }} // Inherit color for contrast
+                sx={{ mr: 2, color: 'inherit',
+                  bgcolor: alpha(theme.palette.primary.dark, 0.2),
+        '&:hover': { bgcolor: alpha(theme.palette.primary.dark, 0.5) },
+                 }} // Inherit color for contrast
               >
                 <EditIcon fontSize="small" />
               </IconButton>
@@ -112,7 +117,10 @@ const ModuleItem = React.memo(({
                   onDeleteModule(module._id);
                 }}
                 disabled={isAnyOperationInProgress}
-                sx={{ mr: 1 }} // Adjusted margin
+                sx={{ mr: 2,
+                  bgcolor: alpha(theme.palette.error.main, 0.2),
+                  '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.5) },
+                 }} // Adjusted margin
               >
                 <DeleteIcon fontSize="small" />
               </IconButton>

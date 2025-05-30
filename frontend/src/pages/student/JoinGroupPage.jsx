@@ -138,7 +138,7 @@ function JoinGroupPage() {
 
   return (
     <AnimatePresence>
-      <Container maxWidth="md" sx={{ py: 6, minHeight: '80vh', display: 'flex', alignItems: 'center' }}>
+      <Container maxWidth="md" sx={{ py: 1, minHeight: '80vh', display: 'flex', alignItems: 'center' }}>
         <MotionPaper
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

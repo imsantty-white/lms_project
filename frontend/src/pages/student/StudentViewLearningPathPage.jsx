@@ -6,6 +6,7 @@ import {
     Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
     Button,
     Container,
+    Paper,
     Box,
     Typography,
     CircularProgress,
@@ -309,7 +310,13 @@ function StudentViewLearningPathPage() {
                 </Typography>
 
                 {/* Lista de Módulos */}
-                <Stack spacing={2} >
+                <Paper spacing={2} sx={{ 
+                                        mb: 2, 
+                                        boxShadow: theme.shadows[3], // Use theme's shadow definition
+                                        borderRadius: theme.shape.borderRadius * 2, // Consistent rounded corners (e.g., 16px if borderRadius is 8px)
+                                        overflow: 'hidden' // Important for child border radius to look right
+                                        }}
+                                        >
                     {learningPathStructure.modules.length === 0 ? (
                         <Typography variant="body2" color="text.secondary">Esta ruta no tiene módulos definidos.</Typography>
                     ) : (
@@ -323,13 +330,15 @@ function StudentViewLearningPathPage() {
                                     key={module._id}
                                     defaultExpanded
                                     sx={{
-                                        boxShadow: 3,
+                                        //boxShadow: 3,
                                         borderRadius: theme.shape.borderRadius * 2,
                                         '&:not(:last-child)': { mb: 2 },
-                                        border: '1px solid',
                                         borderColor: theme.palette.divider,
                                         overflow: 'hidden'
                                     }}
+                                    // Disable default MUI transitions to let Framer Motion handle it
+        TransitionProps={{ timeout: 0, unmountOnExit: true }} 
+        elevation={0} // Remove Accordion's own shadow as Paper handles it
                                 >
                                     <AccordionSummary
                                         expandIcon={<ExpandMoreIcon />}
@@ -341,7 +350,7 @@ function StudentViewLearningPathPage() {
                                             '& .MuiAccordionSummary-content': {
                                                 alignItems: 'center'
                                             },
-                                            p: 1,
+                                            p: 0.5,
                                             boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.4)',
                                         }}
                                     >
@@ -420,7 +429,8 @@ function StudentViewLearningPathPage() {
                                                                         size="small"
                                                                         color="text.primary"
                                                                         variant="outlined"
-                                                                        sx={{ mr: 3, flexShrink: 0 }}
+                                                                        sx={{ mr: 3, flexShrink: 0, fontStyle: 'italic', }}
+                                                                        
                                                                     />
                                                                 )}
                                                             </AccordionSummary>
@@ -495,7 +505,7 @@ function StudentViewLearningPathPage() {
                                                                                     </ListItemButton>
                                                                                 </ListItem>
                                                                                 {index < themeItem.assignments.length - 1 && (
-                                                                                        <Divider component="li" sx={{ my: 0.7, borderBottomWidth: '1px', borderStyle: 'dashed' }} />
+                                                                                        <Divider sx={{ my: 0.5, borderBottomWidth: '2px', borderStyle: 'dashed', borderColor:'text.secondary' }} />
                                                                                     )}
                                                                                 </React.Fragment>
                                                                             );
@@ -519,7 +529,7 @@ function StudentViewLearningPathPage() {
                             );
                         })
                     )}
-                </Stack>
+                </Paper>
 
                 {/* Diálogo de Confirmación para Enlaces (existente) */}
                 <Dialog

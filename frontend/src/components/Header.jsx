@@ -1,7 +1,8 @@
 // src/components/Header.jsx
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { AppBar, Toolbar, Typography, IconButton, Box, Badge, Avatar } from '@mui/material';
+import { AppBar, Toolbar, Typography, IconButton, Box, Badge, Avatar, useTheme } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import MenuIcon from '@mui/icons-material/Menu';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
@@ -24,6 +25,7 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
     const { isAuthenticated, user } = useAuth(); // Removed logout here
     const navigate = useNavigate();
     const socket = useSocket();
+    const theme = useTheme();
 
     const [unreadCount, setUnreadCount] = useState(0);
     const [notifications, setNotifications] = useState([]);
@@ -176,7 +178,7 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
             elevation={0}
             sx={{
                 background: 'rgba(255,255,255,0)',
-                backdropFilter: 'blur(2px)',
+                backdropFilter: 'blur(1.5px)',
                 boxShadow: 'none',
                 color: '#222',
                 zIndex: (theme) => theme.zIndex.drawer + 1,
@@ -201,10 +203,10 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
                 <Typography
                     variant="h6"
                     component={Link}
-                    to="/"
+                    // to="/" esta mal configurado
                     sx={{
                         textDecoration: 'none',
-                        color: 'primary.main',
+                        color: 'primary.light',
                         fontWeight: 700,
                         letterSpacing: 1,
                         fontSize: { xs: 18, sm: 20 },
@@ -250,7 +252,14 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
 
                 {isAuthenticated && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
+                        <Avatar sx={{
+                                    width: 36,
+                                    height: 36,
+                                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                                    fontSize: '0.9rem',
+                                    fontWeight: 600,
+                                    boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.25)}`,
+                                }}>
                             {`${(user?.nombre?.[0] || '')}${(user?.apellidos?.[0] || '')}`.toUpperCase()}
                         </Avatar>
                         <Typography

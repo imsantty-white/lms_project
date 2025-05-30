@@ -117,7 +117,7 @@ function EditContentAssignmentModal({ open, onClose, assignmentId, themeName, on
             ? fetchedAssignment.resource_id 
             : fetchedAssignment.activity_id;
           setContentItem(associatedContent);
-          console.log("Contenido asociado cargado:", associatedContent);
+          //console.log("Contenido asociado cargado:", associatedContent);
 
           // Rellenar los estados del formulario
           setFechaInicio(fetchedAssignment.fecha_inicio ? new Date(fetchedAssignment.fecha_inicio) : null);

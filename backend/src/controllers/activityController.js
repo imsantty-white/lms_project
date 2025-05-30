@@ -37,11 +37,15 @@ const getStudentActivityForAttempt = async (req, res, next) => {
             return res.status(403).json({ message: 'Acceso denegado. Solo estudiantes pueden acceder a actividades asignadas.' });
         }
 
-        // Encontrar la asignación y popular los detalles necesarios (mantener)
+        // Encontrar la asignación y popular los detalles necesarios
         const assignmentDetails = await ContentAssignment.findById(assignmentId)
             .populate({
                 path: 'activity_id', // Necesitamos la Actividad base
-                select: 'type title description quiz_questions cuestionario_questions' // Fields needed for student attempt
+                // --- CAMBIO CLAVE AQUÍ ---
+                // Incluye explícitamente los campos que SÍ quieres de quiz_questions y cuestionario_questions
+                select: 'type title description ' +
+                        'quiz_questions.text quiz_questions.options quiz_questions._id ' +
+                        'cuestionario_questions.text cuestionario_questions.options cuestionario_questions._id'
             })
             .populate({ // Necesitamos la jerarquía para permisos/grupo
                 path: 'theme_id',
@@ -70,26 +74,27 @@ const getStudentActivityForAttempt = async (req, res, next) => {
 
         // *** NUEVA VERIFICACIÓN DE ESTADO: Solo permitir acceso si la asignación está 'Open' ***
         if (assignmentDetails.status !== 'Open') {
-             // Usamos 403 Forbidden o 410 Gone para indicar que no está disponible
              return res.status(403).json({ message: `Esta actividad asignada no está actualmente disponible (Estado: ${assignmentDetails.status}).` });
         }
         // *** Fin Nueva Verificación de Estado ***
 
         const activityDetails = assignmentDetails.activity_id;
 
-        // Remove correct_answer from quiz_questions if activity type is Quiz
+        // --- ESTE BLOQUE YA NO ES NECESARIO SI LA SOLUCIÓN DEL POPULATE FUNCIONA CORRECTAMENTE ---
+        // Pero no hace daño dejarlo como respaldo si prefieres la eliminación manual por alguna razón,
+        // aunque el select en populate es más eficiente.
+        /*
         if (activityDetails && activityDetails.type === 'Quiz' && activityDetails.quiz_questions && Array.isArray(activityDetails.quiz_questions)) {
             activityDetails.quiz_questions.forEach(question => {
                 delete question.correct_answer;
             });
         }
-
+        */
 
         // Verificar que el estudiante es miembro aprobado del grupo (mantener)
         let group = null;
         if (assignmentDetails.theme_id?.module_id?.learning_path_id?.group_id) {
             group = assignmentDetails.theme_id.module_id.learning_path_id.group_id;
-            // Refactor: Use isApprovedGroupMember
             const isMember = await isApprovedGroupMember(studentId, group._id);
             if (!isMember) {
                 return res.status(403).json({ message: 'No tienes permiso para acceder a esta actividad. No eres miembro aprobado del grupo.' });
@@ -97,7 +102,6 @@ const getStudentActivityForAttempt = async (req, res, next) => {
         } else {
             return res.status(500).json({ message: 'Error interno del servidor al obtener la información del grupo.' });
         }
-
 
         // Contar intentos previos (mantener)
         const attemptsUsed = await Submission.countDocuments({
@@ -112,7 +116,6 @@ const getStudentActivityForAttempt = async (req, res, next) => {
         })
         .sort({ fecha_envio: -1 })
         .limit(1);
-
 
         // Verificar si la actividad es de un tipo que permite visualización (mantener)
         if (activityDetails.type !== 'Quiz' && activityDetails.type !== 'Cuestionario' && activityDetails.type !== 'Trabajo') {
@@ -133,11 +136,10 @@ const getStudentActivityForAttempt = async (req, res, next) => {
             shuffleArray(activityDetails.cuestionario_questions);
         }
 
-
-        // Enviar los detalles de la asignación, la actividad base, los intentos usados y la última entrega (mantener)
+        // Enviar los detalles de la asignación, la actividad base, los intentos usados y la última entrega
         res.status(200).json({
-            assignmentDetails: assignmentDetails, // Esto incluye el estado
-            activityDetails: activityDetails, // This will now have quiz_questions without correct_answer
+            assignmentDetails: assignmentDetails, // Esto incluye el estado y activity_id ya filtrado
+            activityDetails: activityDetails, // Este también tendrá quiz_questions sin correct_answer
             attemptsUsed: attemptsUsed,
             lastSubmission: lastSubmission
         });

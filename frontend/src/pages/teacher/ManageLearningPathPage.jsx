@@ -795,73 +795,64 @@ function ManageLearningPathPage() {
         
           <Box
               sx={{
-                display: 'flex',
-                alignItems: 'flex-start', // Alinea ambos elementos al inicio (arriba)
-                justifyContent: 'space-between',
-                flexWrap: { xs: 'wrap', md: 'nowrap' } // Hace que se apilen en pantallas pequeñas, si es necesario
+                boxShadow: 2,
+                borderRadius: 3,
+                bgcolor: 'background.paper',
+                p: 3,
+                maxWidth: 600,
+                mx: 'auto',
+                // border: '1px solid',
+                borderColor: 'divider',
               }}
             >
-              <Box 
-                sx={{ 
-                      flex: 1, textAlign: 'right',
-                      mr: 2, mt: 6,
-                }}>
-                <Typography
-                  variant="overline"
-                  display="block"
-                  align="right"
-                  color="text.secondary"
-                >
-                  Ruta de Aprendizaje
-                </Typography>
-                <Typography
-                  variant="h4"
-                  align="right"
-                  //fontWeight="bold"
-                  gutterBottom
-                  sx={{ mb: 3 }}
-                >
-                  {learningPath.nombre}
-                </Typography>
-              </Box>
-
-              <Box
-                sx={{
-                  p: theme.spacing(3), // Usa el espaciado del theme
-                  mb: theme.spacing(4), // Define margen inferior
-                  maxWidth: 'sm', // Tamaño máximo
-                  width: '100%',
-                  textAlign: 'left',
-                  mx: 'auto', 
-                }}
+              <Typography
+                variant="overline"
+                color="text.secondary"
+                sx={{ mb: 1, display: 'block', letterSpacing: 1 }}
               >
-                <Typography variant="h6" gutterBottom>
-                  Detalles de la Ruta
-                </Typography>
-                <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-                  {learningPath.descripcion ||
-                    "Esta ruta de aprendizaje no tiene una descripción detallada."}
-                </Typography>
-
+                Ruta de Aprendizaje
+              </Typography>
+              
+              <Typography
+                variant="h5"
+                fontWeight="bold"
+                gutterBottom
+                sx={{ mb: 3, color: 'primary.light',textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}
+              >
+                {learningPath.nombre}
+              </Typography>
+              
+              <Typography
+                variant="body1"
+                color="text.secondary"
+                sx={{ mb: 3, lineHeight: 1.6 }}
+              >
+                {learningPath.descripcion ||
+                  "Esta ruta de aprendizaje no tiene una descripción detallada."}
+              </Typography>
+              
+              <Stack spacing={2}>
                 {learningPath.group_id?.nombre && (
                   <Chip
                     label={`Grupo: ${learningPath.group_id.nombre}`}
-                    variant="outlined"
-                    sx={{ mb: 1 }}
+                    variant="filled"
+                    color="text.primary"
+                    size="medium"
+                    sx={{ alignSelf: 'flex-start' }}
                   />
                 )}
-
+                
                 <Stack
-                  direction="row"
-                  spacing={2}
-                  justifyContent="left"
-                  sx={{ mt: 1 }}
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={1}
+                  sx={{ mt: 2 }}
                 >
                   {learningPath.fecha_inicio && (
                     <Chip
                       label={`Inicio: ${new Date(learningPath.fecha_inicio).toLocaleDateString()}`}
                       variant="outlined"
                       size="small"
+                      color="success"
                     />
                   )}
                   {learningPath.fecha_fin && (
@@ -869,16 +860,17 @@ function ManageLearningPathPage() {
                       label={`Fin: ${new Date(learningPath.fecha_fin).toLocaleDateString()}`}
                       variant="outlined"
                       size="small"
+                      color="warning"
                     />
                   )}
                 </Stack>
-              </Box>
+              </Stack>
             </Box>
 
         {/* --- Renderizar Módulos --- */}
         <Box display="flex" flexDirection="row" alignItems="center" justifyContent="space-between" sx={{ mt: 0, mb: 2 }}> {/* Adjusted mb */}
-          <Typography variant="h5" gutterBottom sx={{ mt: 2, mb: 0 }}> {/* Adjusted mb */}
-            Estructura de la Ruta
+          <Typography variant="h5" gutterBottom sx={{ mt: 2, mb: 0, textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}> {/* Adjusted mb */}
+            Estructura de la Ruta:
           </Typography>
           
           {/* Botón de Acción General (Añadir Módulo) */}

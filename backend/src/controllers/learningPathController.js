@@ -658,26 +658,23 @@ const getLearningPathStructure = async (req, res) => {
     }
 };
 
-// @desc    Obtener todas las Rutas de Aprendizaje asignadas al usuario autenticado
+// @desc    Obtener todas las Rutas de Aprendizaje asignadas al usuario autenticado con su estado
 // @route   GET /api/learning-paths/my-assigned
 // Acceso:  Privado (manejado por el middleware 'protect')
 const getMyAssignedLearningPaths = async (req, res) => {
     try {
         const userId = req.user._id;
 
-        // Paso 1: Obtener las membresías aprobadas del estudiante.
-        // Es crucial popular el 'grupo_id' y seleccionar el campo 'activo' del grupo.
         const approvedMemberships = await Membership.find({
             usuario_id: userId,
             estado_solicitud: 'Aprobado'
         }).populate({
             path: 'grupo_id',
-            select: 'activo' // <-- IMPORTANTE: Incluir el campo 'activo' del grupo
+            select: 'activo'
         });
 
-        // Paso 2: Filtrar los IDs de los grupos que están activos (no archivados).
         const activeGroupIds = approvedMemberships
-            .filter(membership => membership.grupo_id && membership.grupo_id.activo) // <-- Filtrar por grupo.activo
+            .filter(membership => membership.grupo_id && membership.grupo_id.activo)
             .map(membership => membership.grupo_id._id);
 
         if (activeGroupIds.length === 0) {
@@ -688,35 +685,46 @@ const getMyAssignedLearningPaths = async (req, res) => {
             });
         }
 
-        // Paso 3: Buscar las Rutas de Aprendizaje asociadas SOLO a los grupos activos.
-        // No es necesario poblar el grupo aquí nuevamente si ya lo tenemos filtrado,
-        // pero lo hacemos para obtener el nombre del grupo si lo necesitas en la respuesta.
+        // Obtener las rutas de aprendizaje asociadas a los grupos activos
         const rawAssignedPaths = await LearningPath.find({
             group_id: { $in: activeGroupIds }
         })
-        .populate('group_id', 'nombre'); // Solo necesitamos el nombre del grupo para la respuesta
+        .populate('group_id', 'nombre'); // Para obtener el nombre del grupo
 
-        // Paso 4: Formatear los resultados.
-        const formattedAssignedPaths = rawAssignedPaths.map(lp => {
-            // Verifica que lp.group_id no sea nulo antes de intentar acceder a sus propiedades
-            // Esta verificación sigue siendo útil por si alguna LP quedó huérfana de grupo,
-            // aunque ya filtramos por activeGroupIds.
+        // Calcular el estado de cada ruta de aprendizaje usando el modelo Progress
+        const formattedAssignedPaths = await Promise.all(rawAssignedPaths.map(async (lp) => {
             if (!lp.group_id) {
                 console.warn(`Ruta de aprendizaje ${lp._id} tiene una referencia de grupo nula o el grupo no fue populado.`);
                 return null;
             }
+
+            // Buscar el progreso del estudiante para esta ruta específica
+            const studentProgress = await Progress.findOne({
+                student_id: userId,
+                learning_path_id: lp._id
+            });
+
+            // Determinar el estado de la ruta. Si no hay documento de progreso, se asume 'No Iniciado'.
+            const status = studentProgress ? studentProgress.path_status : 'No Iniciado';
+
             return {
                 _id: lp._id,
                 nombre: lp.nombre,
                 group_id: lp.group_id._id,
-                group_name: lp.group_id.nombre
+                group_name: lp.group_id.nombre,
+                status: status, // <--- ¡Ahora usamos el 'path_status' de tu modelo Progress!
+                // Si quieres, podrías calcular un porcentaje de progreso aquí basado en completed_themes
+                // y los temas totales de la LearningPath si tu modelo LearningPath los tiene.
+                // Por ahora, solo enviamos el status directo.
             };
-        }).filter(item => item !== null); // Filtra cualquier entrada nula si se produjo alguna
+        }));
+
+        const finalPaths = formattedAssignedPaths.filter(item => item !== null);
 
         res.status(200).json({
             success: true,
-            count: formattedAssignedPaths.length,
-            data: formattedAssignedPaths
+            count: finalPaths.length,
+            data: finalPaths
         });
 
     } catch (error) {
@@ -961,32 +969,25 @@ const deleteModule = async (req, res, next) => { // Añadir 'next'
 // @desc    Actualizar un Tema específico
 // @route   PUT /api/themes/:themeId
 // @access  Privado/Docente
-const updateTheme = async (req, res, next) => { // Añadir 'next'
-    const { themeId } = req.params; // Obtiene el ID del tema
-    // Obtiene los datos actualizados del cuerpo de la petición
+const updateTheme = async (req, res, next) => {
+    const { themeId } = req.params;
     const { nombre, descripcion, orden } = req.body;
 
-    // *** Validación básica de entrada (puedes ampliarla) ***
-    // Al menos uno de los campos debe estar presente para actualizar
     if (nombre === undefined && descripcion === undefined && orden === undefined) {
         return res.status(400).json({ message: 'Se deben proporcionar datos para actualizar el tema (nombre, descripción u orden).' });
     }
-    // Validación si se proporciona el orden
     if (orden !== undefined && (typeof orden !== 'number' || orden < 0)) {
         return res.status(400).json({ message: 'El orden debe ser un número válido no negativo.' });
     }
-    // *** Fin Validación básica ***
 
     try {
-        // --- Buscar y Verificar Propiedad del Tema ---
-        // Necesitamos popular el tema -> módulo -> ruta -> grupo para verificar el docente_id
-        const themeToUpdate = await Theme.findById(themeId).populate({ // Pobla el módulo
+        const themeToUpdate = await Theme.findById(themeId).populate({
             path: 'module_id',
-            populate: { // Pobla la ruta
+            populate: {
                 path: 'learning_path_id',
-                populate: { // Pobla el grupo
+                populate: {
                     path: 'group_id',
-                    select: 'docente_id activo' // Solo necesitamos el ID del docente del grupo
+                    select: 'docente_id activo'
                 }
             }
         });
@@ -995,33 +996,34 @@ const updateTheme = async (req, res, next) => { // Añadir 'next'
             return res.status(404).json({ message: 'Tema no encontrado.' });
         }
 
-        // Comprueba si la jerarquía completa existe y si el grupo pertenece al docente
-        if (!moduleToUpdate.learning_path_id || !moduleToUpdate.learning_path_id.group_id || !moduleToUpdate.learning_path_id.group_id.docente_id.equals(req.user._id) || !moduleToUpdate.learning_path_id.group_id.activo) {
-             return res.status(403).json({ message: 'No tienes permiso para actualizar este módulo. No te pertenece o el grupo está inactivo.' }); // 403 Forbidden
+        // *** CORRECCIÓN CRUCIAL AQUÍ ***
+        // Se debe usar 'themeToUpdate' en lugar de 'moduleToUpdate'
+        // Y el mensaje de error debe reflejar que es un "tema"
+        if (!themeToUpdate.module_id ||
+            !themeToUpdate.module_id.learning_path_id ||
+            !themeToUpdate.module_id.learning_path_id.group_id ||
+            !themeToUpdate.module_id.learning_path_id.group_id.docente_id.equals(req.user._id) ||
+            !themeToUpdate.module_id.learning_path_id.group_id.activo)
+        {
+            return res.status(403).json({ message: 'No tienes permiso para actualizar este tema. No te pertenece o el grupo está inactivo.' });
         }
         // --- Fin Verificación de Propiedad ---
 
-
-        // --- Actualizar los campos del Tema ---
         if (nombre !== undefined) themeToUpdate.nombre = nombre;
         if (descripcion !== undefined) themeToUpdate.descripcion = descripcion;
-        if (orden !== undefined) themeToUpdate.orden = orden; // NOTA: Gestionar la unicidad del orden es lógica adicional
+        if (orden !== undefined) themeToUpdate.orden = orden;
 
-
-        // Guardar los cambios
         const updatedTheme = await themeToUpdate.save();
 
-        // --- Respuesta exitosa ---
-        res.status(200).json(updatedTheme); // Responde con el tema actualizado
+        res.status(200).json(updatedTheme);
 
     } catch (error) {
-        // Si el error es de validación de Mongoose
         if (error.name === 'ValidationError') {
             const messages = Object.values(error.errors).map(val => val.message);
             return res.status(400).json({ message: 'Error de validación al actualizar el tema', errors: messages });
         }
         console.error('Error al actualizar tema:', error);
-        next(error); // Pasa el error al siguiente middleware
+        next(error);
     }
 };
 

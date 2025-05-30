@@ -159,7 +159,7 @@ function StudentProgressPage() {
       {selectedPath && !loading && progress && (
         <Paper sx={{ p: 3, mb: 3 }}>
           <Typography variant="h6" gutterBottom>
-            Progreso en la Ruta: {translateStatus(progress.path_status)}
+            Estado Actual: {translateStatus(progress.path_status)}
           </Typography>
           
           {progress.total_activities > 0 ? (
