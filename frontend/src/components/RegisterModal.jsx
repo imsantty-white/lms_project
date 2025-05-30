@@ -1,5 +1,5 @@
 // src/components/RegisterModal.jsx
-import React, { useState, forwardRef } from 'react';
+import React, { useState, forwardRef, useEffect } from 'react';
 import {
   Modal,
   Box,
@@ -12,16 +12,14 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  // Divider, // Puedes quitar los dividers si el espaciado del Stack es suficiente
   CircularProgress,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import ConfirmationModal from './ConfirmationModal'; // Asegúrate de que la ruta sea correcta
+import ConfirmationModal from './ConfirmationModal';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 
-// Estilos del modal (sin cambios)
 const modalStyle = {
   width: { xs: '90%', sm: 400 },
   bgcolor: 'background.paper',
@@ -41,14 +39,16 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
   const [nombre, setNombre] = useState('');
   const [apellidos, setApellidos] = useState('');
   const [email, setEmail] = useState('');
+  const [telefono, setTelefono] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [userType, setUserType] = useState('Estudiante');
 
   const [isLoading, setIsLoading] = useState(false);
   const [passwordMatchError, setPasswordMatchError] = useState(false);
+  const [telefonoError, setTelefonoError] = useState('');
 
-  // Estado para el modal de confirmación y los datos pendientes
+
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [confirmModalProps, setConfirmModalProps] = useState({
     title: '',
@@ -56,11 +56,30 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
     onConfirm: () => {},
     confirmText: 'Confirmar',
     showCancelButton: true,
-    cancelText: 'Cancelar' // Asumiendo que tu ConfirmationModal puede tener un texto para cancelar
+    cancelText: 'Cancelar'
   });
-  const [registrationDataToSubmit, setRegistrationDataToSubmit] = useState(null);
+  // registrationDataToSubmit se mantiene por si el usuario cancela el modal de confirmación
+  // y necesitamos saber qué datos limpiar o alguna otra lógica.
+  const [_registrationDataToSubmit, setRegistrationDataToSubmit] = useState(null);
 
-  // Función que realmente ejecuta el registro
+
+  useEffect(() => {
+    if (userType !== 'Docente') {
+      setTelefono('');
+      setTelefonoError('');
+    }
+  }, [userType]);
+
+  const clearFormFields = () => {
+    setNombre('');
+    setApellidos('');
+    setEmail('');
+    setTelefono('');
+    setTelefonoError('');
+    setPassword('');
+    setConfirmPassword('');
+  };
+
   const performRegistration = async (data) => {
     if (!data) {
       toast.error("Error interno: No hay datos para el registro.");
@@ -68,7 +87,7 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
     }
     setIsLoading(true);
     try {
-      const result = await register(data); // register es de useAuth()
+      const result = await register(data); 
 
       if (result.success) {
         toast.success(result.message || (data.tipo_usuario === 'Docente' 
@@ -76,17 +95,11 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
           : '¡Registro exitoso!')
         );
         
-        // Limpiar campos del formulario
-        setNombre('');
-        setApellidos('');
-        setEmail('');
-        setPassword('');
-        setConfirmPassword('');
-        // setUserType('Estudiante'); // Opcional: resetear tipo de usuario
+        clearFormFields();
 
         setTimeout(() => {
-          onClose(); // Cierra el modal principal de registro
-        }, 1500); // Dar tiempo para ver el toast
+          onClose(); 
+        }, 1500); 
       } else {
         toast.error(result.message || 'Error al registrar el usuario.');
       }
@@ -95,14 +108,16 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
       toast.error("Ocurrió un error inesperado durante el registro.");
     } finally {
       setIsLoading(false);
-      setRegistrationDataToSubmit(null); // Limpiar datos pendientes
+      // Limpiar registrationDataToSubmit aquí también es buena idea después de un intento de envío
+      setRegistrationDataToSubmit(null); 
     }
   };
 
-  // Manejador del envío del formulario principal
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setPasswordMatchError(false);
+    setTelefonoError('');
 
     if (password !== confirmPassword) {
       setPasswordMatchError(true);
@@ -110,40 +125,71 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
       return;
     }
 
-    const currentData = { nombre, apellidos, email, password, tipo_usuario: userType };
+    if (userType === 'Docente') {
+      const telefonoTrimmed = telefono.trim();
+      if (!telefonoTrimmed) {
+        setTelefonoError('El teléfono es obligatorio para docentes.');
+        toast.error('El teléfono es obligatorio para docentes.');
+        return;
+      }
+      const colombianPhoneRegex = /^(30[0-5]|31\d|32[0-4]|35[01])\d{7}$/;
+      if (!colombianPhoneRegex.test(telefonoTrimmed)) {
+        setTelefonoError('El teléfono debe ser un número colombiano válido de 10 dígitos (ej: 3001234567).');
+        toast.error('El teléfono debe ser un número colombiano válido de 10 dígitos (ej: 3001234567, 3151234567, etc.).');
+        return;
+      }
+    }
+
+    // --- CREAR EL OBJETO DE DATOS UNA VEZ ---
+    const dataToSubmit = {
+      nombre,
+      apellidos,
+      email,
+      password,
+      tipo_usuario: userType,
+      ...(userType === 'Docente' && { telefono: telefono.trim() })
+    };
+    // --------------------------------------
 
     if (userType === 'Docente') {
-      setRegistrationDataToSubmit(currentData); // Guardar datos para usarlos después de la confirmación
+      // Guardar en el estado por si el usuario cancela el modal de confirmación
+      // y necesitas alguna lógica con esos datos (aunque aquí solo lo limpiamos)
+      setRegistrationDataToSubmit(dataToSubmit); 
+      
       setConfirmModalProps({
         title: 'Confirmación de Registro de Docente',
         message: 'Las cuentas para "Docente" requieren una aprobación administrativa antes de ser activadas. Al confirmar, tu solicitud será enviada para revisión. ¿Deseas continuar?',
-        onConfirm: () => {
-          setIsConfirmModalOpen(false); // Cerrar modal de confirmación
-          if (registrationDataToSubmit) {
-            performRegistration(registrationDataToSubmit); // Proceder con el registro
-          }
+        // --- CORRECCIÓN AQUÍ ---
+        onConfirm: () => { // Esta es la función que se pasará al prop del ConfirmationModal
+          setIsConfirmModalOpen(false); 
+          performRegistration(dataToSubmit); // <--- Usar dataToSubmit capturada en este closure
         },
+        // ----------------------
         confirmText: 'Sí, continuar',
         showCancelButton: true,
         cancelText: 'Cancelar',
       });
       setIsConfirmModalOpen(true);
-    } else { // Para 'Estudiante' u otros tipos de registro directo
-      await performRegistration(currentData);
+    } else { 
+      await performRegistration(dataToSubmit); // Usar dataToSubmit también aquí
     }
   };
 
-  // Manejador para cerrar el modal de confirmación (si el usuario cancela o cierra)
   const handleCloseConfirmationModal = () => {
     setIsConfirmModalOpen(false);
-    setRegistrationDataToSubmit(null); // Limpiar datos pendientes si se cancela la confirmación
+    setRegistrationDataToSubmit(null); 
+  };
+
+  const handleMainModalClose = () => {
+    clearFormFields(); 
+    onClose();
   };
 
   return (
     <>
       <Modal
         open={open}
-        onClose={onClose}
+        onClose={handleMainModalClose}
         aria-labelledby="register-modal-title"
         aria-describedby="register-modal-description"
         sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -169,7 +215,7 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
                 <Typography id="register-modal-title" variant="h5" component="h2" gutterBottom sx={{ textShadow: '1px 1px 2px rgba(0, 0, 0, 0.7)' }}>
                   Crear Cuenta
                 </Typography>
-                <IconButton onClick={onClose} aria-label="cerrar modal de registro">
+                <IconButton onClick={handleMainModalClose} aria-label="cerrar modal de registro">
                   <CloseIcon />
                 </IconButton>
               </Stack>
@@ -202,6 +248,29 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
                   label="Email" type="email" fullWidth required value={email} onChange={(e) => setEmail(e.target.value)}
                   disabled={isLoading} variant="outlined" autoComplete="email" size="small" InputProps={{sx: { borderRadius: '24px'}}}
                 />
+
+                {userType === 'Docente' && (
+                  <TextField
+                    label="Teléfono (10 dígitos, ej: 3001234567)"
+                    type="tel"
+                    fullWidth
+                    required
+                    value={telefono}
+                    onChange={(e) => {
+                      setTelefono(e.target.value);
+                      if (telefonoError) setTelefonoError('');
+                    }}
+                    disabled={isLoading}
+                    variant="outlined"
+                    autoComplete="tel"
+                    size="small"
+                    InputProps={{sx: { borderRadius: '24px'}}}
+                    error={!!telefonoError}
+                    helperText={telefonoError}
+                    inputProps={{ maxLength: 10 }}
+                  />
+                )}
+
                 <TextField
                   label="Contraseña" type="password" size="small" fullWidth required value={password} onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading} variant="outlined" autoComplete="new-password" InputProps={{sx: { borderRadius: '24px'}}}
@@ -227,13 +296,13 @@ const RegisterModal = forwardRef(({ open, onClose }, ref) => {
 
       <ConfirmationModal
         open={isConfirmModalOpen}
-        onClose={handleCloseConfirmationModal} // Se encarga de cerrar y limpiar datos pendientes
-        onConfirm={confirmModalProps.onConfirm} // Ejecuta la acción de confirmación (registrar al docente)
+        onClose={handleCloseConfirmationModal} 
+        onConfirm={confirmModalProps.onConfirm} 
         title={confirmModalProps.title}
         message={confirmModalProps.message}
         confirmButtonText={confirmModalProps.confirmText}
-        showCancelButton={confirmModalProps.showCancelButton} // Asegúrate que tu ConfirmationModal use esta prop
-        cancelButtonText={confirmModalProps.cancelText || "Cancelar"} // Y esta, si la soporta
+        showCancelButton={confirmModalProps.showCancelButton} 
+        cancelButtonText={confirmModalProps.cancelText || "Cancelar"} 
       />
     </>
   );

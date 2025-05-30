@@ -278,7 +278,7 @@ function AdminGroupManagementPage() {
                     <>
                         <TableContainer component={Paper} sx={{ mt: 0 }}>
                             <Table size="small">
-                                <TableHead sx={{ background: 'linear-gradient(135deg,rgb(194, 166, 245) 0%,rgb(214, 146, 241) 100%)' }}>
+                                <TableHead sx={{ background: 'linear-gradient(135deg,rgb(97, 95, 102) 0%,rgb(151, 147, 153) 100%)' }}>
                                     <TableRow>
                                         <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Nombre del Grupo</TableCell>
                                         <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Docente Creador</TableCell>

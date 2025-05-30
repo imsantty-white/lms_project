@@ -5,18 +5,25 @@ const NotificationService = require('../services/NotificationService'); // Impor
 
 // Función del controlador para manejar el registro de usuarios
 const registerUser = async (req, res) => {
-  // Solo extrae los campos permitidos
-  const { nombre, apellidos, email, password, tipo_usuario } = req.body;
+  // Solo extrae los campos permitidos, incluyendo telefono
+  const { nombre, apellidos, email, password, tipo_usuario, telefono } = req.body; // <--- AÑADIR telefono aquí
 
   // --- Validación básica de entrada ---
   if (!nombre || !apellidos || !email || !password || !tipo_usuario) {
-    return res.status(400).json({ message: 'Por favor, completa todos los campos obligatorios' });
+    return res.status(400).json({ message: 'Por favor, completa todos los campos obligatorios: nombre, apellidos, email, contraseña y tipo de usuario.' });
   }
 
   // Validar que tipo_usuario sea uno permitido
   if (!['Estudiante', 'Docente'].includes(tipo_usuario)) {
     return res.status(400).json({ message: 'Tipo de usuario no válido. Debe ser "Estudiante" o "Docente".' });
   }
+
+  // --- NUEVA VALIDACIÓN: Telefono obligatorio para Docentes ---
+  if (tipo_usuario === 'Docente' && (!telefono || telefono.trim() === '')) {
+    return res.status(400).json({ message: 'El teléfono es obligatorio para el registro de docentes.' });
+  }
+  // Aquí podrías añadir más validaciones para el formato del teléfono si es necesario,
+  // aunque tu modelo User ya tiene algunas validaciones para 'telefono'.
 
   try {
     // --- Verificar si el email ya existe ---
@@ -25,22 +32,30 @@ const registerUser = async (req, res) => {
       return res.status(400).json({ message: 'El email ya está registrado. Por favor, usa otro.' });
     }
 
-    // --- Crear el nuevo usuario SOLO con los campos permitidos ---
-    const user = await User.create({
+    // --- Preparar datos para crear el nuevo usuario ---
+    const userData = {
       nombre,
       apellidos,
       email,
       contrasena_hash: password, // El modelo hará el hash automáticamente
       tipo_usuario,
       aprobado: tipo_usuario === 'Estudiante' ? true : false,
-    });
+    };
+
+    // Añadir telefono solo si es Docente y se proporcionó
+    if (tipo_usuario === 'Docente' && telefono) {
+      userData.telefono = telefono.trim();
+    }
+    // --- Fin Preparar datos ---
+
+    const user = await User.create(userData);
 
     if (user) {
       // Notificar a los administradores sobre el nuevo registro
       try {
         const admins = await User.find({ tipo_usuario: 'Administrador' });
         const message = `Un nuevo usuario '${user.nombre} ${user.apellidos}' (${user.email}) se ha registrado como ${user.tipo_usuario}.`;
-        const link = '/admin/user-management';
+        const link = '/admin/user-management'; // O la ruta que uses para la gestión de usuarios en el admin panel
 
         for (const admin of admins) {
           await NotificationService.createNotification({
@@ -54,10 +69,10 @@ const registerUser = async (req, res) => {
         console.log('Notificaciones de nuevo usuario enviadas a los administradores.');
       } catch (notificationError) {
         console.error('Error al enviar notificación de nuevo usuario a los administradores:', notificationError);
-        // No es necesario devolver un error al cliente por esto, el registro fue exitoso.
       }
 
-      res.status(201).json({
+      // Preparar la respuesta
+      const responseUser = {
         _id: user._id,
         nombre: user.nombre,
         apellidos: user.apellidos,
@@ -65,27 +80,32 @@ const registerUser = async (req, res) => {
         tipo_usuario: user.tipo_usuario,
         aprobado: user.aprobado,
         message: 'Usuario registrado exitosamente. Si eres docente, tu cuenta requiere aprobación.'
-      });
+      };
+      // Añadir telefono a la respuesta si es docente
+      if (user.tipo_usuario === 'Docente' && user.telefono) {
+        responseUser.telefono = user.telefono;
+      }
+
+      res.status(201).json(responseUser);
+
     } else {
-      res.status(400).json({ message: 'No se pudo registrar el usuario' });
+      res.status(400).json({ message: 'No se pudo registrar el usuario debido a datos inválidos.' }); // Mensaje ligeramente modificado
     }
 
   } catch (error) {
-    // Manejo de errores de validación de Mongoose
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(val => val.message);
-      return res.status(400).json({ message: messages.join(', ') });
+      // Añadir un mensaje más genérico si los específicos son muy técnicos
+      return res.status(400).json({ message: 'Error de validación. Verifica los datos ingresados.', errors: messages });
     }
-    // Error por email duplicado (índice único)
     if (error.code === 11000 && error.keyPattern && error.keyPattern.email) {
-      return res.status(400).json({ message: 'No se pudo registrar el usuario' });
+      // Este error ya se maneja arriba con findOne, pero es una salvaguarda.
+      return res.status(400).json({ message: 'El email ya está registrado.' });
     }
-    // Otros errores
     console.error('Error en el registro de usuario:', error);
-    res.status(500).json({ message: 'Error interno del servidor al registrar usuario' });
+    res.status(500).json({ message: 'Error interno del servidor al registrar usuario.' });
   }
 };
-
 
 // Función del controlador para manejar el login de usuarios
 const loginUser = async (req, res) => {

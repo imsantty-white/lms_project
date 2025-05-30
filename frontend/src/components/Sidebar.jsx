@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import { Link, useLocation, useNavigate } from 'react-router-dom'; // Import useNavigate
 import { useAuth } from '../contexts/AuthContext';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 
 // Iconos
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -345,11 +345,11 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            p: 2,
+            p: 1,
             //borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
           }}
         >
-          <Typography variant="body1" sx={{ fontWeight: 700, color: theme.palette.primary.light }}>
+          <Typography variant="body1" sx={{ fontWeight: 700, color: theme.palette.primary.light, ml: 2 }}>
             Menú
           </Typography>
           <IconButton
@@ -363,7 +363,7 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
               transition: 'all 0.3s ease',
             }}
           >
-            <ChevronLeftIcon />
+            <ChevronRightIcon />
           </IconButton>
         </Box>
 

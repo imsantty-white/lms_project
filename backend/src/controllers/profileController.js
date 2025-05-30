@@ -10,11 +10,30 @@ const mongoose = require('mongoose');
 // @access  Privado
 const getProfile = async (req, res) => {
   try {
+    // MODIFICACIÓN: Solo excluir contrasena_hash. numero_identificacion SÍ se enviará.
     const user = await User.findById(req.user._id).select('-contrasena_hash');
+
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
-    res.json(user.toObject());
+
+    const userObject = user.toObject();
+
+    if (userObject.tipo_usuario === 'Estudiante') {
+        try {
+            const count = await Membership.countDocuments({
+                usuario_id: userObject._id,
+                estado_solicitud: 'Aprobado'
+            });
+            userObject.numero_grupos_unidos = count;
+        } catch (countError) {
+            console.error(`Error al contar grupos para el propio estudiante ${userObject._id}:`, countError);
+        }
+    }
+
+    // numero_identificacion estará presente en userObject si existe en el documento y no se excluyó.
+    res.json(userObject);
+
   } catch (error) {
     console.error('Error al obtener el perfil:', error);
     res.status(500).json({ message: 'Error al obtener el perfil', error: error.message });
@@ -103,7 +122,7 @@ const getStudentProfileForTeacher = async (req, res) => {
 };
 
 // @desc    Obtener perfil de cualquier usuario por parte de un administrador
-// @route   GET /api/profile/admin/:userId (Asegúrate que esta ruta corresponda a la de tu router)
+// @route   GET /api/profile/admin/:userId
 // @access  Privado (Administrador)
 const getUserProfileForAdmin = async (req, res) => {
   try {
@@ -121,7 +140,28 @@ const getUserProfileForAdmin = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado.' });
     }
-    res.json(user.toObject());
+
+    // Convertir a objeto plano para poder modificarlo antes de enviar
+    const userObject = user.toObject(); 
+
+    // --- INICIO DE LA MODIFICACIÓN ---
+    if (userObject.tipo_usuario === 'Estudiante') {
+        try {
+            const count = await Membership.countDocuments({
+                usuario_id: userObject._id, // Usar el _id del perfil que se está viendo
+                estado_solicitud: 'Aprobado'
+            });
+            userObject.numero_grupos_unidos = count;
+        } catch (countError) {
+            console.error(`Error al contar grupos para estudiante ${userObject._id}:`, countError);
+            // No necesariamente hacer fallar la petición, pero el campo no estará.
+            // Podrías asignar null o un mensaje de error si prefieres:
+            // userObject.numero_grupos_unidos = 'Error al contar'; 
+        }
+    }
+    // --- FIN DE LA MODIFICACIÓN ---
+
+    res.json(userObject); // Enviar el objeto modificado
 
   } catch (error) {
     console.error('Error en getUserProfileForAdmin:', error);

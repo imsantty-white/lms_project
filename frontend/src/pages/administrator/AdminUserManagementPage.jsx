@@ -25,9 +25,14 @@ import {
   FormControl,
   InputLabel,
   Grid,
+  IconButton,
+  Tooltip,
   Pagination
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded'; // Para Aprobar
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';         // Para Activar
+import UnpublishedIcon from '@mui/icons-material/Unpublished';
 import { useAuth, axiosInstance } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { debounce } from 'lodash';
@@ -280,13 +285,12 @@ function AdminUserManagementPage() {
                         </Grid>
                         <Grid item xs={12} sm={6} md={2}>
                             <FormControl fullWidth size="small">
-                                <InputLabel>Tipo de Usuario</InputLabel>
                                 <Select
                                     value={tipoUsuarioFiltro}
-                                    label="Tipo de Usuario"
                                     onChange={handleTipoUsuarioChange}
+                                    displayEmpty
                                 >
-                                    <MenuItem value=""><em>Todos</em></MenuItem>
+                                    <MenuItem value="" >Todos</MenuItem>
                                     <MenuItem value="Estudiante">Estudiante</MenuItem>
                                     <MenuItem value="Docente">Docente</MenuItem>
                                     <MenuItem value="Administrador">Administrador</MenuItem>
@@ -295,15 +299,14 @@ function AdminUserManagementPage() {
                         </Grid>
                         <Grid item xs={12} sm={6} md={2}>
                              <FormControl fullWidth size="small">
-                                <InputLabel>Items por página</InputLabel>
                                 <Select
                                     value={limit}
-                                    label="Items por página"
                                     onChange={handleLimitChange}
+                                    displayEmpty
                                 >
-                                    <MenuItem value={10}>10</MenuItem>
-                                    <MenuItem value={25}>25</MenuItem>
-                                    <MenuItem value={50}>50</MenuItem>
+                                    <MenuItem value={10}>Filtrar por 10</MenuItem>
+                                    <MenuItem value={25}>Filtrar por 25</MenuItem>
+                                    <MenuItem value={50}>Filtrar por 50</MenuItem>
                                 </Select>
                             </FormControl>
                         </Grid>
@@ -343,12 +346,12 @@ function AdminUserManagementPage() {
                     <>
                         <TableContainer component={Paper} sx={{ mt: 0 }}>
                             <Table size="small" aria-label="Tabla de gestión de usuarios">
-                                <TableHead sx={{ background: 'linear-gradient(135deg,rgb(194, 166, 245) 0%,rgb(214, 146, 241) 100%)' }}>
+                                <TableHead sx={{ background: 'linear-gradient(135deg,rgb(104, 101, 110) 0%,rgb(154, 129, 163) 100%)' }}>
                                     <TableRow>
                                         <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Nombre Completo</TableCell>
                                         <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Email</TableCell>
-                                        <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Tipo</TableCell>
-                                        <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Aprobación (Docente) / Grupo (Estudiante)</TableCell>
+                                        <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Tipo Usuario</TableCell>
+                                        <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Aprobación (Docente)</TableCell>
                                         <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Nº Grupos (Docente)</TableCell>
                                         <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Estado Cuenta</TableCell>
                                         <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Acciones</TableCell>
@@ -388,17 +391,29 @@ function AdminUserManagementPage() {
                                             }}
                                         />
                                         </TableCell>
-                                    <TableCell>
-                                        {userItem.tipo_usuario === 'Docente' ? (
-                                            <Chip
-                                                label={userItem.aprobado ? 'Aprobado' : 'Pendiente'}
-                                                color={userItem.aprobado ? 'success' : 'warning'}
-                                                size="small"
-                                            />
-                                        ) : (
-                                            <Typography variant="body2" color="text.secondary">No Aplica</Typography>
-                                        )}
-                                    </TableCell>
+                                        <TableCell>
+                                            {userItem.tipo_usuario === 'Docente' ? (
+                                                <Chip
+                                                    label={userItem.aprobado ? 'Aprobado' : 'Pendiente'}
+                                                    color={userItem.aprobado ? 'success' : 'warning'}
+                                                    size="small"
+                                                />
+                                            ) : (
+                                                <Typography variant="body2" color="text.secondary" fontStyle={'italic'}>No Aplica</Typography>
+                                            )}
+                                        </TableCell>
+                                        {/* === CELDA AÑADIDA para Nº Grupos (Docente) === */}
+                                                <TableCell>
+                                                    {userItem.tipo_usuario === 'Docente' ? (
+                                                        <Typography variant="body2" >
+                                                            {userItem.numero_grupos_asignados !== undefined ? userItem.numero_grupos_asignados : 'N/A'}
+                                                        </Typography>
+                                                    ) : (
+                                                        <Typography variant="body2" color="text.secondary" fontStyle={'italic'} >
+                                                            No Aplica
+                                                        </Typography>
+                                                    )}
+                                                </TableCell>
                                     <TableCell>
                                         <Chip
                                             label={userItem.activo ? 'Activa' : 'Inactiva'}
@@ -407,56 +422,71 @@ function AdminUserManagementPage() {
                                         />
                                     </TableCell>
                                     <TableCell>
-                                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.5}> {/* Ajusta el spacing si es necesario */}
                                             {userItem.tipo_usuario === 'Docente' && !userItem.aprobado && (
-                                                <Button
-                                                    variant="contained"
-                                                    size="small"
-                                                    color="primary" // Cambiado a primary para diferenciar de Activar
-                                                    onClick={() => openConfirmationModal(
-                                                        () => handleApproveTeacher(userItem._id),
-                                                        `¿Estás seguro que deseas aprobar al docente ${userItem.nombre} ${userItem.apellidos}?`
-                                                    )}
-                                                    disabled={actionLoading[userItem._id]}
-                                                    startIcon={actionLoading[userItem._id] ? <CircularProgress size={16} color="inherit" /> : null}
-                                                >
-                                                    {actionLoading[userItem._id] ? 'Aprobando...' : 'Aprobar'}
-                                                </Button>
+                                                <Tooltip title={`Aprobar docente: ${userItem.nombre} ${userItem.apellidos}`}>
+                                                    <span> {/* Tooltip necesita un hijo que pueda referenciar, span lo asegura para IconButton deshabilitado */}
+                                                        <IconButton
+                                                            color="warning" // Color para la acción de aprobar
+                                                            onClick={() => openConfirmationModal(
+                                                                () => handleApproveTeacher(userItem._id),
+                                                                `¿Estás seguro que deseas aprobar al docente ${userItem.nombre} ${userItem.apellidos}?`
+                                                            )}
+                                                            disabled={actionLoading[userItem._id]}
+                                                        >
+                                                            {actionLoading[userItem._id] && actionLoading[userItem._id] === `approve-${userItem._id}` ? ( // Identificador único para la acción
+                                                                <CircularProgress size={20} color="inherit" />
+                                                            ) : (
+                                                                <PendingActionsRoundedIcon />
+                                                            )}
+                                                        </IconButton>
+                                                    </span>
+                                                </Tooltip>
                                             )}
 
-                                            {userItem._id !== user?._id && ( // Asegurarse que user exista
+                                            {userItem._id !== user?._id && userItem.tipo_usuario !== 'Administrador' && ( // No mostrar para el propio admin ni para otros admins
                                                 userItem.activo ? (
-                                                    <Button
-                                                        variant="outlined"
-                                                        size="small"
-                                                        color="warning"
-                                                        onClick={() =>
-                                                            openConfirmationModal(
-                                                                () => handleUpdateUserStatus(userItem._id, false),
-                                                                `¿Estás seguro que deseas desactivar la cuenta de ${userItem.nombre} ${userItem.apellidos}?`
-                                                            )
-                                                        }
-                                                        disabled={actionLoading[userItem._id]}
-                                                        startIcon={actionLoading[userItem._id] ? <CircularProgress size={16} color="inherit" /> : null}
-                                                    >
-                                                        {actionLoading[userItem._id] ? 'Desactivando...' : 'Desactivar'}
-                                                    </Button>
+                                                    <Tooltip title={`Desactivar cuenta: ${userItem.nombre} ${userItem.apellidos}`}>
+                                                        <span>
+                                                            <IconButton
+                                                                color="error" // Color para la acción de desactivar
+                                                                onClick={() =>
+                                                                    openConfirmationModal(
+                                                                        () => handleUpdateUserStatus(userItem._id, false),
+                                                                        `¿Estás seguro que deseas desactivar la cuenta de ${userItem.nombre} ${userItem.apellidos}?`
+                                                                    )
+                                                                }
+                                                                disabled={actionLoading[userItem._id]}
+                                                            >
+                                                                {actionLoading[userItem._id] && actionLoading[userItem._id] === `deactivate-${userItem._id}` ? (
+                                                                    <CircularProgress size={20} color="inherit" />
+                                                                ) : (
+                                                                    <UnpublishedIcon />
+                                                                )}
+                                                            </IconButton>
+                                                        </span>
+                                                    </Tooltip>
                                                 ) : (
-                                                    <Button
-                                                        variant="outlined"
-                                                        size="small"
-                                                        color="success"
-                                                        onClick={() =>
-                                                            openConfirmationModal(
-                                                                () => handleUpdateUserStatus(userItem._id, true),
-                                                                `¿Estás seguro que deseas activar la cuenta de ${userItem.nombre} ${userItem.apellidos}?`
-                                                            )
-                                                        }
-                                                        disabled={actionLoading[userItem._id]}
-                                                        startIcon={actionLoading[userItem._id] ? <CircularProgress size={16} color="inherit" /> : null}
-                                                    >
-                                                        {actionLoading[userItem._id] ? 'Activando...' : 'Activar'}
-                                                    </Button>
+                                                    <Tooltip title={`Activar cuenta: ${userItem.nombre} ${userItem.apellidos}`}>
+                                                        <span>
+                                                            <IconButton
+                                                                color="success" // Usar 'primary' o 'success' para activar
+                                                                onClick={() =>
+                                                                    openConfirmationModal(
+                                                                        () => handleUpdateUserStatus(userItem._id, true),
+                                                                        `¿Estás seguro que deseas activar la cuenta de ${userItem.nombre} ${userItem.apellidos}?`
+                                                                    )
+                                                                }
+                                                                disabled={actionLoading[userItem._id]}
+                                                            >
+                                                            {actionLoading[userItem._id] && actionLoading[userItem._id] === `activate-${userItem._id}` ? (
+                                                                    <CircularProgress size={20} color="inherit" />
+                                                                ) : (
+                                                                    <CheckCircleRoundedIcon />
+                                                                )}
+                                                            </IconButton>
+                                                        </span>
+                                                    </Tooltip>
                                                 )
                                             )}
                                         </Stack>
