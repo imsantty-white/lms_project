@@ -1,3 +1,4 @@
+// src/pages/administrator/AdminContactMessagesPage.jsx
 import React, { useEffect, useState, useCallback } from 'react';
 import {
     Container, Box, Typography, Paper, Alert, CircularProgress,
@@ -12,8 +13,10 @@ import es from 'date-fns/locale/es';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
+import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import ConfirmationModal from '../../components/ConfirmationModal'; // For potential future use
+import EmptyState from '../../components/EmptyState';
 
 function AdminContactMessagesPage() {
     const { user, isAuthenticated, isAuthInitialized } = useAuth();
@@ -182,7 +185,7 @@ function AdminContactMessagesPage() {
             )}
 
             {!isLoading && !error && messages.length === 0 && (
-                <EmptyState message="No hay mensajes de contacto que coincidan con los filtros seleccionados." icon={<MailOutlineIcon />} />
+                <EmptyState message="No hay mensajes de contacto que coincidan con los filtros seleccionados." icon={MailOutlineIcon} />
             )}
             
             {!isLoading && messages.length > 0 && (
@@ -242,9 +245,16 @@ function AdminContactMessagesPage() {
                                                     {actionLoading[msg._id] ? 'Marcando...' : 'Resuelto'}
                                                 </Button>
                                             )}
-                                            {/* <IconButton size="small" onClick={() => { /* TODO: Open modal to view full message */ }}>
-                                                <VisibilityIcon />
-                                            </IconButton> */}
+                                            {/*
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => {
+                                                    // TODO: Open modal to view full message
+                                                    }}
+                                                >
+                                                    <VisibilityIcon />
+                                                </IconButton>
+                                                */}
                                         </TableCell>
                                     </TableRow>
                                 ))}

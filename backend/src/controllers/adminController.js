@@ -458,23 +458,6 @@ const deleteGroupAsAdmin = async (req, res) => {
 };
 
 
-
-module.exports = {
-    getPendingDocentes,
-    approveDocente,
-    getAllUsers,
-    getUserById,
-    updateUserStatus,
-    getAllGroupsForAdmin,
-    deleteGroupAsAdmin,
-    createSystemNotification, // Added
-    getTechnicalSupportReports, // Added
-    getComplaintsAndClaims, // Added
-    getAdminContactMessages, // Added
-    getSystemStatistics, // Added
-    markMessageAsResolved // Added
-};
-
 // --- Nuevas Funciones ---
 
 // @desc    Crear una notificación del sistema para audiencias específicas o usuarios individuales
@@ -714,3 +697,20 @@ async function markMessageAsResolved(req, res) {
         });
     }
 }
+
+
+module.exports = {
+    getPendingDocentes,
+    approveDocente,
+    getAllUsers,
+    getUserById,
+    updateUserStatus,
+    getAllGroupsForAdmin,
+    deleteGroupAsAdmin,
+    createSystemNotification, // Added
+    getTechnicalSupportReports, // Added
+    getComplaintsAndClaims, // Added
+    getAdminContactMessages, // Added
+    getSystemStatistics, // Added
+    markMessageAsResolved // Added
+};

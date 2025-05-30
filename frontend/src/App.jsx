@@ -8,6 +8,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import HomePage from './pages/HomePage';
+import NotFoundPage from './pages/NotFoundPage';
 
 import JoinGroupPage from './pages/student/JoinGroupPage';
 import TeacherGroupsPage from './pages/teacher/TeacherGroupsPage';
@@ -17,6 +18,10 @@ import TeacherContentBankPage from './pages/teacher/TeacherContentBankPage';
 
 import AdminUserManagementPage from './pages/administrator/AdminUserManagementPage';
 import AdminGroupManagementPage from './pages/administrator/AdminGroupManagementPage';
+import AdminDashboardPage from './pages/administrator/AdminDashboardPage';
+import AdminContactPage from './pages/administrator/AdminContactMessagesPage';
+import ReportManagementPage from './pages/administrator/ReportManagementPage';
+import SystemNotificationPage from './pages/administrator/SystemNotificationPage';
 
 import TeacherLearningPathsPage from './pages/teacher/TeacherLearningPathsPage';
 import ManageLearningPathPage from './pages/teacher/ManageLearningPathPage';
@@ -32,9 +37,9 @@ import StudentPanel from './pages/student/StudentPanel';
 import TeacherPanel from './pages/teacher/TeacherPanel';
 
 import { getTheme } from './theme';
+import AdminContactMessagesPage from './pages/administrator/AdminContactMessagesPage';
 
 // Componentes placeholder para dashboard administrador (sin funcionalidad específica aún)
-const DashboardAdmin = () => <div>Aqui se deberia mostrar todas las Stats, diagramas del sistema </div>;
 const ConfiguracionAdmin = () => <div>Aqui se deberia mostrar la configuracion del sistema, 
                                        <div> como las limitaciones para los planes y suscripciones</div>
                                         de los usuarios, etc. (modelo de negocio sin funcionalidad) </div>;
@@ -131,8 +136,8 @@ function App() {
                     element={<ProtectedRoute element={<StudentPanel />} allowedRoles={['Estudiante', 'Administrador']} />}
                   />
                    <Route
-                    path="/dashboard-admin"
-                    element={<ProtectedRoute element={<DashboardAdmin />} allowedRoles={['Administrador']} />}
+                    path="/admin/dashboard"
+                    element={<ProtectedRoute element={<AdminDashboardPage />} allowedRoles={['Administrador']} />}
                   />
                   <Route
                     path="/join-group"
@@ -206,8 +211,20 @@ function App() {
                     path="/admin/config"
                     element={<ProtectedRoute element={<ConfiguracionAdmin />} allowedRoles={['Administrador']} />}
                   />
+                  <Route
+                    path="/admin/contact-messages"
+                    element={<ProtectedRoute element={<AdminContactMessagesPage />} allowedRoles={['Administrador']} />}
+                  />
+                  <Route
+                    path="/admin/report-management"
+                    element={<ProtectedRoute element={<ReportManagementPage />} allowedRoles={['Administrador']} />}
+                  />
+                  <Route
+                    path="/admin/system-notifications"
+                    element={<ProtectedRoute element={<SystemNotificationPage />} allowedRoles={['Administrador']} />}
+                  />
                   {/* Rutas de ejemplo para el futuro */}
-                  {/* <Route path="*" element={<div>404 Not Found</div>} /> */}
+                  <Route path="*" element={<NotFoundPage />} /> 
                 </Routes>
 
           </Box>
