@@ -53,7 +53,9 @@ const UserProfilePage = lazy(() => import('./pages/UserProfilePage'));
 const StudentPanel = lazy(() => import('./pages/student/StudentPanel'));
 const TeacherPanel = lazy(() => import('./pages/teacher/TeacherPanel'));
 
-const ConfiguracionAdmin = lazy(() => import('./pages/administrator/ConfiguracionAdminPlaceholder'));
+// Replace placeholder import
+// const ConfiguracionAdmin = lazy(() => import('./pages/administrator/ConfiguracionAdminPlaceholder'));
+const AdminPlanManagementPage = lazy(() => import('./pages/administrator/AdminPlanManagementPage')); // <-- ADD THIS
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -147,7 +149,8 @@ function App() {
                 {/* Rutas Administrador */}
                 <Route path="/admin/user-management" element={<ProtectedRoute element={<AdminUserManagementPage />} allowedRoles={['Administrador']} />} />
                 <Route path="/admin/groups" element={<ProtectedRoute element={<AdminGroupManagementPage />} allowedRoles={['Administrador']} />} />
-                <Route path="/admin/config" element={<ProtectedRoute element={<ConfiguracionAdmin />} allowedRoles={['Administrador']} />} />
+                {/* UPDATE THIS ROUTE */}
+                <Route path="/admin/config" element={<ProtectedRoute element={<AdminPlanManagementPage />} allowedRoles={['Administrador']} />} />
                 <Route path="/admin/contact-messages" element={<ProtectedRoute element={<AdminContactMessagesPage />} allowedRoles={['Administrador']} />} />
                 <Route path="/admin/report-management" element={<ProtectedRoute element={<ReportManagementPage />} allowedRoles={['Administrador']} />} />
                 <Route path="/admin/system-notifications" element={<ProtectedRoute element={<SystemNotificationPage />} allowedRoles={['Administrador']} />} />

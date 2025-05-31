@@ -3,6 +3,7 @@
 const User = require('../models/UserModel'); // Necesitamos el modelo de Usuario para gestionar usuarios
 const Group = require('../models/GroupModel'); // Necesitamos el modelo de Grupo para gestionar grupos
 const Membership = require('../models/MembershipModel'); // Necesitamos el modelo de Membresía para contar miembros
+const Plan = require('../models/PlanModel'); // <--- ADD THIS LINE
 const mongoose = require('mongoose'); // Para validar ObjectIds
 const NotificationService = require('../services/NotificationService');
 const ContactMessage = require('../models/ContactMessageModel'); // Importar el modelo de mensajes de contacto
@@ -712,5 +713,225 @@ module.exports = {
     getComplaintsAndClaims, // Added
     getAdminContactMessages, // Added
     getSystemStatistics, // Added
-    markMessageAsResolved // Added
+    markMessageAsResolved, // Added
+    // --- Add these ---
+    createPlan,
+    getPlans,
+    getPlanById,
+    updatePlan,
+    deletePlan
+};
+
+// --- Plan Management Functions ---
+
+// @desc    Create a new plan
+// @route   POST /api/admin/plans
+// @access  Privado/Admin
+const createPlan = async (req, res) => {
+    const { name, duration, price, limits, isDefaultFree, isActive } = req.body;
+
+    // Basic validation
+    if (!name || !duration || !limits) {
+        return res.status(400).json({ message: 'Nombre, duración y límites son obligatorios para el plan.' });
+    }
+    if (name !== 'Free' && (price === undefined || price === null)) {
+        return res.status(400).json({ message: 'El precio es obligatorio para planes que no son "Free".' });
+    }
+    if (name === 'Free' && price) {
+        // Ensure free plan does not have a price, or handle it as per specific requirements
+        // For now, let's assume Free plan should not have a price set via this field.
+    }
+
+
+    try {
+        // Check if a plan with the same name already exists
+        const existingPlan = await Plan.findOne({ name });
+        if (existingPlan) {
+            return res.status(400).json({ message: `Un plan con el nombre "${name}" ya existe.` });
+        }
+
+        const planData = {
+            name,
+            duration,
+            limits,
+            isActive,
+        };
+
+        if (name !== 'Free') {
+            planData.price = price;
+        }
+
+        if (isDefaultFree !== undefined) {
+            planData.isDefaultFree = isDefaultFree;
+        }
+
+        const newPlan = new Plan(planData);
+        await newPlan.save();
+
+        res.status(201).json({
+            success: true,
+            message: 'Plan creado exitosamente.',
+            data: newPlan
+        });
+
+    } catch (error) {
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(val => val.message);
+            return res.status(400).json({ message: 'Error de validación al crear el plan.', errors: messages });
+        }
+        console.error('Error al crear plan:', error);
+        res.status(500).json({ message: 'Error interno del servidor al crear el plan.', error: error.message });
+    }
+};
+
+// @desc    Get all plans
+// @route   GET /api/admin/plans
+// @access  Privado/Admin
+const getPlans = async (req, res) => {
+    try {
+        const plans = await Plan.find({});
+        res.status(200).json({
+            success: true,
+            count: plans.length,
+            data: plans
+        });
+    } catch (error) {
+        console.error('Error al obtener planes:', error);
+        res.status(500).json({ message: 'Error interno del servidor al obtener planes.', error: error.message });
+    }
+};
+
+// @desc    Get a single plan by ID
+// @route   GET /api/admin/plans/:planId
+// @access  Privado/Admin
+const getPlanById = async (req, res) => {
+    const { planId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(planId)) {
+        return res.status(400).json({ message: 'ID de plan inválido.' });
+    }
+
+    try {
+        const plan = await Plan.findById(planId);
+        if (!plan) {
+            return res.status(404).json({ message: 'Plan no encontrado.' });
+        }
+        res.status(200).json({
+            success: true,
+            data: plan
+        });
+    } catch (error) {
+        console.error('Error al obtener plan por ID:', error);
+        res.status(500).json({ message: 'Error interno del servidor al obtener el plan.', error: error.message });
+    }
+};
+
+// @desc    Update a plan
+// @route   PUT /api/admin/plans/:planId
+// @access  Privado/Admin
+const updatePlan = async (req, res) => {
+    const { planId } = req.params;
+    const { name, duration, price, limits, isDefaultFree, isActive } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(planId)) {
+        return res.status(400).json({ message: 'ID de plan inválido.' });
+    }
+
+    try {
+        const plan = await Plan.findById(planId);
+        if (!plan) {
+            return res.status(404).json({ message: 'Plan no encontrado.' });
+        }
+
+        // Check if name is being changed and if it conflicts with an existing plan
+        if (name && name !== plan.name) {
+            const existingPlanWithName = await Plan.findOne({ name });
+            if (existingPlanWithName) {
+                return res.status(400).json({ message: `Otro plan con el nombre "${name}" ya existe.` });
+            }
+            plan.name = name;
+        }
+
+        if (duration) plan.duration = duration;
+        // Handle price carefully, especially if changing a plan to/from 'Free'
+        if (price !== undefined) {
+             if (plan.name === 'Free' && price > 0) {
+                return res.status(400).json({ message: 'El plan "Free" no puede tener un precio.'});
+             }
+            plan.price = price;
+        } else if (plan.name !== 'Free' && plan.price === undefined) {
+            // If updating a non-Free plan and price is not provided, it might be an issue
+            // Or ensure price is explicitly set to null/0 if that's intended
+        }
+
+
+        if (limits) {
+            // Ensure all limit subfields are validated if necessary
+            plan.limits = { ...plan.limits, ...limits };
+        }
+        if (isDefaultFree !== undefined) {
+            plan.isDefaultFree = isDefaultFree;
+        }
+        if (isActive !== undefined) {
+            plan.isActive = isActive;
+        }
+
+        const updatedPlan = await plan.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Plan actualizado exitosamente.',
+            data: updatedPlan
+        });
+
+    } catch (error) {
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(val => val.message);
+            return res.status(400).json({ message: 'Error de validación al actualizar el plan.', errors: messages });
+        }
+        console.error('Error al actualizar plan:', error);
+        res.status(500).json({ message: 'Error interno del servidor al actualizar el plan.', error: error.message });
+    }
+};
+
+// @desc    Delete a plan
+// @route   DELETE /api/admin/plans/:planId
+// @access  Privado/Admin
+const deletePlan = async (req, res) => {
+    const { planId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(planId)) {
+        return res.status(400).json({ message: 'ID de plan inválido.' });
+    }
+
+    try {
+        const plan = await Plan.findById(planId);
+        if (!plan) {
+            return res.status(404).json({ message: 'Plan no encontrado.' });
+        }
+
+        // Prevent deletion of default free plan (or handle reassignment)
+        if (plan.isDefaultFree) {
+            return res.status(400).json({ message: 'No se puede eliminar el plan gratuito predeterminado.' });
+        }
+
+        // Check if any users are currently assigned to this plan
+        const usersOnPlan = await User.countDocuments({ planId: plan._id });
+        if (usersOnPlan > 0) {
+            return res.status(400).json({
+                message: `No se puede eliminar el plan porque ${usersOnPlan} usuario(s) están actualmente asignados a él. Por favor, reasigne estos usuarios a otro plan antes de eliminarlo.`
+            });
+        }
+
+        await plan.deleteOne(); // or plan.remove() for older mongoose versions
+
+        res.status(200).json({
+            success: true,
+            message: 'Plan eliminado exitosamente.'
+        });
+
+    } catch (error) {
+        console.error('Error al eliminar plan:', error);
+        res.status(500).json({ message: 'Error interno del servidor al eliminar el plan.', error: error.message });
+    }
 };

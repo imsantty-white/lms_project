@@ -31,9 +31,10 @@ import PeopleIcon from '@mui/icons-material/People';
 import CodeIcon from '@mui/icons-material/Code';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
+import InfoIcon from '@mui/icons-material/Info'; // For usage display
 
 // Context and utilities
-import { useAuth, axiosInstance } from '../../contexts/AuthContext';
+import { useAuth, axiosInstance } from '../../contexts/AuthContext'; // useAuth already imported
 import { toast } from 'react-toastify';
 
 // Components
@@ -185,6 +186,11 @@ function TeacherGroupsPage() {
   const [stats, setStats] = useState({ active: 0, archived: 0 });
   const hasShownSuccessToast = useRef({ active: false, archived: false });
 
+  // --- BEGIN Plan Limit States ---
+  const [canCreateGroup, setCanCreateGroup] = useState(true);
+  const [groupLimitMessage, setGroupLimitMessage] = useState('');
+  // --- END Plan Limit States ---
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [groupToEdit, setGroupToEdit] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -232,11 +238,30 @@ function TeacherGroupsPage() {
 
     if (isAuthInitialized && isAuthenticated && user?.userType === 'Docente') {
       fetchTeacherGroups();
+
+      // --- BEGIN Plan Limit Check ---
+      if (user.plan && user.plan.limits && user.usage) {
+        const { maxGroups } = user.plan.limits;
+        const { groupsCreated } = user.usage;
+        if (groupsCreated >= maxGroups) {
+          setCanCreateGroup(false);
+          setGroupLimitMessage(`Has alcanzado el límite de ${maxGroups} grupos de tu plan.`);
+        } else {
+          setCanCreateGroup(true);
+          setGroupLimitMessage(`Grupos creados: ${groupsCreated}/${maxGroups}`);
+        }
+      } else {
+        // Default to can create if plan info is somehow missing (backend should prevent actual creation)
+        setCanCreateGroup(true);
+        setGroupLimitMessage('');
+      }
+      // --- END Plan Limit Check ---
+
     } else if (isAuthInitialized && (!isAuthenticated || user?.userType !== 'Docente')) {
       setIsLoading(false);
       setError("No estás autenticado o no tienes permiso para ver esta página.");
     }
-  }, [isAuthenticated, user, isAuthInitialized, currentTab]);
+  }, [isAuthenticated, user, isAuthInitialized, currentTab]); // Added user to dependency array for plan limit check
 
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
@@ -284,6 +309,22 @@ function TeacherGroupsPage() {
           setGroups(prev => [savedGroup, ...prev]);
           setStats(prev => ({ ...prev, active: prev.active + 1 }));
         }
+        // --- BEGIN Re-check limits and update user context ---
+        if (user?.fetchAndUpdateUser) { // Check if function exists
+          const updatedUser = await user.fetchAndUpdateUser();
+          if (updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
+            const { maxGroups } = updatedUser.plan.limits;
+            const { groupsCreated } = updatedUser.usage;
+            if (groupsCreated >= maxGroups) {
+              setCanCreateGroup(false);
+              setGroupLimitMessage(`Has alcanzado el límite de ${maxGroups} grupos de tu plan.`);
+            } else {
+              setCanCreateGroup(true);
+              setGroupLimitMessage(`Grupos creados: ${groupsCreated}/${maxGroups}`);
+            }
+          }
+        }
+        // --- END Re-check limits ---
       }
       
       handleCloseModal();
@@ -358,8 +399,9 @@ function TeacherGroupsPage() {
   return (
     <Container maxWidth="lg">
       <Box sx={{ py: 4 }}>
+        {/* ... Page Title ... */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <Box sx={{ textAlign: 'center', mb: 4 }}>
+          <Box sx={{ textAlign: 'center', mb: 1 }}> {/* Reduced mb here */}
             <Typography variant="h3" sx={{ fontWeight: 700, mb: 2 }}>
               Mis Grupos
             </Typography>
@@ -367,6 +409,16 @@ function TeacherGroupsPage() {
               Administra todos tus grupos de estudiantes desde un solo lugar.
             </Typography>
           </Box>
+          {/* --- BEGIN Display Usage/Limit --- */}
+          {user?.userType === 'Docente' && groupLimitMessage && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 1, mb: 3, color: canCreateGroup ? 'text.secondary' : 'warning.main' }}>
+              <InfoIcon fontSize="small" />
+              <Typography variant="caption" sx={{ fontWeight: 'medium' }}>
+                {groupLimitMessage}
+              </Typography>
+            </Box>
+          )}
+          {/* --- END Display Usage/Limit --- */}
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
@@ -424,9 +476,20 @@ function TeacherGroupsPage() {
         <AnimatePresence>
           {!isLoading && currentTab === 'active' && (
             <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ duration: 0.3, delay: 0.5 }}>
-              <Fab color="primary" sx={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1000 }} onClick={handleOpenCreateModal} disabled={isSaving}>
-                <AddIcon />
-              </Fab>
+              {/* --- BEGIN Tooltip and Disable Logic for FAB --- */}
+              <Tooltip title={!canCreateGroup ? groupLimitMessage : "Crear Nuevo Grupo"}>
+                <span> {/* Span needed for Tooltip when button is disabled */}
+                  <Fab
+                    color="primary"
+                    sx={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1000 }}
+                    onClick={handleOpenCreateModal}
+                    disabled={isSaving || !canCreateGroup} // Disable if saving or limit reached
+                  >
+                    <AddIcon />
+                  </Fab>
+                </span>
+              </Tooltip>
+              {/* --- END Tooltip and Disable Logic for FAB --- */}
             </motion.div>
           )}
         </AnimatePresence>
