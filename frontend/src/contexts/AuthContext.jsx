@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }) => {
                   userFromStorage = JSON.parse(storedUser);
               } catch (error) {
                   console.error("Error parsing user from localStorage:", error);
-                  localStorage.removeItem('user'); // Limpiar si está corrupto
+                  localStorage.removeItem('user');
                   userFromStorage = null;
               }
           }
@@ -60,10 +60,8 @@ export const AuthProvider = ({ children }) => {
 
                   if (decodedToken.exp > currentTime) {
                       setToken(storedToken);
-                      setUser(userFromStorage);
-                      // El interceptor se encargará de añadir el header a las nuevas peticiones
-                      // Si se había seteado axiosInstance.defaults, el interceptor lo puede sobreescribir si es necesario o añadirlo si no está.
-                      console.log("Auth state set from storage.");
+                      setUser(userFromStorage); // This will now include plan, subscriptionEndDate, usage if stored
+                      console.log("Auth state set from storage.", userFromStorage);
                   } else {
                       console.log("Token expired in storage, cleaning up.");
                       localStorage.removeItem('token');
@@ -87,31 +85,45 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const response = await axiosInstance.post('/api/auth/login', { email, password });
-      // Renombrar 'token' y 'user' de la respuesta para evitar conflictos de scope con el estado
-      const { token: receivedToken, _id, email: userEmail, tipo_usuario, nombre, apellidos } = response.data;
+      // Destructure all expected fields from response.data
+      const {
+        token: receivedToken,
+        _id,
+        email: userEmail,
+        tipo_usuario,
+        nombre,
+        apellidos,
+        // --- NEW FIELDS for teachers ---
+        plan, // This will be the populated plan object
+        subscriptionEndDate,
+        usage
+      } = response.data;
 
       const loggedUser = {
         _id,
         email: userEmail,
-        userType: tipo_usuario,
-        tipo_usuario, // Mantener por compatibilidad si se usa en otros lados
+        userType: tipo_usuario, // Main field for user type checks
+        tipo_usuario, // Keep for compatibility
         nombre,
         apellidos,
       };
 
+      // If the user is a Docente, add plan-related information
+      if (tipo_usuario === 'Docente') {
+        loggedUser.plan = plan; // plan object from backend
+        loggedUser.subscriptionEndDate = subscriptionEndDate; // date string or null
+        loggedUser.usage = usage; // usage object
+      }
+
       localStorage.setItem('token', receivedToken);
-      localStorage.setItem('user', JSON.stringify(loggedUser));
+      localStorage.setItem('user', JSON.stringify(loggedUser)); // Store the enhanced user object
 
       setToken(receivedToken);
       setUser(loggedUser);
       
-      // Configurar el header de axiosInstance por defecto para esta sesión
-      // Aunque el interceptor lo hace por petición, esto asegura que la instancia lo tenga por defecto inmediatamente.
       axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${receivedToken}`;
-
-      toast.success('¡Inicio de sesión exitoso!'); // Usar toast
-
-      return { success: true, userType: loggedUser.userType };
+      toast.success('¡Inicio de sesión exitoso!');
+      return { success: true, userType: loggedUser.userType, user: loggedUser }; // Return loggedUser
     } catch (error) {
       console.error('Error en el login:', error.response ? error.response.data : error.message);
       const errorMessage = error.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.';
@@ -158,6 +170,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
+    fetchAndUpdateUser, // Expose the new function
     isAuthenticated: !!token,
     isAuthInitialized,
   };
@@ -180,3 +193,46 @@ export const useAuth = () => {
 };
 
 // La instancia de axiosInstance ya se exporta arriba donde se define.
+
+// Function to refresh user data (e.g., using /api/auth/me)
+// This is important for keeping user state (including plan) up-to-date
+const fetchAndUpdateUser = async () => {
+  try {
+      const response = await axiosInstance.get('/api/auth/me');
+      const updatedUserData = response.data.data; // Assuming backend wraps user data in 'data' field
+
+      // Construct the user object similar to how it's done in login
+      const refreshedUser = {
+          _id: updatedUserData._id,
+          email: updatedUserData.email,
+          userType: updatedUserData.tipo_usuario,
+          tipo_usuario: updatedUserData.tipo_usuario,
+          nombre: updatedUserData.nombre,
+          apellidos: updatedUserData.apellidos,
+          // Include other fields that 'me' endpoint returns like institucion, telefono etc.
+          institucion: updatedUserData.institucion,
+          telefono: updatedUserData.telefono,
+          fecha_registro: updatedUserData.fecha_registro,
+          aprobado: updatedUserData.aprobado,
+          activo: updatedUserData.activo,
+      };
+
+      if (updatedUserData.tipo_usuario === 'Docente') {
+          refreshedUser.plan = updatedUserData.plan;
+          refreshedUser.subscriptionEndDate = updatedUserData.subscriptionEndDate;
+          refreshedUser.usage = updatedUserData.usage;
+      }
+
+      setUser(refreshedUser);
+      localStorage.setItem('user', JSON.stringify(refreshedUser));
+      console.log('User data refreshed and updated in AuthContext.', refreshedUser);
+      return refreshedUser;
+  } catch (error) {
+      console.error('Error refreshing user data:', error);
+      // Potentially logout user if /me fails (e.g. token truly invalid)
+      if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+          logout(); // Or handle more gracefully
+      }
+      return null;
+  }
+};

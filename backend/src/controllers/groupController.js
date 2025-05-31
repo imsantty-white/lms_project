@@ -7,6 +7,8 @@ const Group = require('../models/GroupModel'); // Importamos el modelo de Grupo
 const { generateUniqueCode } = require('../utils/codeGenerator'); // Importamos nuestra utilidad para códigos
 const Membership = require('../models/MembershipModel'); // Importamos el modelo de Membresía
 const User = require('../models/UserModel');
+const Plan = require('../models/PlanModel'); // <--- ADD THIS
+const SubscriptionService = require('../services/SubscriptionService'); // <--- ADD THIS
 const { isTeacherOfGroup } = require('../utils/permissionUtils');
 const NotificationService = require('../services/NotificationService'); // Adjust path if necessary
 
@@ -31,18 +33,30 @@ const createGroup = async (req, res) => {
     // --- Fin Validación ---
 
     try {
-        /*
-        // --- LÓGICA DE LÍMITE DE GRUPOS (Temporalmente desactivada) ---
-        // TODO: Mover esta lógica a un sistema de middleware o servicio de suscripciones/planes.
-        const groupCount = await Group.countDocuments({ docente_id: docenteId, activo: true });
+        // --- BEGIN PLAN AND USAGE LIMIT CHECK ---
+        if (req.user.tipo_usuario === 'Docente') {
+            const user = await User.findById(docenteId).populate('planId');
+            if (!user) { // Should not happen if protect middleware works
+                return res.status(404).json({ message: 'Usuario docente no encontrado.' });
+            }
 
-        if (groupCount >= MAX_GROUPS_PER_DOCENTE) {
-            return res.status(403).json({ message: `Has alcanzado el límite máximo de grupos (${MAX_GROUPS_PER_DOCENTE}) que puedes crear.` });
+            const subscription = await SubscriptionService.checkSubscriptionStatus(docenteId);
+            if (!subscription.isActive) {
+                return res.status(403).json({ message: `No se puede crear el grupo: ${subscription.message}` });
+            }
+
+            if (user.planId && user.planId.limits && user.planId.limits.maxGroups !== undefined) {
+                if (user.usage.groupsCreated >= user.planId.limits.maxGroups) {
+                    return res.status(403).json({ message: `Has alcanzado el límite de ${user.planId.limits.maxGroups} grupos permitidos por tu plan "${user.planId.name}".` });
+                }
+            } else {
+                // Fallback or error if plan details/limits are missing, though checkSubscriptionStatus should catch inactive plans
+                console.warn(`Plan o límites no definidos para el docente ${docenteId} al crear grupo.`);
+                return res.status(403).json({ message: 'No se pudieron verificar los límites de tu plan para crear grupos.' });
+            }
         }
-        // --- FIN DE LÓGICA DE LÍMITE ---
-        */
+        // --- END PLAN AND USAGE LIMIT CHECK ---
 
-        // --- Generar un código de acceso único (Lógica preservada) ---
         let uniqueCodeFound = false;
         let codigo_acceso;
         const maxAttempts = 10;
@@ -69,9 +83,19 @@ const createGroup = async (req, res) => {
             descripcion: descripcion || '',
             codigo_acceso,
             docente_id: docenteId,
-            limite_estudiantes: limite_estudiantes !== undefined ? limite_estudiantes : 0
+            limite_estudiantes: limite_estudiantes !== undefined ? limite_estudiantes : 0,
+            // activo: true is default in model
         });
-        // --- Fin Crear grupo ---
+
+        // --- BEGIN INCREMENT USAGE COUNTER ---
+        if (req.user.tipo_usuario === 'Docente') {
+            const userToUpdate = await User.findById(docenteId); // Re-fetch or use the one from above if still in scope and not modified
+            if (userToUpdate) {
+                userToUpdate.usage.groupsCreated = (userToUpdate.usage.groupsCreated || 0) + 1;
+                await userToUpdate.save();
+            }
+        }
+        // --- END INCREMENT USAGE COUNTER ---
 
         res.status(201).json(newGroup);
 

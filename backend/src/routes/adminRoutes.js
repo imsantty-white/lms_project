@@ -18,7 +18,13 @@ const {
   getComplaintsAndClaims,
   getAdminContactMessages,
   getSystemStatistics,
-  markMessageAsResolved // Importar la nueva función
+  markMessageAsResolved, // Importar la nueva función
+  // --- Import new plan functions ---
+  createPlan,
+  getPlans,
+  getPlanById,
+  updatePlan,
+  deletePlan
 } = require('../controllers/adminController');
 
 // Aplica protección y autorización a todas las rutas de este router
@@ -379,6 +385,25 @@ router.get('/statistics', getSystemStatistics);
  *         description: Error interno del servidor.
  */
 router.put('/contact-messages/:messageId/resolve', markMessageAsResolved);
+
+// --- Rutas para Administración de Planes ---
+// Todas estas rutas requieren que el usuario esté autenticado (protect) y sea Administrador (authorize('Administrador'))
+// Nota: protect y authorize ya están aplicados globalmente a este router.
+
+// POST /api/admin/plans - Crear un nuevo plan
+router.post('/plans', createPlan);
+
+// GET /api/admin/plans - Obtener todos los planes
+router.get('/plans', getPlans);
+
+// GET /api/admin/plans/:planId - Obtener un plan específico por ID
+router.get('/plans/:planId', getPlanById);
+
+// PUT /api/admin/plans/:planId - Actualizar un plan existente
+router.put('/plans/:planId', updatePlan);
+
+// DELETE /api/admin/plans/:planId - Eliminar un plan
+router.delete('/plans/:planId', deletePlan);
 
 
 module.exports = router;

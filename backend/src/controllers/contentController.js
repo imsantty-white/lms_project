@@ -7,6 +7,9 @@ const LearningPath = require('../models/LearningPathModel'); // Necesario para v
 const Module = require('../models/ModuleModel'); // Necesario para verificaciones
 const Theme = require('../models/ThemeModel'); // Necesario para verificaciones
 const mongoose = require('mongoose');
+const User = require('../models/UserModel'); // <--- ADD THIS
+const Plan = require('../models/PlanModel'); // <--- ADD THIS
+const SubscriptionService = require('../services/SubscriptionService'); // <--- ADD THIS
 
 // @desc    Crear un nuevo Recurso (para el banco del docente)
 // @route   POST /api/content/resources
@@ -33,17 +36,49 @@ const createResource = async (req, res) => {
     // Mongoose validará si el 'type' está dentro del enum permitido.
 
     try {
+        // --- BEGIN PLAN AND USAGE LIMIT CHECK ---
+        if (req.user.tipo_usuario === 'Docente') {
+            const user = await User.findById(docenteId).populate('planId');
+            if (!user) {
+                return res.status(404).json({ message: 'Usuario docente no encontrado.' });
+            }
+
+            const subscription = await SubscriptionService.checkSubscriptionStatus(docenteId);
+            if (!subscription.isActive) {
+                return res.status(403).json({ message: `No se puede crear el recurso: ${subscription.message}` });
+            }
+
+            if (user.planId && user.planId.limits && user.planId.limits.maxResources !== undefined) {
+                if (user.usage.resourcesGenerated >= user.planId.limits.maxResources) {
+                    return res.status(403).json({ message: `Has alcanzado el límite de ${user.planId.limits.maxResources} recursos permitidos por tu plan "${user.planId.name}".` });
+                }
+            } else {
+                console.warn(`Plan o límites no definidos para el docente ${docenteId} al crear recurso.`);
+                return res.status(403).json({ message: 'No se pudieron verificar los límites de tu plan para crear recursos.' });
+            }
+        }
+        // --- END PLAN AND USAGE LIMIT CHECK ---
+
         const resource = await Resource.create({
             type,
             title,
-            docente_id: docenteId, // Asocia el recurso al docente creador
-            // Solo incluye el campo específico si coincide con el tipo
+            docente_id: docenteId,
             content_body: type === 'Contenido' ? content_body : undefined,
             link_url: type === 'Enlace' ? link_url : undefined,
             video_url: type === 'Video-Enlace' ? video_url : undefined
         });
 
-        res.status(201).json(resource); // Responde con el recurso creado
+        // --- BEGIN INCREMENT USAGE COUNTER ---
+        if (req.user.tipo_usuario === 'Docente') {
+            const userToUpdate = await User.findById(docenteId);
+            if (userToUpdate) {
+                userToUpdate.usage.resourcesGenerated = (userToUpdate.usage.resourcesGenerated || 0) + 1;
+                await userToUpdate.save();
+            }
+        }
+        // --- END INCREMENT USAGE COUNTER ---
+
+        res.status(201).json(resource);
 
     } catch (error) {
         console.error('Error creando recurso:', error);
@@ -113,7 +148,29 @@ const createActivity = async (req, res, next) => {
 
 
     try {
-        // Crear la nueva actividad
+        // --- BEGIN PLAN AND USAGE LIMIT CHECK (Only for Docentes) ---
+        if (req.user.tipo_usuario === 'Docente') {
+            const user = await User.findById(docenteId).populate('planId');
+            if (!user) {
+                return res.status(404).json({ message: 'Usuario docente no encontrado.' });
+            }
+
+            const subscription = await SubscriptionService.checkSubscriptionStatus(docenteId);
+            if (!subscription.isActive) {
+                return res.status(403).json({ message: `No se puede crear la actividad: ${subscription.message}` });
+            }
+
+            if (user.planId && user.planId.limits && user.planId.limits.maxActivities !== undefined) {
+                if (user.usage.activitiesGenerated >= user.planId.limits.maxActivities) {
+                    return res.status(403).json({ message: `Has alcanzado el límite de ${user.planId.limits.maxActivities} actividades permitidas por tu plan "${user.planId.name}".` });
+                }
+            } else {
+                console.warn(`Plan o límites no definidos para el docente ${docenteId} al crear actividad.`);
+                return res.status(403).json({ message: 'No se pudieron verificar los límites de tu plan para crear actividades.' });
+            }
+        }
+        // --- END PLAN AND USAGE LIMIT CHECK ---
+
         const newActivity = new Activity({
             type,
             title: title.trim(),
@@ -128,10 +185,18 @@ const createActivity = async (req, res, next) => {
         // Guardar la actividad en la base de datos
         const createdActivity = await newActivity.save();
 
-        console.log(`Actividad creada: ${createdActivity._id} (Tipo: ${createdActivity.type})`);
+        // --- BEGIN INCREMENT USAGE COUNTER (Only for Docentes) ---
+        if (req.user.tipo_usuario === 'Docente') {
+            const userToUpdate = await User.findById(docenteId);
+            if (userToUpdate) {
+                userToUpdate.usage.activitiesGenerated = (userToUpdate.usage.activitiesGenerated || 0) + 1;
+                await userToUpdate.save();
+            }
+        }
+        // --- END INCREMENT USAGE COUNTER ---
 
-        // Responder con la actividad creada
-        res.status(201).json(createdActivity); // 201 Created
+        console.log(`Actividad creada: ${createdActivity._id} (Tipo: ${createdActivity.type})`);
+        res.status(201).json(createdActivity);
 
     } catch (error) {
          // Si el error es de validación de Mongoose (por ejemplo, si el esquema de Mongoose tiene validaciones `required`)

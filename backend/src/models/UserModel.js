@@ -43,8 +43,37 @@ const userSchema = new mongoose.Schema({
     ref: 'Group',
     default: null
   },
-  // Campo específico para Docentes
-  numero_grupos_asignados: {
+  // --- BEGINNING OF NEW FIELDS FOR TEACHER PLANS ---
+  planId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Plan', // Reference to the Plan model
+    default: null // Default to null, will be set for teachers upon registration or by an admin
+  },
+  subscriptionEndDate: {
+    type: Date,
+    default: null // Null for indefinite subscriptions or until set
+  },
+  usage: {
+    groupsCreated: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    resourcesGenerated: { // Assuming 'resources' is a feature to track
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    activitiesGenerated: { // Assuming 'activities' is a feature to track
+      type: Number,
+      default: 0,
+      min: 0
+    }
+    // Add other trackable feature usages here as needed
+  },
+  // --- END OF NEW FIELDS FOR TEACHER PLANS ---
+  // Campo específico para Docentes (existing field, may be redundant if plan limits are used)
+  numero_grupos_asignados: { // This might be derived from usage.groupsCreated or kept for other purposes
     type: Number,
     default: 0
   },
