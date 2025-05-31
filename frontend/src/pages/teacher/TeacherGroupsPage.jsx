@@ -247,11 +247,11 @@ const CustomTabs = ({ currentTab, onTabChange, activeCount, archivedCount }) => 
         label={
           <Stack direction="row" spacing={2} alignItems="center">
             <span>Grupos Activos</span>
-            <Badge 
+            {/* <Badge 
               badgeContent={activeCount} 
               color="primary"
               sx={{ '& .MuiBadge-badge': { fontSize: '0.75rem' } }}
-            />
+            /> */}
           </Stack>
         } 
         value="active" 

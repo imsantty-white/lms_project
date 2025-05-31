@@ -8,7 +8,7 @@ const {
     updateThemeProgress,
     getStudentProgressForPath, // Esta es la función que necesita el group_id
     getAllStudentProgressForPathForDocente,
-    getSpecificStudentProgressForPathForDocente
+    getSpecificStudentProgressForPathForDocente,
   } = require('../controllers/progressController');
 
 router.use(protect);

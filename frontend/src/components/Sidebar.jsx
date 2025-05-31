@@ -31,6 +31,7 @@ import RouteIcon from '@mui/icons-material/Route';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import RuleIcon from '@mui/icons-material/Rule';
 import SupervisedUserCircleSharpIcon from '@mui/icons-material/SupervisedUserCircleSharp';
+import AnnouncementRoundedIcon from '@mui/icons-material/AnnouncementRounded';
 import LogoutIcon from '@mui/icons-material/Logout';
 
 // Nuevos iconos para Admin
@@ -122,7 +123,8 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
         {
           title: 'Sistema',
           items: [
-            { text: 'Enviar Notificaciones', icon: <NotificationsIcon />, path: '/admin/system-notifications' }, // Nuevo
+            { text: 'Crear Anuncios', icon: <NotificationsIcon />, path: '/admin/announcements' },
+            { text: 'Enviar Notificaciones', icon: <AnnouncementRoundedIcon />, path: '/admin/system-notifications' }, // Nuevo
             { text: 'Configuración', icon: <SettingsIcon />, path: '/admin/config' },
           ]
         }

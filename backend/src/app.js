@@ -74,6 +74,7 @@ const activityRoutes = require('./routes/activityRoutes');
 const notificationRoutes = require('./routes/notificationRoutes'); // Import notification routes
 const profileRoutes = require('./routes/profileRoutes');
 const contactRoutes = require('./routes/contactRoutes'); // Importar contact routes
+const announcementRoutes = require('./routes/announcementRoutes');
 
 app.use('/api/auth', authRoutes); // Monta las rutas de autenticación bajo el prefijo /api/auth
 
@@ -110,7 +111,16 @@ app.use('/api/notifications', notificationRoutes);
 // Usar rutas de perfil
 // Todas las rutas en profileRoutes.js se prefijarán con /api/profile
 app.use('/api/profile', profileRoutes);
+
 app.use('/api/contact', contactRoutes); // Montar contact routes
+
+
+// --- MONTAR EL ÚNICO ROUTER DE ANUNCIOS ---
+// Todas las rutas definidas en announcementRoutes.js estarán bajo /api/announcements
+// Por lo tanto, la ruta para crear un anuncio será POST /api/announcements/admin
+// Y la ruta para el panel de usuarios será GET /api/announcements/panel
+app.use('/api/announcements', announcementRoutes);
+
 
 // Ruta de prueba simple
 app.get('/', (req, res) => {

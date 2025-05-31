@@ -174,7 +174,7 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
                 // Podrías añadir la nueva notificación directamente al estado para una UI más reactiva
                 // o simplemente re-hacer fetch para obtener la lista actualizada.
                 // console.log('New notification received via socket:', newNotification);
-                toast.info(`Nueva notificación: ${newNotification.message}`);
+                // toast.info(`Nueva notificación: ${newNotification.message}`);
                 fetchNotifications(); 
             };
             socket.on('new_notification', handleNewNotification);

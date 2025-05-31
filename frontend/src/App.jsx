@@ -38,6 +38,7 @@ const AdminDashboardPage = lazy(() => import('./pages/administrator/AdminDashboa
 const AdminContactMessagesPage = lazy(() => import('./pages/administrator/AdminContactMessagesPage'));
 const ReportManagementPage = lazy(() => import('./pages/administrator/ReportManagementPage'));
 const SystemNotificationPage = lazy(() => import('./pages/administrator/SystemNotificationPage'));
+const AdminAnnouncementsPage = lazy(() => import('./pages/administrator/AdminAnnouncementsPage'));
 
 const TeacherLearningPathsPage = lazy(() => import('./pages/teacher/TeacherLearningPathsPage'));
 const ManageLearningPathPage = lazy(() => import('./pages/teacher/ManageLearningPathPage'));
@@ -150,6 +151,8 @@ function App() {
                 <Route path="/admin/contact-messages" element={<ProtectedRoute element={<AdminContactMessagesPage />} allowedRoles={['Administrador']} />} />
                 <Route path="/admin/report-management" element={<ProtectedRoute element={<ReportManagementPage />} allowedRoles={['Administrador']} />} />
                 <Route path="/admin/system-notifications" element={<ProtectedRoute element={<SystemNotificationPage />} allowedRoles={['Administrador']} />} />
+                <Route path="/admin/announcements" element={<ProtectedRoute element={<AdminAnnouncementsPage />} allowedRoles={['Administrador']} />} />
+                
 
                 {/* Rutas Comunes */}
                 <Route path="/profile" element={<ProtectedRoute element={<UserProfilePage />} allowedRoles={['Estudiante', 'Docente', 'Administrador']} />} />
@@ -162,7 +165,7 @@ function App() {
         </Box>
         <ToastContainer 
           position="bottom-right" 
-          autoClose={1500} 
+          autoClose={5000} 
           hideProgressBar={false} 
           newestOnTop={false} 
           closeOnClick 

@@ -169,10 +169,63 @@ const getUserProfileForAdmin = async (req, res) => {
   }
 };
 
+// @desc    Verificar el estado de completitud del perfil del usuario autenticado
+// @route   GET /api/profile/completion-status
+// @access  Privado (para cualquier usuario autenticado)
+const getProfileCompletionStatus = async (req, res) => {
+    try {
+        // Obtener el usuario directamente desde req.user, ya que está protegido y el perfil ya está cargado
+        // o hacer una nueva búsqueda si quieres los campos más actualizados o específicos.
+        // Por simplicidad y rendimiento si req.user ya tiene los campos, úsalo.
+        // Si no, busca de nuevo:
+        const user = await User.findById(req.user._id).select(
+            'nombre apellidos institucion tipo_identificacion numero_identificacion fecha_nacimiento telefono tipo_usuario'
+        ); // Selecciona solo los campos relevantes para la verificación
+
+        if (!user) {
+            return res.status(404).json({ message: 'Usuario no encontrado.', isComplete: false });
+        }
+
+        let isComplete = true;
+        const missingFields = []; // Opcional, para dar más detalle al frontend si lo necesitas
+
+        // Define tus criterios de "perfil completo" aquí
+        // Estos son ejemplos, ajústalos a TUS requerimientos
+        if (!user.nombre || user.nombre.trim() === '') { isComplete = false; missingFields.push('nombre'); }
+        if (!user.apellidos || user.apellidos.trim() === '') { isComplete = false; missingFields.push('apellidos'); }
+        
+        // Campos que podrían ser opcionales para algunos roles pero no para otros,
+        // o que simplemente quieres que estén llenos para considerar el perfil "completo".
+        if (!user.institucion || user.institucion.trim() === '') { isComplete = false; missingFields.push('institucion');}
+        if (!user.tipo_identificacion) { isComplete = false; missingFields.push('tipo_identificacion');}
+        if (!user.numero_identificacion || user.numero_identificacion.trim() === '') { isComplete = false; missingFields.push('numero_identificacion');}
+        if (!user.fecha_nacimiento) { isComplete = false; missingFields.push('fecha_nacimiento');}
+        
+        // El teléfono es obligatorio para docentes en el registro, 
+        // podrías considerarlo obligatorio para perfil completo de docente aquí también.
+        if (user.tipo_usuario === 'Docente' && (!user.telefono || user.telefono.trim() === '')) {
+            isComplete = false;
+            missingFields.push('telefono');
+        }
+        // Para estudiantes, el teléfono es opcional según tu modelo actual. Si también lo quieres para ellos:
+        // if (user.tipo_usuario === 'Estudiante' && (!user.telefono || user.telefono.trim() === '')) {
+        //     isComplete = false; missingFields.push('telefono');
+        // }
+
+
+        res.json({ isComplete, missingFields }); // missingFields es opcional
+
+    } catch (error) {
+        console.error("Error verificando completitud del perfil:", error);
+        res.status(500).json({ message: 'Error al verificar el estado del perfil', isComplete: false }); // Asumir incompleto en caso de error del servidor
+    }
+};
+
 // Único bloque de exportación al final del archivo
 module.exports = {
     getProfile,
     updateProfile,
     getStudentProfileForTeacher,
     getUserProfileForAdmin,
+    getProfileCompletionStatus
 };

@@ -1,4 +1,5 @@
 // src/pages/TeacherPanel.jsx
+// Plantilla no funcional
 
 import React, { useState, useEffect } from 'react';
 import {

@@ -953,6 +953,88 @@ const getAssignmentById = async (req, res, next) => {
   }
 };
 
+const getMyPendingActivities = async (req, res) => {
+    const studentId = req.user._id;
+    const limit = parseInt(req.query.limit) || 3; // Límite de actividades a mostrar
+    const now = new Date();
+
+    try {
+        const memberships = await Membership.find({ usuario_id: studentId, estado_solicitud: 'Aprobado' }).select('grupo_id');
+        const groupIds = memberships.map(m => m.grupo_id);
+
+        if (groupIds.length === 0) {
+            return res.json({ success: true, data: [] });
+        }
+
+        // Buscar asignaciones de actividad abiertas en los grupos del estudiante
+        const openAssignments = await ContentAssignment.find({
+            group_id: { $in: groupIds },
+            type: 'Activity',
+            status: 'Open',
+            // Opcional: filtrar solo las que no han vencido o están próximas a vencer
+            // fecha_fin: { $gte: now } // Solo actividades cuya fecha límite no ha pasado
+        })
+        .populate('activity_id', 'title type') // Título y tipo de la actividad base
+        .populate({ // Para obtener el nombre de la ruta de aprendizaje
+            path: 'theme_id', 
+            select: 'nombre module_id',
+            populate: {
+                path: 'module_id',
+                select: 'nombre learning_path_id',
+                populate: {
+                    path: 'learning_path_id',
+                    select: 'nombre _id' // Necesitamos el _id para el enlace
+                }
+            }
+        })
+        .sort({ fecha_fin: 1 }); // Más urgentes primero
+
+        let pendingActivitiesList = [];
+        for (const assignment of openAssignments) {
+            if (pendingActivitiesList.length >= limit) break;
+
+            // Verificar si ya hay una entrega calificada para esta asignación por este estudiante
+            const gradedSubmission = await Submission.findOne({
+                assignment_id: assignment._id,
+                student_id: studentId,
+                estado_envio: 'Calificado'
+            });
+
+            if (!gradedSubmission) { // Si no hay entrega calificada, se considera pendiente
+                let activityLink = '#'; // Fallback
+                const learningPathId = assignment.theme_id?.module_id?.learning_path_id?._id;
+                const themeId = assignment.theme_id?._id; // Ya tienes theme_id
+                const assignmentIdForLink = assignment._id; // ID de ContentAssignment
+
+                if (learningPathId) {
+                    // Opción A: Enlace general a la vista de la ruta de aprendizaje.
+                    // El usuario tendría que navegar hasta la actividad dentro de la ruta.
+                    activityLink = `/student/learning-paths/${learningPathId}/view`;
+
+                    // Opción B: Enlace más específico si tu frontend lo soporta (ej. con hash para scroll)
+                    // activityLink = `/student/learning-paths/${learningPathId}/view#theme-${themeId}-assignment-${assignmentIdForLink}`;
+                    // O si tienes una ruta directa al tema:
+                    // activityLink = `/student/learning-paths/${learningPathId}/themes/${themeId}`;
+                }
+
+                pendingActivitiesList.push({
+                    _id: assignment._id,
+                    title: assignment.activity_id?.title || 'Actividad sin título',
+                    type: assignment.activity_id?.type || 'N/A',
+                    dueDate: assignment.fecha_fin,
+                    learningPathName: assignment.theme_id?.module_id?.learning_path_id?.nombre || 'Ruta Desconocida',
+                    // No necesitas theme_id y learning_path_id aquí si el link ya los usa o no son necesarios para el display
+                    link: activityLink 
+                });
+            }
+        }
+        res.json({ success: true, data: pendingActivitiesList });
+    } catch (error) {
+        console.error("Error obteniendo actividades pendientes del estudiante:", error);
+        res.status(500).json({ success: false, message: 'Error al obtener actividades pendientes.' });
+    }
+};
+
 module.exports = { 
     getStudentActivityForAttempt,
     submitStudentActivityAttempt,
@@ -960,4 +1042,5 @@ module.exports = {
     getTeacherAssignments,
     gradeSubmission,
     getAssignmentById,
+    getMyPendingActivities
 };

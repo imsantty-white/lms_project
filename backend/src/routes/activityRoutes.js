@@ -10,7 +10,7 @@ const {
   getAssignmentSubmissions, 
   getTeacherAssignments, 
   gradeSubmission,
-  getAssignmentById 
+  getAssignmentById, getMyPendingActivities 
 } = require('../controllers/activityController');
 
 /**
@@ -203,5 +203,7 @@ router.put('/submissions/:submissionId/grade', protect, authorize('Docente', 'Ad
  *         description: Asignación no encontrada
  */
 router.get('/assignments/:assignmentId', protect, authorize('Docente', 'Administrador'), getAssignmentById);
+
+router.get('/my-pendings', protect, authorize('Estudiante'), getMyPendingActivities);
 
 module.exports = router; // Exporta el router

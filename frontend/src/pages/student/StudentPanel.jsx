@@ -1,6 +1,6 @@
 // src/pages/PanelEstudiante.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
   Box,
@@ -10,15 +10,28 @@ import {
   Button,
   CircularProgress,
   Stack,
-  Card, CardContent, CardActions,
-  Link as MuiLink // Renombrar para evitar conflicto con Link de react-router-dom
+  Link as MuiLink,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Divider,
+  Tooltip,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import { useAuth, axiosInstance } from '../../contexts/AuthContext'; // Asumo que axiosInstance también está aquí
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useAuth, axiosInstance } from '../../contexts/AuthContext';
+// import { toast } from 'react-toastify'; // Puedes quitarlo si ya no se usa para errores de anuncios/actividades
+import { motion, AnimatePresence } from 'framer-motion';
 
-import AccountCircleIcon from '@mui/icons-material/AccountCircle';
-import WbSunnyIcon from '@mui/icons-material/WbSunny'; // Icono para el clima
-import CloudIcon from '@mui/icons-material/Cloud'; // Otro icono para el clima
+// Iconos
+import CampaignIcon from '@mui/icons-material/Campaign';
+import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
+import IconButton from '@mui/material/IconButton';
+import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
+import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import EventBusyIcon from '@mui/icons-material/EventBusy'; 
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import EditNoteIcon from '@mui/icons-material/EditNote'; // Icono para el Alert de perfil incompleto
 
 function StudentPanel() {
   const { user, isAuthInitialized, isAuthenticated } = useAuth();
@@ -26,10 +39,11 @@ function StudentPanel() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
-  const [profileComplete, setProfileComplete] = useState(true); // Estado para el aviso de perfil
-  const [weatherInfo, setWeatherInfo] = useState(null); // Estado para la información del clima
+  const [profileActuallyComplete, setProfileActuallyComplete] = useState(true); // Estado para la completitud del perfil
+  const [systemAnnouncements, setSystemAnnouncements] = useState([]);
+  const [currentAnnouncementIndex, setCurrentAnnouncementIndex] = useState(0);
+  const [pendingActivities, setPendingActivities] = useState([]);
 
-  // Función para obtener el saludo según la hora del día
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return '¡Buenos días';
@@ -37,196 +51,297 @@ function StudentPanel() {
     return '¡Buenas noches';
   };
 
-  useEffect(() => {
-    // Esperar a que la autenticación inicialice
-    if (isAuthInitialized) {
-      if (!isAuthenticated || user?.userType !== 'Estudiante') {
-        // Redirigir o mostrar error si no es estudiante autenticado
-        setFetchError('Acceso denegado. Debes iniciar sesión como estudiante para ver este panel.');
-        setIsLoading(false);
-        return;
-      }
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setFetchError(null);
 
-      // --- Lógica para verificar el perfil (simplificada como ejemplo) ---
-      // Aquí deberías tener una lógica real para verificar si el perfil está completo.
-      // Esto podría implicar:
-      // 1. Un campo 'isProfileComplete' en tu modelo de usuario en el backend.
-      // 2. O verificar la existencia de campos clave como 'nombre_completo', 'fecha_nacimiento', etc.
-      //    Si tu 'user' del AuthContext ya trae estos datos, puedes chequearlos aquí.
-      // Por ahora, lo simulamos:
-      const checkProfileCompletion = async () => {
-        try {
-          // Si tu backend tiene un endpoint para obtener el perfil completo del usuario, úsalo aquí.
-          // const response = await axiosInstance.get('/api/users/profile');
-          // const userData = response.data;
-          // const isComplete = userData.nombre_completo && userData.fecha_nacimiento && userData.direccion;
-          // setProfileComplete(isComplete);
+    if (!isAuthenticated || user?.tipo_usuario !== 'Estudiante') {
+      setFetchError('Acceso denegado. Debes iniciar sesión como estudiante para ver este panel.');
+      setIsLoading(false);
+      return;
+    }
 
-          // Simulamos que el perfil está incompleto si el nombre de usuario es 'juan_sin_apellido'
-          if (user && !user.fullName) { // Asumiendo que 'fullName' es un campo importante
-            setProfileComplete(false);
+    const dataPromises = [];
+
+    // Promesa para obtener el estado de completitud del perfil
+    dataPromises.push(
+      axiosInstance.get('/api/profile/completion-status') // <-- TU ENDPOINT AQUÍ
+        .then(response => {
+          if (response.data && typeof response.data.isComplete === 'boolean') {
+            setProfileActuallyComplete(response.data.isComplete);
           } else {
-            setProfileComplete(true);
+            setProfileActuallyComplete(false); 
+            console.warn("Respuesta inesperada del endpoint de completitud de perfil:", response.data);
           }
+        })
+        .catch(error => {
+          console.error("Error al verificar estado del perfil:", error.response?.data || error.message);
+          setProfileActuallyComplete(false); // Asumir incompleto en caso de error
+        })
+    );
+      
+    // Promesa para obtener anuncios del sistema
+    dataPromises.push(
+      axiosInstance.get('/api/announcements/panel?limit=5')
+        .then(response => {
+          if (response.data && response.data.success) {
+            setSystemAnnouncements(response.data.data || []);
+          } else { 
+            setSystemAnnouncements([]); 
+          }
+        })
+        .catch(announcementError => {
+          console.error("Error al cargar anuncios:", announcementError.response?.data || announcementError.message);
+          setSystemAnnouncements([]);
+        })
+    );
 
-        } catch (err) {
-          console.error("Error al verificar el perfil:", err);
-          // Si hay un error al cargar el perfil, asumimos que no está completo para pedirle al usuario que lo revise.
-          setProfileComplete(false);
-        }
-      };
+    // Promesa para obtener actividades pendientes
+    dataPromises.push(
+      axiosInstance.get('/api/activities/my-pendings?limit=3') 
+        .then(response => {
+          if (response.data && response.data.success) {
+            setPendingActivities(response.data.data || []);
+          } else { 
+            setPendingActivities([]); 
+          }
+        })
+        .catch(error => {
+          console.error("Error al cargar act. pendientes:", error.response?.data || error.message);
+          setPendingActivities([]);
+        })
+    );
 
-      checkProfileCompletion();
-      // --- Fin Lógica para verificar el perfil ---
-
-
-      // --- Lógica para obtener el clima (placeholder) ---
-      // Esto es un placeholder. Para una implementación real, necesitarías:
-      // 1. Registrarte en una API de clima (ej. OpenWeatherMap) para obtener una API Key.
-      // 2. Decidir cómo obtener la ubicación del usuario (geolocalización del navegador, ciudad guardada en perfil, etc.).
-      // 3. Hacer una solicitud HTTP a la API de clima.
-      const fetchWeather = async () => {
-        // Simulación:
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simula una carga de red
-        setWeatherInfo({
-          city: 'Tolú, Colombia', // Puedes hacer esto dinámico
-          temperature: '28°C',
-          description: 'Soleado con nubes',
-          icon: 'sunny' // O un código de icono de la API
-        });
-      };
-      fetchWeather();
-      // --- Fin Lógica para obtener el clima ---
-
+    try {
+      await Promise.all(dataPromises);
+    } catch (err) {
+      console.error("Error general al cargar datos del panel del estudiante:", err);
+      // El error específico ya se maneja en los catch individuales,
+      // pero puedes poner un error general si alguna promesa falla sin ser atrapada.
+      if (!fetchError) { // Solo si no hay un error más específico ya establecido
+          setFetchError('Error al cargar la información del panel.');
+      }
+    } finally {
       setIsLoading(false);
     }
-  }, [isAuthInitialized, isAuthenticated, user]); // Dependencias: recargar si el estado de auth cambia
+  }, [isAuthenticated, user]); // user como dependencia para que fetch_data se actualice si el usuario cambia
 
-  if (isLoading) {
-    return (
-      <Container>
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-          <CircularProgress />
-          <Typography variant="body1" color="text.secondary" sx={{ ml: 2 }}>
-            Cargando panel...
-          </Typography>
-        </Box>
-      </Container>
+  useEffect(() => {
+    if (isAuthInitialized && isAuthenticated) {
+      fetchData();
+    } else if (isAuthInitialized && !isAuthenticated) {
+        setIsLoading(false);
+        setFetchError("Por favor, inicia sesión para ver tu panel.");
+    }
+  }, [isAuthInitialized, isAuthenticated, fetchData]);
+
+  useEffect(() => {
+    if (systemAnnouncements.length > 1) {
+      const intervalId = setInterval(() => {
+        setCurrentAnnouncementIndex(prevIndex => (prevIndex + 1) % systemAnnouncements.length);
+      }, 8000); 
+      return () => clearInterval(intervalId);
+    }
+  }, [systemAnnouncements]);
+
+  const handleNextAnnouncement = () => {
+    if (systemAnnouncements.length > 0) {
+      setCurrentAnnouncementIndex(prevIndex => (prevIndex + 1) % systemAnnouncements.length);
+    }
+  };
+
+  const handlePrevAnnouncement = () => {
+     if (systemAnnouncements.length > 0) {
+      setCurrentAnnouncementIndex(prevIndex => (prevIndex - 1 + systemAnnouncements.length) % systemAnnouncements.length);
+    }
+  };
+  
+  // getWeatherMuiIcon ya no es necesaria
+
+  if (!isAuthInitialized || isLoading) {
+    return ( 
+        <Container><Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /><Typography variant="body1" color="text.secondary" sx={{ ml: 2 }}>Cargando tu panel...</Typography></Box></Container>
     );
   }
 
-  if (fetchError) {
-    return (
-      <Container>
-        <Box sx={{ mt: 4, textAlign: 'center' }}>
-          <Alert severity="error">{fetchError}</Alert>
-        </Box>
-      </Container>
-    );
+  // Mostrar error principal solo si hubo un error de fetch general y no hay otros datos que mostrar
+  if (fetchError && systemAnnouncements.length === 0 && pendingActivities.length === 0) {
+      return ( 
+          <Container><Box sx={{ mt: 4, textAlign: 'center' }}><Alert severity="error">{fetchError}</Alert></Box></Container>
+      );
   }
+
+  const currentAnnouncement = systemAnnouncements[currentAnnouncementIndex];
 
   return (
-    <Container maxWidth="md">
+    <Container maxWidth="md"> 
       <Box sx={{ mt: 4, mb: 4 }}>
-        {/* Saludo Personalizado */}
         <Typography variant="h4" component="h1" gutterBottom>
-          {getGreeting()}, {user?.fullName || user?.username || 'Estudiante'}!
+          {getGreeting()}, {user?.nombre || 'Estudiante'}!
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-          Bienvenido de nuevo a tu Sistema de Gestión de Aprendizaje.
+          Bienvenido de nuevo a tu espacio de aprendizaje.
         </Typography>
 
-        {/* Aviso de Perfil Incompleto */}
-        {!profileComplete && (
-          <Alert severity="warning" sx={{ mb: 4 }}
+        {/* MENSAJE DE PERFIL INCOMPLETO (USA ALERT) */}
+        {!isLoading && !profileActuallyComplete && ( 
+          <Alert 
+            severity="warning" 
+            sx={{ mb: 2 }} 
+            icon={<EditNoteIcon fontSize="inherit" />}
             action={
-              <Button color="inherit" size="small" onClick={() => navigate('/profile')}>
-                Completar Perfil
+              <Button color="warning" size="small" variant="outlined" onClick={() => navigate('/profile')}>
+                Ver Perfil
               </Button>
             }
           >
-            Tu perfil está incompleto. Por favor, tómate un momento para rellenar tus datos.
+            <Typography fontWeight="medium">¡Tu perfil está casi listo!</Typography>
+            <Typography variant="body2">
+                Algunos datos importantes de tu perfil podrían estar pendientes. Ayúdanos a conocerte mejor.
+            </Typography>
           </Alert>
         )}
+        {/* FIN MENSAJE PERFIL INCOMPLETO */}
 
-        <Stack spacing={4}>
-          {/* Tarjeta de Clima */}
-          <Paper elevation={3} sx={{ p: 3 }}>
-            <Stack direction="row" spacing={2} alignItems="center">
-              {weatherInfo?.icon === 'sunny' ? <WbSunnyIcon sx={{ fontSize: 40, color: 'orange' }} /> : <CloudIcon sx={{ fontSize: 40, color: 'gray' }} />}
-              <Box>
-                <Typography variant="h5" component="h2">
-                  El clima en {weatherInfo?.city || 'tu ubicación'}:
-                </Typography>
-                <Typography variant="body1">
-                  {weatherInfo?.temperature || 'Cargando...'} - {weatherInfo?.description || 'N/A'}
-                </Typography>
+        <Stack spacing={3}>
+          {/* SECCIÓN DE CLIMA ELIMINADA */}
+
+          {/* SECCIÓN DE ANUNCIOS DEL SISTEMA (ROTATIVA) */}
+          {systemAnnouncements.length > 0 && (
+            <Paper elevation={3} sx={{ p: 2.5, overflow: 'hidden', position: 'relative' }}>
+              <Typography variant="h6" component="h2" gutterBottom sx={{display: 'flex', alignItems: 'center', mb: 1.5, fontSize: '1.1rem'}}>
+                <CampaignIcon sx={{ mr: 1, color: 'secondary.main' }} />
+                Anuncios del Sistema
+              </Typography>
+              
+              <Box sx={{ minHeight: {xs: 120, sm: 90}, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <AnimatePresence mode="wait">
+                  {currentAnnouncement && (
+                    <motion.div
+                      key={currentAnnouncementIndex}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.3 }}
+                      style={{ width: '100%', textAlign: 'center' }}
+                    >
+                      <Box>
+                        <Typography variant="subtitle1" component="h3" gutterBottom sx={{fontWeight: 'medium', fontSize: '0.95rem'}}>
+                          {currentAnnouncement.title || "Anuncio del Sistema"}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" paragraph sx={{mb: 0.5, whiteSpace: 'pre-line', fontSize:'0.8rem', maxHeight: '60px', overflowY: 'auto'}}>
+                          {currentAnnouncement.message}
+                        </Typography>
+                        <Typography variant="caption" color="text.disabled" display="block" sx={{fontSize: '0.65rem'}}>
+                          {`Publicado: ${new Date(currentAnnouncement.createdAt).toLocaleDateString('es-CO', {
+                            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                          })}`}
+                        </Typography>
+                        {currentAnnouncement.link && (
+                          <MuiLink 
+                              component={RouterLink} 
+                              to={currentAnnouncement.link} 
+                              variant="caption"
+                              sx={{ mt: 0.5, display: 'inline-block', fontWeight:'bold', fontSize: '0.7rem' }}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                          >
+                            Más Información
+                          </MuiLink>
+                        )}
+                      </Box>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </Box>
-            </Stack>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-              Datos del clima actual.
-            </Typography>
-          </Paper>
 
-          {/* Sección de Noticias/Anuncios Generales (Placeholder) */}
-          <Paper elevation={3} sx={{ p: 3 }}>
-            <Typography variant="h5" component="h2" gutterBottom>
-              Anuncios del Sistema
+              {systemAnnouncements.length > 1 && (
+                <Stack direction="row" justifyContent="center" alignItems="center" spacing={0.5} sx={{ mt: 1, mb: -1.5 }}>
+                  <IconButton onClick={handlePrevAnnouncement} size="small" aria-label="Anuncio anterior" sx={{p:0.3}}>
+                    <NavigateBeforeIcon fontSize="small"/>
+                  </IconButton>
+                  {systemAnnouncements.map((_, index) => (
+                    <Box
+                      key={index}
+                      onClick={() => setCurrentAnnouncementIndex(index)}
+                      sx={{
+                        width: currentAnnouncementIndex === index ? 7 : 5,
+                        height: currentAnnouncementIndex === index ? 7 : 5,
+                        borderRadius: '50%',
+                        bgcolor: index === currentAnnouncementIndex ? 'secondary.light' : 'action.disabled',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                    />
+                  ))}
+                  <IconButton onClick={handleNextAnnouncement} size="small" aria-label="Siguiente anuncio" sx={{p:0.3}}>
+                    <NavigateNextIcon fontSize="small"/>
+                  </IconButton>
+                </Stack>
+              )}
+            </Paper>
+          )}
+          {/* FIN SECCIÓN DE ANUNCIOS */}
+
+          {/* SECCIÓN "ACTIVIDADES PENDIENTES" */}
+          <Paper elevation={3} sx={{ p: 2.5 }}>
+            <Typography variant="h6" component="h2" gutterBottom sx={{fontSize: '1.1rem', display: 'flex', alignItems: 'center'}}>
+              <AssignmentTurnedInIcon color="action" sx={{mr: 1, fontSize: '1.25rem'}} />
+              Actividades Pendientes
             </Typography>
-            <Typography variant="body1" color="text.secondary">
-              ¡Bienvenido a la nueva sección de anuncios! Mantente al tanto de las últimas novedades y actualizaciones importantes del sistema.
-            </Typography>
-            <Box sx={{ mt: 2 }}>
-              {/* Aquí iría un bucle sobre anuncios reales */}
-              <Card variant="outlined" sx={{ mb: 1 }}>
-                <CardContent>
-                  <Typography variant="h6" component="div">
-                    Mantenimiento Programado
-                  </Typography>
-                  <Typography sx={{ mb: 1.5 }} color="text.secondary">
-                    10 de Junio, 2025 - 00:00 a 02:00 (GMT-5)
-                  </Typography>
-                  <Typography variant="body2">
-                    Nuestro sistema estará en mantenimiento para mejoras de rendimiento. Agradecemos su comprensión.
-                  </Typography>
-                </CardContent>
-              </Card>
-              <Card variant="outlined">
-                <CardContent>
-                  <Typography variant="h6" component="div">
-                    ¡Nuevas funcionalidades disponibles!
-                  </Typography>
-                  <Typography sx={{ mb: 1.5 }} color="text.secondary">
-                    20 de Mayo, 2025
-                  </Typography>
-                  <Typography variant="body2">
-                    Hemos lanzado nuevas características en el módulo de rutas de aprendizaje. ¡Explóralas!
-                  </Typography>
-                </CardContent>
-              </Card>
+            {pendingActivities.length > 0 ? (
+              <List dense sx={{p:0, maxHeight: 200, overflow: 'auto' }}>
+                {pendingActivities.map((activity, index) => (
+                  <React.Fragment key={activity._id}>
+                    <ListItem 
+                        button 
+                        component={RouterLink} 
+                        to={activity.link || '/student/learning-paths'}
+                        sx={{ '&:hover': { bgcolor: 'action.hover', borderRadius: 1 } }}
+                    >
+                      <ListItemIcon sx={{minWidth: 36, mr: 1}}>
+                        <EventBusyIcon color={activity.dueDate && new Date(activity.dueDate) < new Date() ? "error" : "warning"} />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={activity.title}
+                        secondary={
+                          <>
+                            <Typography component="span" variant="caption" display="block" color="text.secondary" sx={{lineHeight: 1.2}}>
+                              Ruta: {activity.learningPathName}
+                            </Typography>
+                            <Typography component="span" variant="caption" display="block" color="text.secondary" sx={{lineHeight: 1.2}}>
+                            {activity.dueDate ? 
+                              `Vence: ${new Date(activity.dueDate).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour:'2-digit', minute:'2-digit' })}`
+                              : 'Sin fecha límite'}
+                            </Typography>
+                          </>
+                        }
+                        primaryTypographyProps={{fontWeight:'medium', fontSize:'0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}
+                        secondaryTypographyProps={{fontSize:'0.75rem'}}
+                      />
+                       <Tooltip title="Ver actividad en ruta">
+                         <OpenInNewIcon fontSize="small" color="action" sx={{ml:1, opacity: 0.6}}/>
+                       </Tooltip>
+                    </ListItem>
+                    {index < pendingActivities.length - 1 && <Divider component="li" />}
+                  </React.Fragment>
+                ))}
+              </List>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{mt:1}}>
+                ¡Estás al día! No tienes actividades pendientes por ahora.
+              </Typography>
+            )}
+            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 1.5 }}>
+              <Button size="small" color='text.primary' variant="contained" onClick={() => navigate('/student/learning-paths')}>
+                Ver Rutas
+              </Button>
+              <Button size="small" color='text.primary' variant="contained" onClick={() => navigate('/student/progress')}>
+                Ver Progreso
+              </Button>
             </Box>
           </Paper>
-
-          {/* Pequeño Resumen de Actividad Académica (Opcional, sutil) */}
-          <Paper elevation={3} sx={{ p: 3 }}>
-            <Typography variant="h5" component="h2" gutterBottom>
-              Tu Actividad Reciente
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
-              Tienes **3 actividades pendientes** con fechas límite próximas.
-            </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{mt: 1}}>
-              Has completado el **75%** de tus rutas de aprendizaje asignadas.
-            </Typography>
-            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-              <MuiLink component="button" color="secondary" variant="body2" onClick={() => navigate('/student/learning-paths')} sx={{mr: 2}}>
-                Ir a Mis Rutas de Aprendizaje
-              </MuiLink>
-              <MuiLink component="button" color="secondary" variant="body2" onClick={() => navigate('/student/progress')}>
-                Ver Mi Progreso
-              </MuiLink>
-            </Box>
-          </Paper>
+          {/* FIN SECCIÓN "ACTIVIDADES PENDIENTES" */}
 
         </Stack>
       </Box>
