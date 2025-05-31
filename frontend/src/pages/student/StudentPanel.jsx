@@ -205,6 +205,65 @@ function StudentPanel() {
 
         <Stack spacing={3}>
           {/* SECCIÓN DE CLIMA ELIMINADA */}
+          {/* SECCIÓN "ACTIVIDADES PENDIENTES" */}
+          <Paper elevation={3} sx={{ p: 2.5 }}>
+            <Typography variant="h6" component="h2" gutterBottom sx={{fontSize: '1.1rem', display: 'flex', alignItems: 'center'}}>
+              <AssignmentTurnedInIcon color="warning" sx={{mr: 1, fontSize: '1.25rem'}} />
+              Actividades Pendientes
+            </Typography>
+            {pendingActivities.length > 0 ? (
+              <List dense sx={{p:0, maxHeight: 200, overflow: 'auto' }}>
+                {pendingActivities.map((activity, index) => (
+                  <React.Fragment key={activity._id}>
+                    <ListItem 
+                        button 
+                        component={RouterLink} 
+                        to={activity.link || '/student/learning-paths'}
+                        sx={{ '&:hover': { bgcolor: 'action.hover', borderRadius: 1 } }}
+                    >
+                      <ListItemIcon sx={{minWidth: 36, mr: 1}}>
+                        <EventBusyIcon color={activity.dueDate && new Date(activity.dueDate) < new Date() ? "error" : "warning"} />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={activity.title}
+                        secondary={
+                          <>
+                            <Typography component="span" variant="caption" display="block" color="text.secondary" sx={{lineHeight: 1.2}}>
+                              Ruta: {activity.learningPathName}
+                            </Typography>
+                            <Typography component="span" variant="caption" display="block" color="text.secondary" sx={{lineHeight: 1.2}}>
+                            {activity.dueDate ? 
+                              `Vence: ${new Date(activity.dueDate).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour:'2-digit', minute:'2-digit' })}`
+                              : 'Sin fecha límite'}
+                            </Typography>
+                          </>
+                        }
+                        primaryTypographyProps={{fontWeight:'medium', fontSize:'0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}
+                        secondaryTypographyProps={{fontSize:'0.75rem'}}
+                      />
+                       <Tooltip title="Ver actividad en Ruta">
+                         <OpenInNewIcon fontSize="small" color="action" sx={{ml:1, opacity: 0.6}}/>
+                       </Tooltip>
+                    </ListItem>
+                    {index < pendingActivities.length - 1 && <Divider component="li" />}
+                  </React.Fragment>
+                ))}
+              </List>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{mt:1}}>
+                ¡Estás al día! No tienes actividades pendientes por ahora.
+              </Typography>
+            )}
+            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 1.5 }}>
+              <Button size="small" color='text.primary' variant="contained" onClick={() => navigate('/student/learning-paths')}>
+                Ver Rutas
+              </Button>
+              <Button size="small" color='text.primary' variant="contained" onClick={() => navigate('/student/progress')}>
+                Ver Progreso
+              </Button>
+            </Box>
+          </Paper>
+          {/* FIN SECCIÓN "ACTIVIDADES PENDIENTES" */}
 
           {/* SECCIÓN DE ANUNCIOS DEL SISTEMA (ROTATIVA) */}
           {systemAnnouncements.length > 0 && (
@@ -283,65 +342,7 @@ function StudentPanel() {
           )}
           {/* FIN SECCIÓN DE ANUNCIOS */}
 
-          {/* SECCIÓN "ACTIVIDADES PENDIENTES" */}
-          <Paper elevation={3} sx={{ p: 2.5 }}>
-            <Typography variant="h6" component="h2" gutterBottom sx={{fontSize: '1.1rem', display: 'flex', alignItems: 'center'}}>
-              <AssignmentTurnedInIcon color="action" sx={{mr: 1, fontSize: '1.25rem'}} />
-              Actividades Pendientes
-            </Typography>
-            {pendingActivities.length > 0 ? (
-              <List dense sx={{p:0, maxHeight: 200, overflow: 'auto' }}>
-                {pendingActivities.map((activity, index) => (
-                  <React.Fragment key={activity._id}>
-                    <ListItem 
-                        button 
-                        component={RouterLink} 
-                        to={activity.link || '/student/learning-paths'}
-                        sx={{ '&:hover': { bgcolor: 'action.hover', borderRadius: 1 } }}
-                    >
-                      <ListItemIcon sx={{minWidth: 36, mr: 1}}>
-                        <EventBusyIcon color={activity.dueDate && new Date(activity.dueDate) < new Date() ? "error" : "warning"} />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={activity.title}
-                        secondary={
-                          <>
-                            <Typography component="span" variant="caption" display="block" color="text.secondary" sx={{lineHeight: 1.2}}>
-                              Ruta: {activity.learningPathName}
-                            </Typography>
-                            <Typography component="span" variant="caption" display="block" color="text.secondary" sx={{lineHeight: 1.2}}>
-                            {activity.dueDate ? 
-                              `Vence: ${new Date(activity.dueDate).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour:'2-digit', minute:'2-digit' })}`
-                              : 'Sin fecha límite'}
-                            </Typography>
-                          </>
-                        }
-                        primaryTypographyProps={{fontWeight:'medium', fontSize:'0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}
-                        secondaryTypographyProps={{fontSize:'0.75rem'}}
-                      />
-                       <Tooltip title="Ver actividad en ruta">
-                         <OpenInNewIcon fontSize="small" color="action" sx={{ml:1, opacity: 0.6}}/>
-                       </Tooltip>
-                    </ListItem>
-                    {index < pendingActivities.length - 1 && <Divider component="li" />}
-                  </React.Fragment>
-                ))}
-              </List>
-            ) : (
-              <Typography variant="body2" color="text.secondary" sx={{mt:1}}>
-                ¡Estás al día! No tienes actividades pendientes por ahora.
-              </Typography>
-            )}
-            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 1.5 }}>
-              <Button size="small" color='text.primary' variant="contained" onClick={() => navigate('/student/learning-paths')}>
-                Ver Rutas
-              </Button>
-              <Button size="small" color='text.primary' variant="contained" onClick={() => navigate('/student/progress')}>
-                Ver Progreso
-              </Button>
-            </Box>
-          </Paper>
-          {/* FIN SECCIÓN "ACTIVIDADES PENDIENTES" */}
+          
 
         </Stack>
       </Box>
