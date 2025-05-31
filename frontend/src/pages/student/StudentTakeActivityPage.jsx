@@ -25,11 +25,13 @@ import {
   Stack, FormHelperText, // Para organizar elementos
   Collapse, // Añadido para el efecto de colapso
   IconButton // Añadido para el botón de colapso
+  , Modal, Backdrop // Added for auto-save modal
 } from '@mui/material';
 import { ExpandMore, ExpandLess } from '@mui/icons-material'; // Añadido para los iconos
 
 // *** Importar useAuth (ahora incluyendo isAuthInitialized y isAuthenticated) Y axiosInstance ***
 import { useAuth, axiosInstance } from '../../contexts/AuthContext';
+import { useSocket } from '../../contexts/SocketContext'; // Added for WebSocket
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 
@@ -68,6 +70,73 @@ function StudentTakeActivityPage() {
 
   // *** NUEVO ESTADO: Para controlar si la sección de última entrega está expandida ***
   const [isLastSubmissionExpanded, setIsLastSubmissionExpanded] = useState(false);
+
+  // States for WebSocket driven auto-save when teacher closes activity
+  const [isActivityClosedByTeacher, setIsActivityClosedByTeacher] = useState(false);
+  const [autoSaveMessage, setAutoSaveMessage] = useState(null);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+
+  const socket = useSocket(); // Get socket instance
+
+  const determineRedirectPath = () => {
+    if (assignmentDetails?.theme_id?.module_id?.learning_path_id?._id) {
+      return `/student/learning-paths/${assignmentDetails.theme_id.module_id.learning_path_id._id}/view`;
+    }
+    // Fallback if path details are not available for some reason
+    toast.warn("No se pudo determinar la ruta de aprendizaje, redirigiendo a la lista general.");
+    return '/student/learning-paths';
+  };
+
+  // WebSocket listener for assignment closure
+  useEffect(() => {
+    if (socket && assignmentId) {
+      const handleAssignmentClosed = async (data) => {
+        if (data.assignmentId === assignmentId) {
+          console.log(`Activity ${data.title} (ID: ${data.assignmentId}) closed by teacher. Initiating auto-save.`);
+          setIsActivityClosedByTeacher(true);
+          setAutoSaveMessage(`La actividad '${data.title}' ha sido cerrada por el docente. Guardando tu progreso actual...`);
+          setIsAutoSaving(true);
+
+          // Collect current answers
+          const currentAnswers = studentAnswers;
+          const currentTrabajoLink = trabajoLink;
+          let payload = {};
+
+          if (activityDetails?.type === 'Quiz' || activityDetails?.type === 'Cuestionario') {
+            payload = { studentAnswers: currentAnswers, isAutoSaveDueToClosure: true };
+          } else if (activityDetails?.type === 'Trabajo') {
+            payload = { trabajoLink: currentTrabajoLink, isAutoSaveDueToClosure: true };
+          } else {
+            console.error('Auto-save failed: Could not determine activity type.');
+            setAutoSaveMessage('Error: No se pudo determinar el tipo de actividad para el guardado automático. Notifica a tu docente.');
+            setIsAutoSaving(false);
+            return;
+          }
+
+          try {
+            const response = await axiosInstance.post(`/api/activities/student/${assignmentId}/submit-attempt`, payload);
+            setAutoSaveMessage(response.data.message || 'Tu progreso ha sido guardado. Serás redirigido en unos segundos...');
+            setIsAutoSaving(false);
+            setTimeout(() => {
+              navigate(determineRedirectPath());
+            }, 4000); // 4-second delay before redirect
+          } catch (err) {
+            console.error('Error during auto-save due to closure:', err);
+            setAutoSaveMessage(err.response?.data?.message || 'Ocurrió un error al guardar tu progreso. Por favor, notifica a tu docente.');
+            setIsAutoSaving(false);
+            // Optionally, you might want to allow the student to copy their answers or take some other action here.
+            // For now, it just shows the error.
+          }
+        }
+      };
+
+      socket.on('assignmentClosed', handleAssignmentClosed);
+
+      return () => {
+        socket.off('assignmentClosed', handleAssignmentClosed);
+      };
+    }
+  }, [socket, assignmentId, navigate, studentAnswers, trabajoLink, activityDetails]); // activityDetails needed for type, studentAnswers & trabajoLink for payload
 
   // Efecto para cargar los detalles de la actividad y la asignación
   useEffect(() => {
@@ -553,8 +622,7 @@ return (
                                                           label="Tu respuesta" fullWidth margin="normal"
                                                           value={studentAnswers[question._id] || ''}
                                                           onChange={(e) => handleAnswerChange(question._id, e.target.value)}
-                                                          // Deshabilitado si se envió en esta sesión (hasSubmitted) O si NO puede hacer nuevo intento (canTakeNewAttempt es false)
-                                                          disabled={hasSubmitted || !canTakeNewAttempt}
+                                                          disabled={hasSubmitted || !canTakeNewAttempt || isActivityClosedByTeacher}
                                                       />
                                                   ) : activityDetails.type === 'Quiz' && question.options && question.options.length > 0 ? (
                                                       <FormControl component="fieldset">
@@ -562,11 +630,10 @@ return (
                                                           <RadioGroup
                                                               value={studentAnswers[question._id] || ''}
                                                               onChange={(e) => handleAnswerChange(question._id, e.target.value)}
-                                                              // Deshabilitado si se envió en esta sesión (hasSubmitted) O si NO puede hacer nuevo intento (canTakeNewAttempt es false)
-                                                              disabled={hasSubmitted || !canTakeNewAttempt}
+                                                              disabled={hasSubmitted || !canTakeNewAttempt || isActivityClosedByTeacher}
                                                           >
                                                               {question.options.map((option, optionIndex) => (
-                                                                  <FormControlLabel key={optionIndex} value={option} control={<Radio sx={{ '&.Mui-checked': { color: '#f00c8d' }}}/>} label={option} />
+                                                                  <FormControlLabel key={optionIndex} value={option} control={<Radio sx={{ '&.Mui-checked': { color: '#f00c8d' }}}/>} label={option} disabled={isActivityClosedByTeacher} />
                                                               ))}
                                                           </RadioGroup>
                                                       </FormControl>
@@ -589,9 +656,9 @@ return (
                   <Box sx={{ mt: 4, textAlign: 'center' }}>
                       <Button
                           variant="contained" color="primary" onClick={handleOpenConfirmDialog}
-                          disabled={isSubmitting || !questionsToRender || questionsToRender.length === 0 || !canTakeNewAttempt}
+                          disabled={isSubmitting || !questionsToRender || questionsToRender.length === 0 || !canTakeNewAttempt || isActivityClosedByTeacher}
                       >
-                          Enviar Respuestas
+                          {isActivityClosedByTeacher ? "Actividad Cerrada" : "Enviar Respuestas"}
                       </Button>
                   </Box>
               </Paper>
@@ -604,17 +671,16 @@ return (
                       <TextField
                           label="Enlace de tu entrega (URL)" fullWidth margin="normal"
                           value={trabajoLink} onChange={(e) => setTrabajoLink(e.target.value)}
-                          // Deshabilitado si se está enviando O si NO puede hacer nuevo intento (canTakeNewAttempt es false)
-                          disabled={isSubmitting || !canTakeNewAttempt}
+                          disabled={isSubmitting || !canTakeNewAttempt || isActivityClosedByTeacher}
                       />
 
                       {/* Botón de envío */}
                       <Box sx={{ mt: 4, textAlign: 'center' }}>
                           <Button
                               variant="contained" color="primary" onClick={handleOpenConfirmDialog}
-                              disabled={isSubmitting || !trabajoLink.trim() || !canTakeNewAttempt}
+                              disabled={isSubmitting || !trabajoLink.trim() || !canTakeNewAttempt || isActivityClosedByTeacher}
                           >
-                              Enviar Trabajo
+                              {isActivityClosedByTeacher ? "Actividad Cerrada" : "Enviar Trabajo"}
                           </Button>
                       </Box>
                   </Box>
@@ -715,6 +781,54 @@ return (
           <Button onClick={handleCloseSuccessModalAndRedirect} color="secondary"> Volver a la Ruta </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Modal for Auto-Save / Activity Closed by Teacher */}
+      <Modal
+        open={isActivityClosedByTeacher}
+        aria-labelledby="autosave-modal-title"
+        aria-describedby="autosave-modal-description"
+        closeAfterTransition
+        BackdropComponent={Backdrop}
+        BackdropProps={{
+          timeout: 500,
+          style: { backgroundColor: 'rgba(0, 0, 0, 0.8)' }, // Darker backdrop
+        }}
+        // Prevent closing by clicking backdrop or escape key
+        // onClose={(event, reason) => { if (reason !== "backdropClick" && reason !== "escapeKeyDown") { /* handle potential close if needed */ } }}
+      >
+        <Box sx={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: { xs: '90%', sm: 400, md: 500 }, // Responsive width
+          bgcolor: 'background.paper',
+          border: '2px solid #000',
+          boxShadow: 24,
+          p: { xs: 2, sm: 3, md: 4 }, // Responsive padding
+          textAlign: 'center',
+          borderRadius: 2,
+        }}>
+          <Typography id="autosave-modal-title" variant="h5" component="h2" color="primary.main" gutterBottom>
+            Actividad Cerrada por el Docente
+          </Typography>
+          <Typography id="autosave-modal-description" sx={{ mt: 2, mb: 2, color: 'text.secondary' }}>
+            {autoSaveMessage}
+          </Typography>
+          {isAutoSaving && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }}>
+              <CircularProgress sx={{ mb: 1 }} />
+              <Typography variant="caption" color="text.secondary">Guardando progreso...</Typography>
+            </Box>
+          )}
+           {/* Optionally, a button to acknowledge if not auto-redirecting or on error */}
+           {!isAutoSaving && autoSaveMessage && autoSaveMessage.toLowerCase().includes("error") && (
+             <Button variant="outlined" color="error" onClick={() => navigate(determineRedirectPath())}>
+                Entendido, salir
+             </Button>
+           )}
+        </Box>
+      </Modal>
 
     </Container>
   );

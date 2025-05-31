@@ -10,7 +10,8 @@ const {
   getAssignmentSubmissions, 
   getTeacherAssignments, 
   gradeSubmission,
-  getAssignmentById, getMyPendingActivities 
+  getAssignmentById, getMyPendingActivities,
+  updateAssignmentStatus
 } = require('../controllers/activityController');
 
 /**
@@ -205,5 +206,49 @@ router.put('/submissions/:submissionId/grade', protect, authorize('Docente', 'Ad
 router.get('/assignments/:assignmentId', protect, authorize('Docente', 'Administrador'), getAssignmentById);
 
 router.get('/my-pendings', protect, authorize('Estudiante'), getMyPendingActivities);
+
+/**
+ * @swagger
+ * /api/activities/assignments/{assignmentId}/status:
+ *   patch:
+ *     summary: Actualizar el estado de una asignación (Open/Closed)
+ *     tags: [Actividades]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: assignmentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la asignación de la actividad
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [Open, Closed]
+ *                 description: Nuevo estado de la asignación
+ *     responses:
+ *       200:
+ *         description: Estado de la asignación actualizado correctamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Assignment'
+ *       400:
+ *         description: Estado inválido proporcionado
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: Prohibido (no es el docente de la asignación o rol incorrecto)
+ *       404:
+ *         description: Asignación no encontrada
+ */
+router.patch('/assignments/:assignmentId/status', protect, authorize('Docente', 'Administrador'), updateAssignmentStatus);
 
 module.exports = router; // Exporta el router
