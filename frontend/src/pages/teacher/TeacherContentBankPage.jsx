@@ -34,9 +34,10 @@ import LinkIcon from '@mui/icons-material/Link';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import QuizIcon from '@mui/icons-material/Quiz';
 import DescriptionIcon from '@mui/icons-material/Description';
+import InfoIcon from '@mui/icons-material/Info'; // For usage display
 import { motion } from 'framer-motion';
 
-import { useAuth, axiosInstance } from '../../contexts/AuthContext';
+import { useAuth, axiosInstance } from '../../contexts/AuthContext'; // useAuth already imported
 
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
@@ -144,6 +145,13 @@ function TeacherContentBankPage() {
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState(0);
 
+    // --- BEGIN Plan Limit States ---
+    const [canCreateResource, setCanCreateResource] = useState(true);
+    const [resourceLimitMessage, setResourceLimitMessage] = useState('');
+    const [canCreateActivity, setCanCreateActivity] = useState(true);
+    const [activityLimitMessage, setActivityLimitMessage] = useState('');
+    // --- END Plan Limit States ---
+
     const [deleteItemDetails, setDeleteItemDetails] = useState({
         open: false,
         id: null,
@@ -188,14 +196,40 @@ function TeacherContentBankPage() {
 
         if (isAuthInitialized && isAuthenticated && (user?.userType === 'Docente' || user?.userType === 'Administrador')) {
             fetchContentBank();
+
+            // --- BEGIN Plan Limit Check (for Docente only) ---
+            if (user?.userType === 'Docente' && user.plan && user.plan.limits && user.usage) {
+                const { maxResources, maxActivities } = user.plan.limits;
+                const { resourcesGenerated, activitiesGenerated } = user.usage;
+
+                if (resourcesGenerated >= maxResources) {
+                    setCanCreateResource(false);
+                    setResourceLimitMessage(`Límite de ${maxResources} recursos alcanzado.`);
+                } else {
+                    setCanCreateResource(true);
+                    setResourceLimitMessage(`Recursos: ${resourcesGenerated}/${maxResources}`);
+                }
+
+                if (activitiesGenerated >= maxActivities) {
+                    setCanCreateActivity(false);
+                    setActivityLimitMessage(`Límite de ${maxActivities} actividades alcanzado.`);
+                } else {
+                    setCanCreateActivity(true);
+                    setActivityLimitMessage(`Actividades: ${activitiesGenerated}/${maxActivities}`);
+                }
+            } else if (user?.userType === 'Administrador') {
+                // Admins have no limits
+                setCanCreateResource(true);
+                setResourceLimitMessage('');
+                setCanCreateActivity(true);
+                setActivityLimitMessage('');
+            }
+            // --- END Plan Limit Check ---
+
         } else if (isAuthInitialized && !isAuthenticated) {
-            console.log("Auth inicializada, pero usuario no autenticado. No se carga banco de contenido.");
-            setIsLoading(false);
-            setError("No estás autenticado para ver esta página.");
-        } else if (!isAuthInitialized) {
-            console.log("Auth aún no inicializada. Esperando para cargar banco de contenido.");
+            // ...
         }
-    }, [isAuthenticated, user, isAuthInitialized]);
+    }, [isAuthenticated, user, isAuthInitialized]); // Added user to dependency array
 
     const handleOpenDeleteDialog = (id, type) => {
         if (isCreatingResource || isCreatingActivity || isDeleting) return;
@@ -275,6 +309,22 @@ function TeacherContentBankPage() {
             setResources(prevResources => [...prevResources, newResource]);
             handleCloseCreateResourceConfirm();
             handleCloseCreateResourceModal();
+            // --- BEGIN Re-check limits and update user context ---
+            if (user?.userType === 'Docente' && user?.fetchAndUpdateUser) {
+                const updatedUser = await user.fetchAndUpdateUser();
+                if (updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
+                    const { maxResources } = updatedUser.plan.limits;
+                    const { resourcesGenerated } = updatedUser.usage;
+                    if (resourcesGenerated >= maxResources) {
+                        setCanCreateResource(false);
+                        setResourceLimitMessage(`Límite de ${maxResources} recursos alcanzado.`);
+                    } else {
+                        setCanCreateResource(true);
+                        setResourceLimitMessage(`Recursos: ${resourcesGenerated}/${maxResources}`);
+                    }
+                }
+            }
+            // --- END Re-check limits ---
         } catch (err) {
             console.error('Error creating resource:', err.response ? err.response.data : err.message);
             const errorMessage = err.response && err.response.data && err.response.data.message
@@ -321,6 +371,22 @@ function TeacherContentBankPage() {
             setActivities(prevActivities => [...prevActivities, newActivity]);
             handleCloseCreateActivityConfirm();
             handleCloseCreateActivityModal();
+            // --- BEGIN Re-check limits and update user context ---
+            if (user?.userType === 'Docente' && user?.fetchAndUpdateUser) {
+                const updatedUser = await user.fetchAndUpdateUser();
+                if (updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
+                    const { maxActivities } = updatedUser.plan.limits;
+                    const { activitiesGenerated } = updatedUser.usage;
+                    if (activitiesGenerated >= maxActivities) {
+                        setCanCreateActivity(false);
+                        setActivityLimitMessage(`Límite de ${maxActivities} actividades alcanzado.`);
+                    } else {
+                        setCanCreateActivity(true);
+                        setActivityLimitMessage(`Actividades: ${activitiesGenerated}/${maxActivities}`);
+                    }
+                }
+            }
+            // --- END Re-check limits ---
         } catch (err) {
             console.error('Error creating activity:', err.response ? err.response.data : err.message);
             const errorMessage = err.response && err.response.data && err.response.data.message
@@ -518,26 +584,58 @@ function TeacherContentBankPage() {
                                 </Tabs>
                                 {/* BOTONES DE CREACIÓN SIEMPRE VISIBLES AQUÍ */}
                                 <Stack direction="row" spacing={2}>
-                                    <Button
+                                  {/* --- BEGIN Tooltip and Disable for Create Resource --- */}
+                                  <Tooltip title={!canCreateResource && user?.userType === 'Docente' ? resourceLimitMessage : "Crear Nuevo Recurso"}>
+                                    <span>
+                                      <Button
                                         variant="contained"
                                         startIcon={<AddCircleOutlineIcon />}
                                         color="primary"
                                         onClick={handleOpenCreateResourceModal}
-                                        disabled={isDeleting || isCreatingResource || isCreatingActivity}
-                                    >
+                                        disabled={isDeleting || isCreatingResource || isCreatingActivity || (user?.userType === 'Docente' && !canCreateResource)}
+                                      >
                                         Crear Recurso
-                                    </Button>
-                                    <Button
+                                      </Button>
+                                    </span>
+                                  </Tooltip>
+                                  {/* --- END Tooltip and Disable for Create Resource --- */}
+
+                                  {/* --- BEGIN Tooltip and Disable for Create Activity --- */}
+                                  <Tooltip title={!canCreateActivity && user?.userType === 'Docente' ? activityLimitMessage : "Crear Nueva Actividad"}>
+                                    <span>
+                                      <Button
                                         variant="contained"
                                         startIcon={<AddCircleOutlineIcon />}
                                         color="secondary"
                                         onClick={handleOpenCreateActivityModal}
-                                        disabled={isDeleting || isCreatingResource || isCreatingActivity}
-                                    >
+                                        disabled={isDeleting || isCreatingResource || isCreatingActivity || (user?.userType === 'Docente' && !canCreateActivity)}
+                                      >
                                         Crear Actividad
-                                    </Button>
+                                      </Button>
+                                    </span>
+                                  </Tooltip>
+                                  {/* --- END Tooltip and Disable for Create Activity --- */}
                                 </Stack>
                             </Box>
+                            {/* --- BEGIN Display Usage/Limits --- */}
+                            {user?.userType === 'Docente' && (
+                              <Box sx={{p: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2, borderBottom: 1, borderColor: 'divider' }}>
+                                {resourceLimitMessage && (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: canCreateResource ? 'text.secondary' : 'warning.main' }}>
+                                    <InfoIcon fontSize="inherit" />
+                                    <Typography variant="caption" sx={{ fontWeight: 'medium' }}>{resourceLimitMessage}</Typography>
+                                  </Box>
+                                )}
+                                {activityLimitMessage && (
+                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: canCreateActivity ? 'text.secondary' : 'warning.main' }}>
+                                    <InfoIcon fontSize="inherit" />
+                                    <Typography variant="caption" sx={{ fontWeight: 'medium' }}>{activityLimitMessage}</Typography>
+                                  </Box>
+                                )}
+                              </Box>
+                            )}
+                            {/* --- END Display Usage/Limits --- */}
+
 
                             <Box sx={{ p: 2, minHeight: 400 }}>
                                 {activeTab === 0 ? renderResourceCards() : renderActivityCards()}
