@@ -27,7 +27,14 @@ import {
   Skeleton,
   useTheme,
   useMediaQuery,
-  Avatar
+  Avatar,
+  Switch,
+  FormControlLabel,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle
 } from '@mui/material';
 
 // Iconos
@@ -128,14 +135,22 @@ const getStatusColor = (status) => {
 };
 
 // Componente para una tarjeta de asignación
-const AssignmentCard = React.memo(({ assignment }) => {
+const AssignmentCard = React.memo((props) => { // Changed to props
+  const { assignment, onStatusChange, isUpdatingStatus } = props; // Destructure props
   const assignmentTitle = assignment.activity_id?.title || assignment.title || 'Título desconocido';
   const assignmentType = assignment.activity_id?.type || assignment.type || 'Desconocido';
   const assignmentStatus = assignment.status || 'Desconocido';
+
+  const handleSwitchChange = (event) => {
+    const newStatus = event.target.checked ? 'Open' : 'Closed';
+    // Call the passed-in handler, which should be handleOpenConfirmDialog
+    onStatusChange(assignment._id, newStatus);
+  };
   
   return (
     <Card elevation={2} sx={{ mb: 2, borderLeft: '4px solid', borderColor: 'primary.main' }}>
       <CardContent>
+        {/* Existing content ... */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1 }}>
             <Avatar sx={{ bgcolor: 'primary.light' }}>
@@ -190,6 +205,28 @@ const AssignmentCard = React.memo(({ assignment }) => {
             </Button>
           </Link>
         </Box>
+
+        {/* Switch for status change */}
+        <Box sx={{ mt: 2, pt:1, borderTop: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+          <Tooltip title={assignmentStatus === 'Draft' ? 'No se puede cambiar estado Draft' : (assignmentStatus === 'Open' ? "Marcar como 'Cerrada'" : "Marcar como 'Abierta'")}>
+            {/* Wrapping FormControlLabel in a span or div for Tooltip to work when disabled */}
+            <span>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={assignmentStatus === 'Open'}
+                    onChange={handleSwitchChange}
+                    disabled={assignmentStatus === 'Draft' || isUpdatingStatus}
+                    color="primary"
+                  />
+                }
+                label={isUpdatingStatus ? "Actualizando..." : (assignmentStatus === 'Open' ? 'Asignación Abierta' : 'Asignación Cerrada')}
+                labelPlacement="start"
+                sx={{ ml: 0 }} // Adjust margin if needed
+              />
+            </span>
+          </Tooltip>
+        </Box>
       </CardContent>
     </Card>
   );
@@ -205,6 +242,48 @@ function TeacherAssignmentsListPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [updatingStatusFor, setUpdatingStatusFor] = useState(null); // For individual assignment loading
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [selectedAssignmentForStatusChange, setSelectedAssignmentForStatusChange] = useState(null); // Stores { id, newStatus }
+
+  const handleOpenConfirmDialog = (assignmentId, newStatus) => {
+    setSelectedAssignmentForStatusChange({ id: assignmentId, newStatus });
+    setConfirmDialogOpen(true);
+  };
+
+  const handleCloseConfirmDialog = () => {
+    setConfirmDialogOpen(false);
+    // It's good practice to clear the selected assignment info when closing
+    // setSelectedAssignmentForStatusChange(null); // Or keep it if needed for text in dialog while closing
+  };
+
+  const handleConfirmStatusChange = async () => {
+    if (!selectedAssignmentForStatusChange) return;
+
+    const { id: assignmentId, newStatus } = selectedAssignmentForStatusChange;
+
+    setUpdatingStatusFor(assignmentId);
+    // Close dialog before API call
+    setConfirmDialogOpen(false);
+
+    try {
+      // Ensure using the correct endpoint as defined in backend routes
+      const response = await axiosInstance.patch(`/api/activities/assignments/${assignmentId}/status`, { status: newStatus });
+      setAssignments(prevAssignments =>
+        prevAssignments.map(asn =>
+          asn._id === assignmentId ? { ...asn, status: response.data.status } : asn // Use status from response
+        )
+      );
+      toast.success(`Asignación ${newStatus === 'Open' ? 'abierta' : 'cerrada'} correctamente.`);
+    } catch (err) {
+      console.error('Error updating assignment status:', err.response ? err.response.data : err.message);
+      const errorMessage = err.response?.data?.message || 'Error al actualizar el estado de la asignación.';
+      toast.error(errorMessage);
+    } finally {
+      setUpdatingStatusFor(null);
+      setSelectedAssignmentForStatusChange(null); // Clear selection after operation
+    }
+  };
 
   const fetchTeacherAssignments = async () => {
     setIsLoading(true);
@@ -354,7 +433,12 @@ function TeacherAssignmentsListPage() {
           // Vista móvil: Tarjetas
           <Box>
             {assignments.map((assignment) => (
-              <AssignmentCard key={assignment._id} assignment={assignment} />
+              <AssignmentCard
+                key={assignment._id}
+                assignment={assignment}
+                onStatusChange={handleOpenConfirmDialog} // Pass the dialog opener
+                isUpdatingStatus={updatingStatusFor === assignment._id}
+              />
             ))}
           </Box>
         ) : (
@@ -370,6 +454,7 @@ function TeacherAssignmentsListPage() {
                     <TableCell sx={{ fontWeight: 'bold' }}>Ubicación</TableCell>
                     <TableCell align="center" sx={{ fontWeight: 'bold' }}>Entregas</TableCell>
                     <TableCell align="center" sx={{ fontWeight: 'bold' }}>Pendientes</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>Estado (Abrir/Cerrar)</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 'bold' }}>Acciones</TableCell>
                   </TableRow>
                 </TableHead>
@@ -438,6 +523,28 @@ function TeacherAssignmentsListPage() {
                           </Button>
                         </Link>
                       </TableCell>
+                      <TableCell align="center"> {/* New Cell for Switch */}
+                        <Tooltip
+                          title={
+                            assignment.status === 'Draft'
+                              ? 'Las asignaciones en Borrador no pueden abrirse o cerrarse directamente.'
+                              : assignment.status === 'Open'
+                                ? 'Cerrar Asignación (los estudiantes no podrán hacer más envíos)'
+                                : 'Abrir Asignación (los estudiantes podrán realizar envíos)'
+                          }
+                        >
+                          <Box> {/* Wrapper Box to allow Tooltip when Switch is disabled */}
+                            <Switch
+                              checked={assignment.status === 'Open'}
+                              onChange={() => handleOpenConfirmDialog(assignment._id, assignment.status === 'Open' ? 'Closed' : 'Open')}
+                              disabled={assignment.status === 'Draft' || updatingStatusFor === assignment._id}
+                              color="primary"
+                              inputProps={{ 'aria-label': `Switch status for ${assignment.activity_id?.title || assignment.title}` }}
+                            />
+                            {updatingStatusFor === assignment._id && <CircularProgress size={20} sx={{ position: 'absolute', top: '50%', left: '50%', marginTop: '-10px', marginLeft: '-10px' }} />}
+                          </Box>
+                        </Tooltip>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -446,6 +553,48 @@ function TeacherAssignmentsListPage() {
           </Paper>
         )}
       </Box>
+
+      {/* Confirmation Dialog */}
+      <Dialog
+        open={confirmDialogOpen}
+        onClose={handleCloseConfirmDialog}
+        aria-labelledby="confirm-status-change-dialog-title"
+        aria-describedby="confirm-status-change-dialog-description"
+      >
+        <DialogTitle id="confirm-status-change-dialog-title">
+          Confirmar Cambio de Estado
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="confirm-status-change-dialog-description">
+            ¿Estás seguro de que quieres {selectedAssignmentForStatusChange?.newStatus === 'Open' ? 'ABRIR' : 'CERRAR'} esta asignación?
+            {selectedAssignmentForStatusChange?.newStatus === 'Closed' && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Al cerrar la asignación, los estudiantes ya no podrán realizar nuevas entregas.
+                Si hay estudiantes con intentos activos, su progreso actual podría guardarse o finalizarse.
+              </Typography>
+            )}
+             {selectedAssignmentForStatusChange?.newStatus === 'Open' && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Al abrir la asignación, los estudiantes podrán comenzar a realizar entregas.
+              </Typography>
+            )}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseConfirmDialog} color="inherit">
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleConfirmStatusChange}
+            color={selectedAssignmentForStatusChange?.newStatus === 'Open' ? "success" : "error"}
+            variant="contained"
+            disabled={updatingStatusFor === selectedAssignmentForStatusChange?.id} // Disable if this specific one is updating
+            startIcon={updatingStatusFor === selectedAssignmentForStatusChange?.id ? <CircularProgress size={16} color="inherit" /> : null}
+          >
+            {updatingStatusFor === selectedAssignmentForStatusChange?.id ? 'Actualizando...' : `Confirmar y ${selectedAssignmentForStatusChange?.newStatus === 'Open' ? 'Abrir' : 'Cerrar'}`}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }
