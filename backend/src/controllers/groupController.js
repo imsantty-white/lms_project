@@ -10,88 +10,76 @@ const User = require('../models/UserModel');
 const { isTeacherOfGroup } = require('../utils/permissionUtils');
 const NotificationService = require('../services/NotificationService'); // Adjust path if necessary
 
-const MAX_GROUPS_PER_DOCENTE = parseInt(process.env.MAX_GROUPS_PER_DOCENTE, 3) || 3; // Límite por defecto: 3
+// Es una buena práctica tener la constante cerca o importarla si es global
+const MAX_GROUPS_PER_DOCENTE = parseInt(process.env.MAX_GROUPS_PER_DOCENTE, 10) || 3;
 
 // @desc    Crear un nuevo grupo
 // @route   POST /api/groups/create
 // @access  Privado/Docente
 const createGroup = async (req, res) => {
-  // Aceptar nombre y limite_estudiantes del cuerpo de la petición
-  const { nombre, limite_estudiantes } = req.body;
-  const docenteId = req.user._id;
+    // Aceptar nombre y limite_estudiantes del cuerpo de la petición
+    const { nombre, descripcion, limite_estudiantes } = req.body;
+    const docenteId = req.user._id;
 
-  // --- Validación básica ---
-  if (!nombre) {
-    return res.status(400).json({ message: 'El nombre del grupo es obligatorio' });
-  }
-  // Opcional: Validar que limite_estudiantes si se proporciona sea un número no negativo
-  if (limite_estudiantes !== undefined) {
-      if (typeof limite_estudiantes !== 'number' || limite_estudiantes < 0) {
-          return res.status(400).json({ message: 'El límite de estudiantes debe ser un número no negativo' });
-      }
-  }
-  // --- Fin Validación básica ---
-
-
-  // *** INICIO del ÚNICO bloque try ***
-  try {
-
-    // --- Implementación Limitación: Número Máximo de Grupos por Docente ---
-    const groupCount = await Group.countDocuments({ docente_id: docenteId });
-
-    if (groupCount >= MAX_GROUPS_PER_DOCENTE) {
-        return res.status(400).json({ message: `Has alcanzado el límite máximo de grupos (${MAX_GROUPS_PER_DOCENTE}) que puedes crear.` });
+    // --- Validación de campos de entrada ---
+    if (!nombre || nombre.trim() === '') {
+        return res.status(400).json({ message: 'El nombre del grupo es obligatorio' });
     }
-    // --- Fin Implementación Limitación ---
+    if (limite_estudiantes !== undefined && (typeof limite_estudiantes !== 'number' || limite_estudiantes < 0)) {
+        return res.status(400).json({ message: 'El límite de estudiantes debe ser un número no negativo' });
+    }
+    // --- Fin Validación ---
 
+    try {
+        /*
+        // --- LÓGICA DE LÍMITE DE GRUPOS (Temporalmente desactivada) ---
+        // TODO: Mover esta lógica a un sistema de middleware o servicio de suscripciones/planes.
+        const groupCount = await Group.countDocuments({ docente_id: docenteId, activo: true });
 
-    // --- Generar un código de acceso único ---
-    let uniqueCodeFound = false;
-    let codigo_acceso;
-    const maxAttempts = 10;
-    let attempts = 0;
-
-    while (!uniqueCodeFound && attempts < maxAttempts) {
-        codigo_acceso = generateUniqueCode();
-        // Esta operación de BD está dentro del try
-        const existingGroup = await Group.findOne({ codigo_acceso });
-        if (!existingGroup) {
-            uniqueCodeFound = true;
+        if (groupCount >= MAX_GROUPS_PER_DOCENTE) {
+            return res.status(403).json({ message: `Has alcanzado el límite máximo de grupos (${MAX_GROUPS_PER_DOCENTE}) que puedes crear.` });
         }
-        attempts++;
+        // --- FIN DE LÓGICA DE LÍMITE ---
+        */
+
+        // --- Generar un código de acceso único (Lógica preservada) ---
+        let uniqueCodeFound = false;
+        let codigo_acceso;
+        const maxAttempts = 10;
+        let attempts = 0;
+
+        while (!uniqueCodeFound && attempts < maxAttempts) {
+            codigo_acceso = generateUniqueCode();
+            const existingGroup = await Group.findOne({ codigo_acceso });
+            if (!existingGroup) {
+                uniqueCodeFound = true;
+            }
+            attempts++;
+        }
+
+        if (!uniqueCodeFound) {
+            console.error('Error al generar código de acceso único después de varios intentos.');
+            return res.status(500).json({ message: 'No se pudo generar un código de acceso único para el grupo. Por favor, inténtalo de nuevo.' });
+        }
+        // --- Fin Generar código ---
+
+        // --- Crear el nuevo grupo (Lógica preservada) ---
+        const newGroup = await Group.create({
+            nombre: nombre.trim(),
+            descripcion: descripcion || '',
+            codigo_acceso,
+            docente_id: docenteId,
+            limite_estudiantes: limite_estudiantes !== undefined ? limite_estudiantes : 0
+        });
+        // --- Fin Crear grupo ---
+
+        res.status(201).json(newGroup);
+
+    } catch (error) {
+        console.error('Error creando grupo:', error);
+        res.status(500).json({ message: 'Error interno del servidor al crear el grupo', error: error.message });
     }
-
-    // Si no se encontró un código único después de varios intentos, devolvemos el error desde aquí.
-    // Este return sale de la función dentro del try.
-    if (!uniqueCodeFound) {
-        console.error('Error al generar código de acceso único después de varios intentos.');
-        return res.status(500).json({ message: 'No se pudo generar un código de acceso único para el grupo. Por favor, inténtalo de nuevo.' });
-    }
-    // --- Fin Generar código ---
-
-
-    // --- Crear el nuevo grupo ---
-    // Esta operación de BD también está dentro del try
-    const group = await Group.create({
-      nombre,
-      codigo_acceso,
-      docente_id: docenteId,
-      limite_estudiantes: limite_estudiantes !== undefined ? limite_estudiantes : 0 // Usar el límite proporcionado o 0 por defecto
-    });
-    // --- Fin Crear grupo ---
-
-
-    // --- Respuesta exitosa ---
-    res.status(201).json(group);
-    // --- Fin Respuesta ---
-
-  } catch (error) { // *** INICIO del ÚNICO bloque catch para manejar cualquier excepción en el try ***
-    // Este catch atrapará errores de las operaciones de BD (findOne, create)
-    console.error('Error creando grupo:', error);
-    res.status(500).json({ message: 'Error interno del servidor al crear el grupo', error: error.message });
-  } // *** FIN del bloque catch ***
 };
-
 
 
 
@@ -560,81 +548,73 @@ const getMyMembershipsWithStatus = async (req, res) => {
     }
 };
 
-// @desc    Actualizar detalles del grupo (nombre, limite_estudiantes)
+// @desc    Actualizar detalles del grupo (nombre, descripcion)
 // @route   PUT /api/groups/:groupId
 // @access  Privado/Docente
 const updateGroup = async (req, res) => {
-  const { groupId } = req.params; // ID del grupo a actualizar de la URL
-  // Campos permitidos para actualizar desde el cuerpo de la petición
-  const { nombre, limite_estudiantes } = req.body;
-  const docenteId = req.user._id; // ID del docente autenticado
-  const userType = req.user.tipo_usuario; // Tipo de usuario
+    const { groupId } = req.params; // ID del grupo a actualizar de la URL
+    // Campos permitidos para actualizar: nombre y descripcion
+    const { nombre, descripcion } = req.body;
+    const docenteId = req.user._id; // ID del docente autenticado
 
-  // Verificación de Permiso: Solo docentes pueden usar esta ruta (redundante si la ruta usa authorize)
-  if (userType !== 'Docente') {
-      return res.status(403).json({ message: 'Solo los docentes pueden actualizar grupos' });
-  }
+    // Validación básica del ID del grupo
+    if (!mongoose.Types.ObjectId.isValid(groupId)) {
+        return res.status(400).json({ message: 'ID de grupo inválido' });
+    }
 
-   // Validación básica del ID del grupo
-   if (!mongoose.Types.ObjectId.isValid(groupId)) {
-       return res.status(400).json({ message: 'ID de grupo inválido' });
-  }
+    // --- Validación de los campos a actualizar ---
 
-  // Validación de los campos a actualizar si se proporcionaron
-  // Si nombre está definido, debe ser string y no vacío
-  if (nombre !== undefined && (typeof nombre !== 'string' || nombre.trim() === '')) {
-       return res.status(400).json({ message: 'El nombre debe ser un texto no vacío si se proporciona' });
-  }
-   // Si limite_estudiantes está definido, debe ser un número no negativo
-   if (limite_estudiantes !== undefined) {
-       if (typeof limite_estudiantes !== 'number' || limite_estudiantes < 0) {
-           return res.status(400).json({ message: 'El límite de estudiantes debe ser un número no negativo si se proporciona' });
-       }
-   }
-   // Si no se proporcionó ni nombre ni limite_estudiantes en el cuerpo
-   if (nombre === undefined && limite_estudiantes === undefined) {
-        return res.status(400).json({ message: 'Se debe proporcionar al menos el nombre o el límite de estudiantes para actualizar' });
-   }
+    // Si nombre está definido, debe ser un texto no vacío
+    if (nombre !== undefined && (typeof nombre !== 'string' || nombre.trim() === '')) {
+        return res.status(400).json({ message: 'El nombre, si se proporciona, debe ser un texto no vacío.' });
+    }
+    // Si descripcion está definida, debe ser un texto. Se permite texto vacío.
+    if (descripcion !== undefined && typeof descripcion !== 'string') {
+        return res.status(400).json({ message: 'La descripción, si se proporciona, debe ser un texto.' });
+    }
+    // Si no se proporcionó ni nombre ni descripcion
+    if (nombre === undefined && descripcion === undefined) {
+        return res.status(400).json({ message: 'Se debe proporcionar al menos el nombre o la descripción para actualizar.' });
+    }
 
+    try {
+        // Buscar el grupo por ID y verificar que pertenece al docente autenticado
+        const group = await Group.findOne({ _id: groupId, docente_id: docenteId });
 
-  try {
-      // Buscar el grupo por ID y verificar que pertenece al docente autenticado
-      // Refactor: Use isTeacherOfGroup
-      const isOwner = await isTeacherOfGroup(docenteId, groupId);
-      if (!isOwner) {
-          // Se usa 404 para no revelar si el grupo existe pero pertenece a otro
-          return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece' });
-      }
-      // Fetch the group instance separately for updates if isOwner is true
-      const group = await Group.findOne({ _id: groupId, docente_id: docenteId, activo: true });
-      if (!group) { // Should not happen if isOwner was true, but as a safeguard
-          return res.status(404).json({ message: 'Grupo no encontrado, no está activo o no te pertenece.'});
-      }
+        if (!group) {
+            // Se usa 404 para no revelar si el grupo existe pero pertenece a otro docente
+            return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece.' });
+        }
+        
+        // El grupo debe estar activo para ser modificado
+        if (!group.activo) {
+            return res.status(403).json({ message: 'No se puede modificar un grupo que ha sido desactivado.'});
+        }
 
-      // Actualizar los campos permitidos solo si se proporcionaron en el cuerpo de la petición
-      if (nombre !== undefined) {
-          group.nombre = nombre.trim(); // Eliminar espacios en blanco alrededor del nombre
-      }
-       if (limite_estudiantes !== undefined) {
-           group.limite_estudiantes = limite_estudiantes;
-       }
-      // Nota: Campos como docente_id, codigo_acceso, activo no se cambian aquí.
+        // Actualizar los campos permitidos solo si se proporcionaron
+        if (nombre !== undefined) {
+            group.nombre = nombre.trim(); // Eliminar espacios en blanco alrededor del nombre
+        }
+        if (descripcion !== undefined) {
+            group.descripcion = descripcion;
+        }
+        // Nota: Campos como limite_estudiantes, codigo_acceso, etc., no se modifican.
 
-      // Guardar los cambios en la base de datos
-      await group.save();
+        // Guardar los cambios en la base de datos
+        const updatedGroup = await group.save();
 
-      // Responder con el grupo actualizado
-      res.status(200).json(group);
+        // Responder con el grupo actualizado
+        res.status(200).json(updatedGroup);
 
-  } catch (error) {
-      // Manejo de errores de validación de Mongoose u otros errores
-      if (error.name === 'ValidationError') {
-          const messages = Object.values(error.errors).map(val => val.message);
-          return res.status(400).json({ message: 'Error de validación al actualizar grupo', errors: messages });
-      }
-      console.error('Error actualizando grupo:', error);
-      res.status(500).json({ message: 'Error interno del servidor al actualizar el grupo', error: error.message });
-  }
+    } catch (error) {
+        // Manejo de errores de validación de Mongoose u otros errores
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(val => val.message);
+            return res.status(400).json({ message: 'Error de validación al actualizar el grupo.', errors: messages });
+        }
+        console.error('Error actualizando grupo:', error);
+        res.status(500).json({ message: 'Error interno del servidor al actualizar el grupo.', error: error.message });
+    }
 };
 
 

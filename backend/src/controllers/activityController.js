@@ -1035,16 +1035,6 @@ const getMyPendingActivities = async (req, res) => {
     }
 };
 
-module.exports = { 
-    getStudentActivityForAttempt,
-    submitStudentActivityAttempt,
-    getAssignmentSubmissions,
-    getTeacherAssignments,
-    gradeSubmission,
-    getAssignmentById,
-    getMyPendingActivities,
-    updateAssignmentStatus
-};
 
 // @desc    Actualizar el estado de una asignación (Open/Closed)
 // @route   PATCH /api/activities/assignments/:assignmentId/status
@@ -1147,4 +1137,16 @@ const updateAssignmentStatus = async (req, res, next) => {
     }
     next(error);
   }
+};
+
+
+module.exports = { 
+    getStudentActivityForAttempt,
+    submitStudentActivityAttempt,
+    getAssignmentSubmissions,
+    getTeacherAssignments,
+    gradeSubmission,
+    getAssignmentById,
+    getMyPendingActivities,
+    updateAssignmentStatus
 };

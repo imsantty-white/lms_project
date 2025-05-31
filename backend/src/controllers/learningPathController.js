@@ -787,50 +787,83 @@ const updateLearningPath = async (req, res) => {
 };
 
 
-// @desc    Eliminar una Ruta de Aprendizaje (requiere confirmación de nombre)
+// @desc    Eliminar una Ruta de Aprendizaje y todo su contenido asociado
 // @route   DELETE /api/learning-paths/:learningPathId
 // @access  Privado/Docente
 const deleteLearningPath = async (req, res) => {
     const { learningPathId } = req.params;
-    const { nombreConfirmacion } = req.body; // El nombre que el usuario debe enviar para confirmar
+    const { nombreConfirmacion } = req.body;
     const docenteId = req.user._id;
 
-    // Validación básica del ID de la Ruta
     if (!mongoose.Types.ObjectId.isValid(learningPathId)) {
         return res.status(400).json({ message: 'ID de ruta de aprendizaje inválido' });
     }
 
+    // Iniciar una sesión para la transacción
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
     try {
-        // Buscar la ruta de aprendizaje por ID y verificar que pertenece al docente autenticado VÍA su grupo
-        const learningPath = await LearningPath.findById(learningPathId).populate({ path: 'group_id', select: 'nombre docente_id activo' });
+        // Buscar la ruta de aprendizaje y validar la propiedad
+        const learningPath = await LearningPath.findById(learningPathId).populate({
+            path: 'group_id',
+            select: 'nombre docente_id activo'
+        }).session(session);
 
         if (!learningPath || !learningPath.group_id || !learningPath.group_id.docente_id.equals(docenteId) || !learningPath.group_id.activo) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada, no te pertenece o el grupo está inactivo.' });
         }
 
-        // Verificar que el nombre proporcionado coincida exactamente
+        // Confirmar el nombre para evitar borrados accidentales
         if (!nombreConfirmacion || nombreConfirmacion.trim() !== learningPath.nombre) {
-            return res.status(400).json({ message: 'El nombre de la ruta de aprendizaje no coincide. Debes escribir el nombre exacto para confirmar la eliminación.' });
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(400).json({ message: 'El nombre de la ruta de aprendizaje no coincide. Escribe el nombre exacto para confirmar.' });
         }
 
-        // Verificaciones de dependencias (módulos, progreso, etc.) aquí...
-        const relatedModulesCount = await Module.countDocuments({ learning_path_id: learningPathId });
-        if (relatedModulesCount > 0) {
-            return res.status(409).json({ message: 'No se puede eliminar la ruta de aprendizaje porque tiene módulos asociados. Elimina primero todos los módulos.' });
-        }
-        const relatedProgressCount = await Progress.countDocuments({ learning_path_id: learningPathId });
-        if (relatedProgressCount > 0) {
-            return res.status(409).json({ message: 'No se puede eliminar la ruta de aprendizaje porque tiene progreso de estudiantes asociado. Considera archivarla o eliminar el progreso manualmente.' });
+        // --- Inicio de la lógica de eliminación en cascada ---
+
+        // 1. Encontrar todos los módulos de la ruta de aprendizaje
+        const modules = await Module.find({ learning_path_id: learningPathId }).session(session);
+        const moduleIds = modules.map(m => m._id);
+
+        if (moduleIds.length > 0) {
+            // 2. Encontrar todos los temas de esos módulos
+            const themes = await Theme.find({ module_id: { $in: moduleIds } }).session(session);
+            const themeIds = themes.map(t => t._id);
+
+            if (themeIds.length > 0) {
+                // 3. Eliminar todas las asignaciones de contenido de esos temas
+                await ContentAssignment.deleteMany({ theme_id: { $in: themeIds } }).session(session);
+            }
+
+            // 4. Eliminar todos los temas
+            await Theme.deleteMany({ module_id: { $in: moduleIds } }).session(session);
         }
 
-        // Si pasa todas las validaciones, elimina la ruta
-        await LearningPath.findByIdAndDelete(learningPathId);
+        // 5. Eliminar todos los módulos
+        await Module.deleteMany({ learning_path_id: learningPathId }).session(session);
 
-        res.status(200).json({ message: 'Ruta de aprendizaje eliminada exitosamente' });
+        // 6. Eliminar todo el progreso de estudiantes asociado a la ruta
+        await Progress.deleteMany({ learning_path_id: learningPathId }).session(session);
+
+        // 7. Finalmente, eliminar la ruta de aprendizaje
+        await LearningPath.findByIdAndDelete(learningPathId).session(session);
+
+        // Si todo fue exitoso, confirma la transacción
+        await session.commitTransaction();
+        session.endSession();
+
+        res.status(200).json({ message: `Ruta de aprendizaje '${learningPath.nombre}' y todo su contenido asociado han sido eliminados.` });
 
     } catch (error) {
-        console.error('Error eliminando ruta de aprendizaje:', error);
-        res.status(500).json({ message: 'Error interno del servidor al eliminar la ruta de aprendizaje', error: error.message });
+        // Si algo falla, revierte todos los cambios
+        await session.abortTransaction();
+        session.endSession();
+        console.error('Error durante la eliminación en cascada de la ruta de aprendizaje:', error);
+        res.status(500).json({ message: 'Error interno del servidor al eliminar la ruta de aprendizaje.', error: error.message });
     }
 };
 

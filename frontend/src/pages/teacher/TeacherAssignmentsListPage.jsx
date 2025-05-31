@@ -168,7 +168,12 @@ const AssignmentCard = React.memo((props) => { // Changed to props
               variant="outlined"
             />
             <Chip
-              label={assignmentStatus}
+              label={
+                assignmentStatus === 'Open' ? 'Abierta' :
+                assignmentStatus === 'Closed' ? 'Cerrada' :
+                assignmentStatus === 'Draft' ? 'Borrador' :
+                'Desconocido'
+              }
               size="small"
               color={getStatusColor(assignmentStatus)}
               variant="outlined"
@@ -208,7 +213,7 @@ const AssignmentCard = React.memo((props) => { // Changed to props
 
         {/* Switch for status change */}
         <Box sx={{ mt: 2, pt:1, borderTop: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-          <Tooltip title={assignmentStatus === 'Draft' ? 'No se puede cambiar estado Draft' : (assignmentStatus === 'Open' ? "Marcar como 'Cerrada'" : "Marcar como 'Abierta'")}>
+          <Tooltip title={assignmentStatus === 'Draft' ? 'No se puede cambiar estado Borrador' : (assignmentStatus === 'Open' ? "Marcar como 'Cerrada'" : "Marcar como 'Abierta'")}>
             {/* Wrapping FormControlLabel in a span or div for Tooltip to work when disabled */}
             <span>
               <FormControlLabel
@@ -450,12 +455,12 @@ function TeacherAssignmentsListPage() {
                   <TableRow sx={{ backgroundColor: theme.palette.background.paper }}>
                     <TableCell sx={{ fontWeight: 'bold' }}>Nombre de Actividad</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Tipo</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Estado</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Ubicación</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Estado Actual</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>Ubicación</TableCell>
                     <TableCell align="center" sx={{ fontWeight: 'bold' }}>Entregas</TableCell>
                     <TableCell align="center" sx={{ fontWeight: 'bold' }}>Pendientes</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>Estado (Abrir/Cerrar)</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>Acciones</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>Acciones</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>Estado (Abrir/Cerrar)</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -488,7 +493,12 @@ function TeacherAssignmentsListPage() {
                       </TableCell>
                       <TableCell> {/* New Cell for Status */}
                         <Chip
-                          label={assignment.status || 'Desconocido'}
+                          label={
+                            assignment.status === 'Open' ? 'Abierta' :
+                            assignment.status === 'Closed' ? 'Cerrada' :
+                            assignment.status === 'Draft' ? 'Borrador' :
+                            'Desconocido'
+                          }
                           size="small"
                           color={getStatusColor(assignment.status)}
                           variant="outlined"
@@ -573,7 +583,7 @@ function TeacherAssignmentsListPage() {
                 Si hay estudiantes con intentos activos, su progreso actual podría guardarse o finalizarse.
               </Typography>
             )}
-             {selectedAssignmentForStatusChange?.newStatus === 'Open' && (
+              {selectedAssignmentForStatusChange?.newStatus === 'Open' && (
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                 Al abrir la asignación, los estudiantes podrán comenzar a realizar entregas.
               </Typography>

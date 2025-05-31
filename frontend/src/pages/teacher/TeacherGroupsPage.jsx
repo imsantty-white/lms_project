@@ -1,6 +1,5 @@
-// src/pages/TeacherGroupsPage.jsx
 import React, { useEffect, useState, useRef } from 'react';
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Container,
   Typography,
@@ -30,13 +29,12 @@ import ArchiveIcon from '@mui/icons-material/Archive';
 import RestoreIcon from '@mui/icons-material/Restore';
 import PeopleIcon from '@mui/icons-material/People';
 import CodeIcon from '@mui/icons-material/Code';
-import SettingsIcon from '@mui/icons-material/Settings';
 import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
 
 // Context and utilities
 import { useAuth, axiosInstance } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
-import { useNavigate } from 'react-router-dom';
 
 // Components
 import CreateGroupModal from '../components/CreateGroupModal';
@@ -68,7 +66,21 @@ const GroupsSkeleton = () => (
 );
 
 // Componente de tarjeta de grupo para docentes
-const TeacherGroupCard = ({ group, index, isArchived, onArchive, onRestore, isProcessing }) => {
+const TeacherGroupCard = ({ group, index, isArchived, onArchive, onRestore, isProcessing, onEdit }) => {
+  const navigate = useNavigate();
+
+  const handleCardClick = () => {
+    if (!isArchived) {
+      navigate(`/teacher/groups/${group._id}/manage`);
+    }
+  };
+  
+  // Detiene la propagación para que al hacer clic en los botones no se navegue.
+  const handleActionClick = (e, action) => {
+    e.stopPropagation();
+    action(group);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -76,147 +88,75 @@ const TeacherGroupCard = ({ group, index, isArchived, onArchive, onRestore, isPr
       transition={{ duration: 0.3, delay: index * 0.1 }}
       whileHover={{ y: -4 }}
     >
-      <Card 
-        sx={{ 
+      <Card
+        onClick={handleCardClick}
+        sx={{
           mb: 3,
           position: 'relative',
           overflow: 'visible',
           transition: 'all 0.3s ease-in-out',
           border: '1px solid',
           borderColor: 'divider',
-          backgroundColor: isArchived ? 
-            (theme) => alpha(theme.palette.grey[500], 0.05) : 
+          cursor: isArchived ? 'default' : 'pointer', // Cambia el cursor si es clickeable
+          backgroundColor: isArchived ?
+            (theme) => alpha(theme.palette.grey[500], 0.05) :
             'background.paper',
           '&:hover': {
-            borderColor: 'primary.main',
-            boxShadow: (theme) => `0 8px 40px ${alpha(theme.palette.primary.main, 0.12)}`,
+            borderColor: isArchived ? 'divider' : 'primary.main',
+            boxShadow: isArchived ? 'none' : (theme) => `0 8px 40px ${alpha(theme.palette.primary.main, 0.12)}`,
           }
         }}
       >
         <CardContent sx={{ p: 3, pb: 2 }}>
           <Stack direction="row" spacing={3} alignItems="flex-start">
-            {/* Avatar del grupo */}
-            <Avatar
-              sx={{
-                width: 56,
-                height: 56,
-                bgcolor: isArchived ? 'grey.400' : 'primary.main',
-                fontSize: '1.5rem'
-              }}
-            >
+            <Avatar sx={{ width: 56, height: 56, bgcolor: isArchived ? 'grey.400' : 'primary.main', fontSize: '1.5rem' }}>
               <GroupsIcon />
             </Avatar>
 
-            {/* Información del grupo */}
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography 
-                variant="h6" 
-                sx={{ 
-                  fontWeight: 600,
-                  mb: 1,
-                  color: isArchived ? 'text.secondary' : 'text.primary'
-                }}
-              >
+              <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: isArchived ? 'text.secondary' : 'text.primary' }}>
                 {group.nombre}
               </Typography>
-
-              {/* Código de acceso */}
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
                 <CodeIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                 <Typography variant="body2" color="text.secondary">
                   <strong>Código de Acceso:</strong> {group.codigo_acceso}
                 </Typography>
               </Stack>
-
-              {/* Descripción */}
               {group.descripcion && (
-                <Typography 
-                  variant="body2" 
-                  color="text.secondary" 
-                  sx={{ 
-                    mb: 2,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden'
-                  }}
-                >
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                   {group.descripcion}
                 </Typography>
               )}
-
-              {/* Chips de información */}
               <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-                <Chip
-                  icon={<PeopleIcon sx={{ fontSize: 16 }} />}
-                  label={`${group.approvedStudentCount || 0} estudiantes`}
-                  size="small"
-                  color={isArchived ? 'default' : 'primary'}
-                  variant="filled"
-                />
-                {isArchived && (
-                  <Chip
-                    icon={<ArchiveIcon sx={{ fontSize: 16 }} />}
-                    label="Archivado"
-                    size="small"
-                    color="default"
-                    variant="outlined"
-                  />
-                )}
+                <Chip icon={<PeopleIcon sx={{ fontSize: 16 }} />} label={`${group.approvedStudentCount || 0} estudiantes`} size="small" color={isArchived ? 'default' : 'primary'} variant="filled" />
+                {isArchived && (<Chip icon={<ArchiveIcon sx={{ fontSize: 16 }} />} label="Archivado" size="small" color="default" variant="outlined" />)}
               </Stack>
             </Box>
 
-            {/* Botones de acción */}
-            <Stack direction="column" spacing={3} alignItems="flex-end">
-              {/* Botón de gestionar */}
-              <Tooltip title="Gestionar grupo">
-                <IconButton
-                  component={Link}
-                  to={`/teacher/groups/${group._id}/manage`}
-                  sx={{
-                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
-                    '&:hover': {
-                      bgcolor: (theme) => alpha(theme.palette.primary.main, 0.2),
-                    }
-                  }}
-                >
-                  <SettingsIcon color="primary" />
-                </IconButton>
-              </Tooltip>
-
-              {/* Botón de archivar/restaurar */}
-              {!isArchived ? (
-                <Tooltip title="Archivar grupo">
-                  <IconButton
-                    onClick={() => onArchive(group)}
-                    disabled={isProcessing}
-                    sx={{
-                      bgcolor: (theme) => alpha(theme.palette.warning.main, 0.1),
-                      '&:hover': {
-                        bgcolor: (theme) => alpha(theme.palette.warning.main, 0.2),
-                      }
-                    }}
-                  >
-                    <ArchiveIcon color="warning" />
-                  </IconButton>
-                </Tooltip>
-              ) : (
-                <Tooltip title="Restaurar grupo">
-                  <IconButton
-                    onClick={() => onRestore(group)}
-                    disabled={isProcessing}
-                    sx={{
-                      bgcolor: (theme) => alpha(theme.palette.success.main, 0.1),
-                      '&:hover': {
-                        bgcolor: (theme) => alpha(theme.palette.success.main, 0.2),
-                      }
-                    }}
-                  >
-                    <RestoreIcon color="success" />
-                  </IconButton>
-                </Tooltip>
-              )}
-            </Stack>
+            <Stack direction="column" spacing={1} alignItems="flex-end">
+                {!isArchived && (
+                  <Tooltip title="Editar grupo">
+                    <IconButton onClick={(e) => handleActionClick(e, onEdit)} disabled={isProcessing} sx={{ bgcolor: (theme) => alpha(theme.palette.text.primary, 0.1), '&:hover': { bgcolor: (theme) => alpha(theme.palette.text.primary, 0.2) } }}>
+                      <EditIcon color="text.primary" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                
+                {!isArchived ? (
+                  <Tooltip title="Archivar grupo">
+                    <IconButton onClick={(e) => handleActionClick(e, onArchive)} disabled={isProcessing} sx={{ bgcolor: (theme) => alpha(theme.palette.warning.main, 0.1), '&:hover': { bgcolor: (theme) => alpha(theme.palette.warning.main, 0.2) } }}>
+                      <ArchiveIcon color="warning" />
+                    </IconButton>
+                  </Tooltip>
+                ) : (
+                  <Tooltip title="Restaurar grupo">
+                    <IconButton onClick={(e) => handleActionClick(e, onRestore)} disabled={isProcessing} sx={{ bgcolor: (theme) => alpha(theme.palette.success.main, 0.1), '&:hover': { bgcolor: (theme) => alpha(theme.palette.success.main, 0.2) } }}>
+                      <RestoreIcon color="success" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Stack>
           </Stack>
         </CardContent>
       </Card>
@@ -227,48 +167,9 @@ const TeacherGroupCard = ({ group, index, isArchived, onArchive, onRestore, isPr
 // Componente de tabs personalizado
 const CustomTabs = ({ currentTab, onTabChange, activeCount, archivedCount }) => (
   <Box sx={{ mb: 4 }}>
-    <Tabs 
-      value={currentTab} 
-      onChange={onTabChange}
-      sx={{
-        '& .MuiTabs-indicator': {
-          height: 3,
-          borderRadius: 2,
-        },
-        '& .MuiTab-root': {
-          textTransform: 'none',
-          fontSize: '1rem',
-          fontWeight: 600,
-          minHeight: 48,
-        }
-      }}
-    >
-      <Tab 
-        label={
-          <Stack direction="row" spacing={2} alignItems="center">
-            <span>Grupos Activos</span>
-            {/* <Badge 
-              badgeContent={activeCount} 
-              color="primary"
-              sx={{ '& .MuiBadge-badge': { fontSize: '0.75rem' } }}
-            /> */}
-          </Stack>
-        } 
-        value="active" 
-      />
-      <Tab 
-        label={
-          <Stack direction="row" spacing={2} alignItems="center">
-            <span>Grupos Archivados</span>
-            <Badge 
-              badgeContent={archivedCount} 
-              color="default"
-              sx={{ '& .MuiBadge-badge': { fontSize: '0.75rem' } }}
-            />
-          </Stack>
-        } 
-        value="archived" 
-      />
+    <Tabs value={currentTab} onChange={onTabChange} sx={{ '& .MuiTabs-indicator': { height: 3, borderRadius: 2, }, '& .MuiTab-root': { textTransform: 'none', fontSize: '1rem', fontWeight: 600, minHeight: 48, } }}>
+      <Tab label={ <Stack direction="row" spacing={2} alignItems="center"><span>Grupos Activos</span></Stack>} value="active" />
+      <Tab label={ <Stack direction="row" spacing={2} alignItems="center"><span>Grupos Archivados</span></Stack>} value="archived" />
     </Tabs>
   </Box>
 );
@@ -282,40 +183,33 @@ function TeacherGroupsPage() {
   const [error, setError] = useState(null);
   const [currentTab, setCurrentTab] = useState('active');
   const [stats, setStats] = useState({ active: 0, archived: 0 });
-
   const hasShownSuccessToast = useRef({ active: false, archived: false });
 
-  // Estados para modales
-  const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
-  const [isCreateGroupConfirmOpen, setIsCreateGroupConfirmOpen] = useState(false);
-  const [groupDataToCreate, setGroupDataToCreate] = useState(null);
-  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [groupToEdit, setGroupToEdit] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [dataToSave, setDataToSave] = useState(null);
   
   const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
   const [groupToArchive, setGroupToArchive] = useState(null);
   const [isArchiving, setIsArchiving] = useState(false);
   
   const [isUnarchiveConfirmOpen, setIsUnarchiveConfirmOpen] = useState(false);
-  const [groupToUnarchive, setGroupToUnarchive] = useState(false);
+  const [groupToUnarchive, setGroupToUnarchive] = useState(null);
   const [isUnarchiving, setIsUnarchiving] = useState(false);
 
   useEffect(() => {
     const fetchTeacherGroups = async () => {
       setIsLoading(true);
       setError(null);
-
-      let endpoint = '/api/groups/docente/me';
-      if (currentTab === 'archived') {
-        endpoint = '/api/groups/docente/me?status=archived';
-      } else {
-        endpoint = '/api/groups/docente/me?status=active';
-      }
+      const endpoint = `/api/groups/docente/me?status=${currentTab}`;
 
       try {
         const response = await axiosInstance.get(endpoint);
         setGroups(response.data.data);
 
-        // Actualizar estadísticas
         if (currentTab === 'active') {
           setStats(prev => ({ ...prev, active: response.data.data.length }));
         } else {
@@ -323,12 +217,12 @@ function TeacherGroupsPage() {
         }
 
         if (!hasShownSuccessToast.current[currentTab]) {
-          toast.success(`Grupos ${currentTab === 'active' ? 'activos' : 'archivados'} cargados con éxito.`);
+          toast.success(`Grupos ${currentTab === 'active' ? 'activos' : 'archivados'} cargados.`);
           hasShownSuccessToast.current[currentTab] = true;
         }
       } catch (err) {
-        console.error(`Error al obtener los grupos (${currentTab}) del docente:`, err.response ? err.response.data : err.message);
-        const errorMessage = err.response?.data?.message || `Error al cargar tus grupos ${currentTab === 'active' ? 'activos' : 'archivados'}.`;
+        console.error(`Error al obtener los grupos (${currentTab}):`, err.response ? err.response.data : err.message);
+        const errorMessage = err.response?.data?.message || `Error al cargar tus grupos.`;
         setError(errorMessage);
         toast.error(errorMessage);
       } finally {
@@ -348,52 +242,60 @@ function TeacherGroupsPage() {
     setCurrentTab(newValue);
   };
 
-  // Handlers para modales
-  const handleOpenCreateGroupModal = () => {
-    setIsCreateGroupModalOpen(true);
+  const handleOpenCreateModal = () => {
+    setGroupToEdit(null);
+    setIsModalOpen(true);
   };
 
-  const handleCloseCreateGroupModal = (event, reason) => {
-    if (reason && (reason === 'backdropClick' || reason === 'escapeKeyDown')) {
-      return;
-    }
-    setIsCreateGroupModalOpen(false);
-    setGroupDataToCreate(null);
+  const handleOpenEditModal = (group) => {
+    setGroupToEdit(group);
+    setIsModalOpen(true);
   };
 
-  const handleGroupFormSubmit = (formData) => {
-    setGroupDataToCreate(formData);
-    setIsCreateGroupConfirmOpen(true);
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setGroupToEdit(null);
+    setDataToSave(null);
   };
 
-  const handleCloseCreateGroupConfirm = () => {
-    setIsCreateGroupConfirmOpen(false);
-    setGroupDataToCreate(null);
+  const handleFormSubmit = (formData) => {
+    setDataToSave(formData);
+    setIsConfirmModalOpen(true);
   };
 
-  const handleConfirmCreateGroup = async () => {
-    if (!groupDataToCreate) return;
+  const handleConfirmSave = async () => {
+    if (!dataToSave) return;
 
-    setIsCreatingGroup(true);
-
+    const isEditing = !!groupToEdit;
+    const endpoint = isEditing ? `/api/groups/${groupToEdit._id}` : '/api/groups/create';
+    const method = isEditing ? 'put' : 'post';
+    
+    setIsSaving(true);
     try {
-      const response = await axiosInstance.post('/api/groups/create', groupDataToCreate);
-      const newGroup = response.data;
-      toast.success('Grupo creado con éxito!');
-
-      if (currentTab === 'active') {
-        setGroups(prevGroups => [...prevGroups, newGroup]);
-        setStats(prev => ({ ...prev, active: prev.active + 1 }));
+      const response = await axiosInstance[method](endpoint, dataToSave);
+      const savedGroup = response.data;
+      
+      if (isEditing) {
+        toast.success(`Grupo "${savedGroup.nombre}" actualizado.`);
+        setGroups(groups.map(g => g._id === savedGroup._id ? savedGroup : g));
+      } else {
+        toast.success(`Grupo "${savedGroup.nombre}" creado.`);
+        if (currentTab === 'active') {
+          setGroups(prev => [savedGroup, ...prev]);
+          setStats(prev => ({ ...prev, active: prev.active + 1 }));
+        }
       }
-
-      handleCloseCreateGroupConfirm();
-      handleCloseCreateGroupModal();
+      
+      handleCloseModal();
     } catch (err) {
-      console.error('Error creating group:', err.response ? err.response.data : err.message);
-      const errorMessage = err.response?.data?.message || 'Error al intentar crear el grupo.';
+      const action = isEditing ? 'actualizar' : 'crear';
+      console.error(`Error al ${action} el grupo:`, err.response ? err.response.data : err.message);
+      const errorMessage = err.response?.data?.message || `Error al intentar ${action} el grupo.`;
       toast.error(errorMessage);
     } finally {
-      setIsCreatingGroup(false);
+      setIsSaving(false);
+      setIsConfirmModalOpen(false);
+      setDataToSave(null);
     }
   };
 
@@ -404,21 +306,18 @@ function TeacherGroupsPage() {
 
   const handleConfirmArchive = async () => {
     if (!groupToArchive) return;
-
     setIsArchiving(true);
     try {
       await axiosInstance.delete(`/api/groups/${groupToArchive.id}`);
-      toast.success(`Grupo "${groupToArchive.nombre}" archivado con éxito.`);
-      setGroups(prevGroups => prevGroups.filter(g => g._id !== groupToArchive.id));
+      toast.success(`Grupo "${groupToArchive.nombre}" archivado.`);
+      setGroups(prev => prev.filter(g => g._id !== groupToArchive.id));
       setStats(prev => ({ ...prev, active: prev.active - 1, archived: prev.archived + 1 }));
-      setIsArchiveConfirmOpen(false);
-      setGroupToArchive(null);
     } catch (err) {
-      console.error('Error archiving group:', err.response ? err.response.data : err.message);
-      const errorMessage = err.response?.data?.message || 'Error al intentar archivar el grupo.';
-      toast.error(errorMessage);
+      toast.error(err.response?.data?.message || 'Error al archivar el grupo.');
     } finally {
       setIsArchiving(false);
+      setIsArchiveConfirmOpen(false);
+      setGroupToArchive(null);
     }
   };
 
@@ -429,19 +328,14 @@ function TeacherGroupsPage() {
 
   const handleConfirmUnarchive = async () => {
     if (!groupToUnarchive) return;
-
     setIsUnarchiving(true);
     try {
       await axiosInstance.put(`/api/groups/${groupToUnarchive.id}/restore`);
-      toast.success(`Grupo "${groupToUnarchive.nombre}" restaurado con éxito.`);
-      setGroups(prevGroups => prevGroups.filter(g => g._id !== groupToUnarchive.id));
+      toast.success(`Grupo "${groupToUnarchive.nombre}" restaurado.`);
+      setGroups(prev => prev.filter(g => g._id !== groupToUnarchive.id));
       setStats(prev => ({ ...prev, active: prev.active + 1, archived: prev.archived - 1 }));
-      setIsUnarchiveConfirmOpen(false);
-      setGroupToUnarchive(null);
     } catch (err) {
-      console.error('Error unarchiving group:', err.response ? err.response.data : err.message);
-      const errorMessage = err.response?.data?.message || 'Error al intentar restaurar el grupo.';
-      toast.error(errorMessage);
+      toast.error(err.response?.data?.message || 'Error al restaurar el grupo.');
     } finally {
       setIsUnarchiving(false);
       setIsUnarchiveConfirmOpen(false);
@@ -464,199 +358,62 @@ function TeacherGroupsPage() {
   return (
     <Container maxWidth="lg">
       <Box sx={{ py: 4 }}>
-        {/* Header con animación */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <Box sx={{ textAlign: 'center', mb: 4 }}>
             <Typography variant="h3" sx={{ fontWeight: 700, mb: 2 }}>
               Mis Grupos
             </Typography>
-            <Typography 
-              variant="body1" 
-              color="text.secondary" 
-              sx={{ 
-                maxWidth: 600, 
-                mx: 'auto',
-                fontSize: '1.1rem'
-              }}
-            >
+            <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 600, mx: 'auto', fontSize: '1.1rem' }}>
               Administra todos tus grupos de estudiantes desde un solo lugar.
             </Typography>
           </Box>
         </motion.div>
 
-        {/* Estadísticas rápidas */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
           <Card sx={{ mb: 4, background: 'linear-gradient(135deg, #5d4aab 0%, #7c6fd1 100%)' }}>
             <CardContent sx={{ py: 3 }}>
               <Stack direction="row" spacing={4} justifyContent="center" alignItems="center">
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="h4" sx={{ color: 'white', fontWeight: 700 }}>
-                    {stats.active}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                    Grupos Activos
-                  </Typography>
-                </Box>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="h4" sx={{ color: 'white', fontWeight: 700 }}>
-                    {stats.archived}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                    Archivados
-                  </Typography>
-                </Box>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="h4" sx={{ color: 'white', fontWeight: 700 }}>
-                    {groups.reduce((acc, group) => acc + (group.approvedStudentCount || 0), 0)}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                    {currentTab === 'active' ? 'Estudiantes Activos' : 'Total Estudiantes'}
-                  </Typography>
-                </Box>
+                <Box sx={{ textAlign: 'center' }}><Typography variant="h4" sx={{ color: 'white', fontWeight: 700 }}>{stats.active}</Typography><Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>Grupos Activos</Typography></Box>
+                <Box sx={{ textAlign: 'center' }}><Typography variant="h4" sx={{ color: 'white', fontWeight: 700 }}>{stats.archived}</Typography><Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>Archivados</Typography></Box>
+                <Box sx={{ textAlign: 'center' }}><Typography variant="h4" sx={{ color: 'white', fontWeight: 700 }}>{groups.reduce((acc, group) => acc + (group.approvedStudentCount || 0), 0)}</Typography><Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>{currentTab === 'active' ? 'Estudiantes Activos' : 'Total Estudiantes'}</Typography></Box>
               </Stack>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Tabs */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-        >
-          <CustomTabs 
-            currentTab={currentTab}
-            onTabChange={handleTabChange}
-            activeCount={stats.active}
-            archivedCount={stats.archived}
-          />
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.3 }}>
+          <CustomTabs currentTab={currentTab} onTabChange={handleTabChange} activeCount={stats.active} archivedCount={stats.archived} />
         </motion.div>
 
-        {/* Contenido principal */}
         <Box sx={{ mt: 4 }}>
           <AnimatePresence mode="wait">
-            {/* Loading */}
             {isLoading && (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-              >
+              <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
                 <GroupsSkeleton />
               </motion.div>
             )}
-
-            {/* Error */}
             {error && !isLoading && (
-              <motion.div
-                key="error"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.3 }}
-              >
-                <Alert 
-                  severity="error" 
-                  sx={{ 
-                    mt: 3,
-                    borderRadius: 2,
-                    '& .MuiAlert-message': {
-                      fontSize: '1rem'
-                    }
-                  }}
-                >
-                  {error}
-                </Alert>
+              <motion.div key="error" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.3 }}>
+                <Alert severity="error" sx={{ mt: 3, borderRadius: 2, '& .MuiAlert-message': { fontSize: '1rem' } }}>{error}</Alert>
               </motion.div>
             )}
-
-            {/* Empty State */}
             {!isLoading && !error && groups.length === 0 && (
-              <motion.div
-                key="empty"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.3 }}
-              >
-                <Card 
-                  sx={{ 
-                    mt: 6,
-                    py: 6,
-                    textAlign: 'center',
-                    borderRadius: 3,
-                    backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.02),
-                    border: '1px dashed',
-                    borderColor: (theme) => alpha(theme.palette.primary.main, 0.2)
-                  }}
-                >
+              <motion.div key="empty" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.3 }}>
+                <Card sx={{ mt: 6, py: 6, textAlign: 'center', borderRadius: 3, backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.02), border: '1px dashed', borderColor: (theme) => alpha(theme.palette.primary.main, 0.2) }}>
                   <CardContent>
-                    <Avatar
-                      sx={{
-                        width: 80,
-                        height: 80,
-                        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
-                        mx: 'auto',
-                        mb: 3
-                      }}
-                    >
-                      <GroupsIcon sx={{ fontSize: 40, color: 'primary.main' }} />
-                    </Avatar>
-                    <Typography variant="h6" sx={{ mb: 2 }}>
-                      {currentTab === 'active'
-                        ? 'Aún no has creado ningún grupo activo'
-                        : 'No tienes grupos archivados'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                      {currentTab === 'active'
-                        ? 'Crea tu primer grupo para comenzar a organizar a tus estudiantes.'
-                        : 'Los grupos archivados aparecerán aquí.'}
-                    </Typography>
-                    {currentTab === 'active' && (
-                      <Button
-                        variant="contained"
-                        startIcon={<AddCircleOutlineIcon />}
-                        onClick={handleOpenCreateGroupModal}
-                        size="large"
-                      >
-                        Crear Primer Grupo
-                      </Button>
-                    )}
+                    <Avatar sx={{ width: 80, height: 80, bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1), mx: 'auto', mb: 3 }}><GroupsIcon sx={{ fontSize: 40, color: 'primary.main' }} /></Avatar>
+                    <Typography variant="h6" sx={{ mb: 2 }}>{currentTab === 'active' ? 'Aún no has creado ningún grupo activo' : 'No tienes grupos archivados'}</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{currentTab === 'active' ? 'Crea tu primer grupo para comenzar.' : 'Los grupos archivados aparecerán aquí.'}</Typography>
+                    {currentTab === 'active' && (<Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={handleOpenCreateModal} size="large">Crear Primer Grupo</Button>)}
                   </CardContent>
                 </Card>
               </motion.div>
             )}
-
-            {/* Groups List */}
             {!isLoading && !error && groups.length > 0 && (
-              <motion.div
-                key="groups"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-              >
+              <motion.div key="groups" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
                 <Box sx={{ mt: 4 }}>
                   {groups.map((group, index) => (
-                    <TeacherGroupCard
-                      key={group._id}
-                      group={group}
-                      index={index}
-                      isArchived={currentTab === 'archived'}
-                      onArchive={handleOpenArchiveConfirm}
-                      onRestore={handleOpenUnarchiveConfirm}
-                      isProcessing={isArchiving || isUnarchiving}
-                    />
+                    <TeacherGroupCard key={group._id} group={group} index={index} isArchived={currentTab === 'archived'} onArchive={handleOpenArchiveConfirm} onRestore={handleOpenUnarchiveConfirm} isProcessing={isArchiving || isUnarchiving} onEdit={handleOpenEditModal} />
                   ))}
                 </Box>
               </motion.div>
@@ -664,26 +421,10 @@ function TeacherGroupsPage() {
           </AnimatePresence>
         </Box>
 
-        {/* FAB para crear grupo */}
         <AnimatePresence>
           {!isLoading && currentTab === 'active' && (
-            <motion.div
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              transition={{ duration: 0.3, delay: 0.5 }}
-            >
-              <Fab
-                color="primary"
-                sx={{
-                  position: 'fixed',
-                  bottom: 24,
-                  right: 24,
-                  zIndex: 1000
-                }}
-                onClick={handleOpenCreateGroupModal}
-                disabled={isCreatingGroup}
-              >
+            <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ duration: 0.3, delay: 0.5 }}>
+              <Fab color="primary" sx={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1000 }} onClick={handleOpenCreateModal} disabled={isSaving}>
                 <AddIcon />
               </Fab>
             </motion.div>
@@ -691,46 +432,10 @@ function TeacherGroupsPage() {
         </AnimatePresence>
       </Box>
 
-      {/* Modales */}
-      <CreateGroupModal
-        open={isCreateGroupModalOpen}
-        onClose={handleCloseCreateGroupModal}
-        onSubmit={handleGroupFormSubmit}
-        isCreating={isCreatingGroup}
-      />
-
-      <ConfirmationModal
-        open={isCreateGroupConfirmOpen}
-        onClose={handleCloseCreateGroupConfirm}
-        onConfirm={handleConfirmCreateGroup}
-        title="Confirmar Creación de Grupo"
-        message={groupDataToCreate ? `¿Estás seguro de que deseas crear el grupo "${groupDataToCreate.nombre}"?` : ''}
-        confirmButtonText={isCreatingGroup ? 'Creando...' : 'Confirmar'}
-        cancelButtonText="Cancelar"
-        isActionInProgress={isCreatingGroup}
-      />
-
-      <ConfirmationModal
-        open={isArchiveConfirmOpen}
-        onClose={() => { setIsArchiveConfirmOpen(false); setGroupToArchive(null); }}
-        onConfirm={handleConfirmArchive}
-        title="Confirmar Archivar Grupo"
-        message={groupToArchive ? `¿Estás seguro de que quieres archivar el grupo "${groupToArchive.nombre}"? El grupo se ocultará de la lista principal y los estudiantes no podrán unirse al grupo. Podrás restaurarlo más tarde si está habilitado.` : ''}
-        confirmButtonText="Archivar"
-        cancelButtonText="Cancelar"
-        isActionInProgress={isArchiving}
-      />
-
-      <ConfirmationModal
-        open={isUnarchiveConfirmOpen}
-        onClose={() => { setIsUnarchiveConfirmOpen(false); setGroupToUnarchive(null); }}
-        onConfirm={handleConfirmUnarchive}
-        title="Confirmar Restaurar Grupo"
-        message={groupToUnarchive ? `¿Estás seguro de que quieres restaurar el grupo "${groupToUnarchive.nombre}"? El grupo volverá a la lista de grupos activos.` : ''}
-        confirmButtonText="Restaurar"
-        cancelButtonText="Cancelar"
-        isActionInProgress={isUnarchiving}
-      />
+      <CreateGroupModal open={isModalOpen} onClose={handleCloseModal} onSubmit={handleFormSubmit} isCreating={isSaving} initialData={groupToEdit} />
+      <ConfirmationModal open={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)} onConfirm={handleConfirmSave} title={groupToEdit ? "Confirmar Edición" : "Confirmar Creación"} message={dataToSave ? `¿Estás seguro de que deseas ${groupToEdit ? 'guardar los cambios en' : 'crear el grupo'} "${dataToSave.nombre}"?` : ''} confirmButtonText={isSaving ? 'Guardando...' : 'Confirmar'} cancelButtonText="Cancelar" isActionInProgress={isSaving} />
+      <ConfirmationModal open={isArchiveConfirmOpen} onClose={() => setIsArchiveConfirmOpen(false)} onConfirm={handleConfirmArchive} title="Confirmar Archivar Grupo" message={groupToArchive ? `¿Estás seguro de que quieres archivar el grupo "${groupToArchive.nombre}"?` : ''} confirmButtonText="Archivar" cancelButtonText="Cancelar" isActionInProgress={isArchiving} />
+      <ConfirmationModal open={isUnarchiveConfirmOpen} onClose={() => setIsUnarchiveConfirmOpen(false)} onConfirm={handleConfirmUnarchive} title="Confirmar Restaurar Grupo" message={groupToUnarchive ? `¿Estás seguro de que quieres restaurar el grupo "${groupToUnarchive.nombre}"?` : ''} confirmButtonText="Restaurar" cancelButtonText="Cancelar" isActionInProgress={isUnarchiving} />
     </Container>
   );
 }
