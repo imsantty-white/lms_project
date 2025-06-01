@@ -11,7 +11,7 @@ const mongoose = require('mongoose');
 const getProfile = async (req, res) => {
   try {
     // MODIFICACIÓN: Solo excluir contrasena_hash. numero_identificacion SÍ se enviará.
-    const user = await User.findById(req.user._id).select('-contrasena_hash').populate('planId');
+    const user = await User.findById(req.user._id).select('-contrasena_hash');
 
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
@@ -136,7 +136,7 @@ const getUserProfileForAdmin = async (req, res) => {
       return res.status(403).json({ message: 'Acceso denegado. Solo los administradores pueden realizar esta acción.' });
     }
 
-    const user = await User.findById(userIdToView).select('-contrasena_hash').populate('planId');
+    const user = await User.findById(userIdToView).select('-contrasena_hash');
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado.' });
     }

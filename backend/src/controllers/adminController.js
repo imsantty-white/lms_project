@@ -137,33 +137,58 @@ const getAllUsers = async (req, res) => {
                         .select('-contrasena_hash')
                         .lean(); // Usar .lean() para obtener objetos planos
 
-        // Condicionalmente poblar grupo_id para Estudiantes
-        // Esto es un poco general; si tipo_usuario es específicamente 'Estudiante', siempre poblamos.
-        // Si tipo_usuario no está definido (todos los tipos), también poblamos por si hay estudiantes.
-        if (!tipo_usuario || tipo_usuario === 'Estudiante') {
-            query = query.populate({ path: 'grupo_id', select: 'nombre' });
-        }
+        // Fetch users without trying to populate the removed 'grupo_id' directly from User model
+        const users = await User.find(filter)
+                        .sort(sort)
+                        .skip(skip)
+                        .limit(limitNumber)
+                        .select('-contrasena_hash') // Keep selecting other fields as needed
+                        .lean();
 
-        const users = await query;
-
-        // Procesar usuarios para añadir detalles adicionales
         const usersWithDetails = await Promise.all(users.map(async (user) => {
-            if (user.tipo_usuario === 'Estudiante') {
-                if (user.grupo_id && user.grupo_id.nombre) {
-                    user.nombre_grupo = user.grupo_id.nombre;
+            const userToReturn = { ...user }; // Clone user object to avoid modifying the original from lean query directly
+
+            if (userToReturn.tipo_usuario === 'Estudiante') {
+                // Fetch student's group memberships
+                const memberships = await Membership.find({
+                    usuario_id: userToReturn._id,
+                    estado_solicitud: 'Aprobado' // Consider only approved memberships for display
+                }).populate('grupo_id', 'nombre'); // Populate group name from Membership
+
+                if (memberships.length > 0) {
+                    const groupNames = memberships
+                        .map(m => m.grupo_id ? m.grupo_id.nombre : null)
+                        .filter(name => name); // Filter out any null names if group_id wasn't populated or group has no name
+
+                    if (groupNames.length > 0) {
+                        userToReturn.nombre_grupo = groupNames.join(', ');
+                        if (userToReturn.nombre_grupo.length > 70) { // Truncate if very long
+                            userToReturn.nombre_grupo = userToReturn.nombre_grupo.substring(0, 67) + "...";
+                        }
+                    } else {
+                        userToReturn.nombre_grupo = 'En grupos sin nombre';
+                    }
                 } else {
-                    user.nombre_grupo = 'No asignado';
+                    userToReturn.nombre_grupo = 'No asignado a grupos';
                 }
-                // No es necesario eliminar user.grupo_id si se usa .lean() y se puebla selectivamente,
-                // pero si se quiere una respuesta más limpia, se puede hacer:
-                // delete user.grupo_id; // Eliminar el objeto grupo_id original si solo se quiere nombre_grupo
             }
 
-            if (user.tipo_usuario === 'Docente') {
-                const groupCount = await Group.countDocuments({ docente_id: user._id });
-                user.numero_grupos_asignados = groupCount;
+            if (userToReturn.tipo_usuario === 'Docente') {
+                const groupCount = await Group.countDocuments({ docente_id: userToReturn._id, activo: true }); // Count only active groups for teachers
+                userToReturn.numero_grupos_asignados = groupCount;
+
+                // Populate plan name for teacher (alreadyLean means we might not need to populate user again, but this is safer if user object is from a limited query)
+                // Since 'users' is from a .lean() query, populating planId directly on userToReturn.planId won't work.
+                // We need to fetch the original Mongoose doc or handle it as is.
+                // If user object from lean() includes planId (as ObjectId), we can fetch Plan separately.
+                if (userToReturn.planId) {
+                    const plan = await Plan.findById(userToReturn.planId).select('name').lean();
+                    userToReturn.plan_nombre = plan ? plan.name : 'N/A';
+                } else {
+                    userToReturn.plan_nombre = 'N/A';
+                }
             }
-            return user;
+            return userToReturn;
         }));
 
         // --- Calcular metadatos de paginación ---

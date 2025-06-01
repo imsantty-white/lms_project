@@ -30,7 +30,6 @@ import {
   Group as GroupIcon,
   CalendarMonth as CalendarMonthIcon,
   Fingerprint as FingerprintIcon,
-  CardMembership as CardMembershipIcon,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 
@@ -368,16 +367,7 @@ function UserProfilePage() {
                   sx={{ mt: 1, fontWeight: 500 }} 
                 />
               }
-              {profile.planId && (profile.tipo_usuario === 'Docente' || currentUser?.tipo_usuario === 'Administrador') && (
-                  <Chip
-                    icon={<CardMembershipIcon fontSize="small" />}
-                    label= {profile.planId.name}
-                    //variant="outlined" // Puedes cambiar el variant si prefieres (e.g., "filled")
-                    color="secondary" // Elige un color que te guste (success, warning, etc.)
-                    size="small"
-                    sx={{ mt: 1, ml:1,  fontWeight: 500 }}
-                  />
-                )}
+              {/* Se eliminó el Chip de Institución de aquí */}
 
               {/* ID de Usuario (Visible para Admin Y para el propio usuario) */}
               {(isOwnProfile || currentUser?.tipo_usuario === 'Administrador') && profile?._id && (

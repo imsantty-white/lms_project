@@ -131,8 +131,6 @@ const AdminPlanManagementPage = () => {
                 <TableCell sx={{ fontWeight: 'bold' }}>Precio</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Duración</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Grupos Max.</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Estudiantes Max.</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Rutas Max.</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Recursos Max.</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Actividades Max.</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Default Free</TableCell>
@@ -147,8 +145,6 @@ const AdminPlanManagementPage = () => {
                   <TableCell>{plan.price === null || plan.price === undefined ? 'Gratis' : `$${plan.price}`}</TableCell>
                   <TableCell>{plan.duration}</TableCell>
                   <TableCell>{plan.limits?.maxGroups}</TableCell>
-                  <TableCell>{plan.limits?.maxStudentsPerGroup}</TableCell>
-                  <TableCell>{plan.limits?.maxRoutes}</TableCell>
                   <TableCell>{plan.limits?.maxResources}</TableCell>
                   <TableCell>{plan.limits?.maxActivities}</TableCell>
                   <TableCell>{plan.isDefaultFree ? 'Sí' : 'No'}</TableCell>
