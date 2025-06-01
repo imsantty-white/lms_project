@@ -412,11 +412,30 @@ function TeacherLearningPathsPage() {
             });
             toast.success('Ruta eliminada exitosamente');
             setLearningPaths(prev => prev.filter(lp => lp._id !== learningPathToDelete._id));
-            handleCloseDeleteDialog();
+
+            // --- BEGIN Refresh user data ---
+            if (user?.userType === 'Docente' && user?.fetchAndUpdateUser) {
+                const updatedUser = await user.fetchAndUpdateUser();
+                if (updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
+                    const { maxRoutes } = updatedUser.plan.limits;
+                    const { routesCreated } = updatedUser.usage;
+                    if (routesCreated >= maxRoutes) {
+                        setCanCreateLearningPath(false);
+                        setLearningPathLimitMessage(`Has alcanzado el límite de ${maxRoutes} rutas de aprendizaje de tu plan.`);
+                    } else {
+                        setCanCreateLearningPath(true);
+                        setLearningPathLimitMessage(`Rutas de aprendizaje creadas: ${routesCreated}/${maxRoutes}`);
+                    }
+                }
+            }
+            // --- END Refresh user data ---
+            handleCloseDeleteDialog(); // Moved here to ensure it's called after user data refresh attempt
         } catch (err) {
             toast.error(err.response?.data?.message || 'Error al eliminar la ruta');
         } finally {
             setIsDeleting(false);
+            // Ensure handleCloseDeleteDialog is called if not already on success path
+            // if (isDeleteDialogOpen) handleCloseDeleteDialog(); // This might be redundant if already called
         }
     };
     // --- FIN Lógica ---

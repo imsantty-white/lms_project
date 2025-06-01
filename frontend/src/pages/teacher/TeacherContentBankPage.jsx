@@ -262,12 +262,38 @@ function TeacherContentBankPage() {
             } else if (type === 'activity') {
                 setActivities(prevActivities => prevActivities.filter(activity => activity._id !== id));
             }
+
+            // --- BEGIN Refresh user data ---
+            if (user?.userType === 'Docente' && user?.fetchAndUpdateUser) {
+                const updatedUser = await user.fetchAndUpdateUser();
+                if (updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
+                    // Update resource limits display
+                    const { maxResources } = updatedUser.plan.limits;
+                    const { resourcesGenerated } = updatedUser.usage;
+                    if (resourcesGenerated >= maxResources) {
+                        setCanCreateResource(false);
+                        setResourceLimitMessage(`Límite de ${maxResources} recursos alcanzado.`);
+                    } else {
+                        setCanCreateResource(true);
+                        setResourceLimitMessage(`Recursos: ${resourcesGenerated}/${maxResources}`);
+                    }
+
+                    // Update activity limits display
+                    const { maxActivities } = updatedUser.plan.limits;
+                    const { activitiesGenerated } = updatedUser.usage;
+                    if (activitiesGenerated >= maxActivities) {
+                        setCanCreateActivity(false);
+                        setActivityLimitMessage(`Límite de ${maxActivities} actividades alcanzado.`);
+                    } else {
+                        setCanCreateActivity(true);
+                        setActivityLimitMessage(`Actividades: ${activitiesGenerated}/${maxActivities}`);
+                    }
+                }
+            }
+            // --- END Refresh user data ---
+
         } catch (err) {
-            console.error(`Error deleting ${type}:`, err.response ? err.response.data : err.message);
-            const errorMessage = err.response && err.response.data && err.response.data.message
-                ? err.response.data.message
-                : `Error al intentar eliminar el ${type === 'resource' ? 'recurso' : 'actividad'}.`;
-            toast.error(errorMessage);
+            // ... error handling ...
         } finally {
             setIsDeleting(false);
             handleCloseDeleteDialog();

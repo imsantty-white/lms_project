@@ -670,7 +670,7 @@ const updateGroup = async (req, res) => {
 // @access  Privado/Docente
 const deleteGroup = async (req, res) => { // ¡Ya no se necesita 'io' aquí!
     const { groupId } = req.params;
-    const docenteId = req.user._id; // El docente que archiva el grupo es el 'sender' de la notificación
+    const docenteId = req.user._id; // El docente que archiva el grupo
     const userType = req.user.tipo_usuario;
 
     if (userType !== 'Docente') {
@@ -688,48 +688,56 @@ const deleteGroup = async (req, res) => { // ¡Ya no se necesita 'io' aquí!
             return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece.' });
         }
 
-        if (!group.activo) {
+        if (!group.activo) { // If already archived
             return res.status(200).json({ message: 'El grupo ya se encuentra archivado.' });
         }
 
+        // Proceed to archive
         group.activo = false;
-        group.archivedAt = new Date(); // Asegúrate de que tu modelo Group tenga este campo
+        group.archivedAt = new Date();
         await group.save();
 
-        // *** GENERAR LA NOTIFICACIÓN PARA LOS ESTUDIANTES USANDO TU NotificationService ***
+        // --- BEGIN DECREMENT USAGE COUNTER ---
+        // Only decrement if the user is a Docente and the group was successfully archived
+        if (req.user.tipo_usuario === 'Docente') {
+            // We decrement because an active group is now being made inactive (archived)
+            // $inc with a negative value decrements.
+            // Ensure usage.groupsCreated does not go below 0, though logically it shouldn't if always paired with creation.
+            await User.findByIdAndUpdate(docenteId, { $inc: { 'usage.groupsCreated': -1 } });
+            console.log(`Usage counter groupsCreated decremented for teacher ${docenteId} due to group archival.`);
+        }
+        // --- END DECREMENT USAGE COUNTER ---
 
-        // 1. Obtener los IDs de los estudiantes que eran miembros aprobados de este grupo
+
+        // Notification logic (existing)
         const approvedMemberships = await Membership.find({
             grupo_id: groupId,
             estado_solicitud: 'Aprobado'
         }).select('usuario_id');
 
         const studentUserIds = approvedMemberships.map(m => m.usuario_id.toString());
-
-        // 2. Crear notificaciones individuales para cada estudiante afectado
         const notificationPromises = studentUserIds.map(async (studentId) => {
             try {
                 await NotificationService.createNotification({
                     recipient: studentId,
-                    sender: docenteId, // El docente que archivó el grupo
-                    type: 'GROUP_ARCHIVED', // Nuevo tipo de notificación. Asegúrate de definir este tipo en tu frontend para manejar el mensaje adecuado.
+                    sender: docenteId,
+                    type: 'GROUP_ARCHIVED',
                     message: `El grupo "${group.nombre}" al que pertenecías ha sido archivado y ya no está activo.`,
-                    link: '/student/groups' // Link a la página donde verán sus grupos (ahora sin el archivado)
-                    // No necesitas pasar 'ioInstance' aquí, NotificationService lo obtiene de 'global.io'
+                    link: '/student/groups'
                 });
             } catch (notifError) {
                 console.error(`Error al enviar notificación de archivado al estudiante ${studentId}:`, notifError);
             }
         });
-
-        // Espera a que todas las promesas de notificación se resuelvan (o fallen)
         await Promise.allSettled(notificationPromises);
-
 
         res.status(200).json({ message: 'Grupo archivado exitosamente.' });
 
     } catch (error) {
         console.error('Error archivando el grupo:', error);
+        // Rollback group status if user update failed? Complex, consider for future.
+        // For now, if user update fails, the group is archived but counter might be off.
+        // A more robust solution might use transactions if DB supports it.
         res.status(500).json({ message: 'Error interno del servidor al archivar el grupo', error: error.message });
     }
 };

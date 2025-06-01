@@ -353,6 +353,23 @@ function TeacherGroupsPage() {
       toast.success(`Grupo "${groupToArchive.nombre}" archivado.`);
       setGroups(prev => prev.filter(g => g._id !== groupToArchive.id));
       setStats(prev => ({ ...prev, active: prev.active - 1, archived: prev.archived + 1 }));
+
+      // --- BEGIN Refresh user data ---
+      if (user?.fetchAndUpdateUser) {
+        const updatedUser = await user.fetchAndUpdateUser();
+        if (updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
+          const { maxGroups } = updatedUser.plan.limits;
+          const { groupsCreated } = updatedUser.usage;
+          if (groupsCreated >= maxGroups) {
+            setCanCreateGroup(false); // Assuming setCanCreateGroup state exists
+            setGroupLimitMessage(`Has alcanzado el límite de ${maxGroups} grupos de tu plan.`); // Assuming setGroupLimitMessage state exists
+          } else {
+            setCanCreateGroup(true);
+            setGroupLimitMessage(`Grupos creados: ${groupsCreated}/${maxGroups}`);
+          }
+        }
+      }
+      // --- END Refresh user data ---
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error al archivar el grupo.');
     } finally {

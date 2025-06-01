@@ -469,44 +469,46 @@ const updateResource = async (req, res) => { // <-- Usando async/await directame
 // @desc    Eliminar un Recurso específico del Banco de Contenido
 // @route   DELETE /api/content/resources/:resourceId
 // @access  Privado/Docente
-const deleteResource = async (req, res) => { // <-- Usando async/await directamente
+const deleteResource = async (req, res) => {
     try {
-        // 1. Obtener el ID del recurso desde los parámetros de la URL
         const resourceId = req.params.resourceId;
-        // 2. Obtener el ID del docente autenticado (del middleware protect)
-        const docenteId = req.user._id;
+        const docenteId = req.user._id; // ID of the authenticated teacher
 
-        // Opcional: Validar si el ID es un ObjectId válido
         if (!mongoose.Types.ObjectId.isValid(resourceId)) {
              return res.status(400).json({ message: 'ID de recurso inválido' });
         }
 
-        // 3. Buscar el recurso por ID y VERIFICAR PROPIEDAD ANTES DE ELIMINAR
-        // Usamos findOne para obtener el documento y luego verificar
+        // Find the resource to verify ownership AND to ensure it exists before trying to decrement count
         const resource = await Resource.findOne({ _id: resourceId, docente_id: docenteId });
 
-        // 4. Verificar si el recurso fue encontrado y pertenece al docente
         if (!resource) {
-            // Si no se encuentra o no pertenece al docente autenticado
             return res.status(404).json({ message: 'Recurso no encontrado o no te pertenece' });
         }
 
-        // 5. Si el recurso existe y pertenece al docente, proceder a eliminarlo
-        // Usamos deleteOne con los mismos criterios (ID y docenteId) para una capa extra de seguridad
+        // Proceed to delete the resource
         const deleteResult = await Resource.deleteOne({ _id: resourceId, docente_id: docenteId });
 
-        // Opcional: Verificar si la eliminación fue exitosa (n = número de documentos afectados)
         if (deleteResult.deletedCount === 0) {
-             // Esto no debería ocurrir si findOne tuvo éxito, pero es una verificación defensiva
-             return res.status(500).json({ message: 'Error al eliminar el recurso (puede que ya haya sido eliminado)' });
+             // This case should ideally not be reached if the findOne check above passed,
+             // but it's a safeguard.
+             return res.status(500).json({ message: 'Error al eliminar el recurso (puede que ya haya sido eliminado o no se encontró después de la verificación inicial)' });
         }
 
-        // 6. Responder con un mensaje de éxito
+        // --- BEGIN DECREMENT USAGE COUNTER ---
+        if (req.user.tipo_usuario === 'Docente') {
+            // Decrement the resourcesGenerated counter for the teacher
+            // Ensure the count doesn't go below zero, though logically it shouldn't
+            // if it's only incremented on creation and decremented on deletion.
+            await User.findByIdAndUpdate(docenteId, { $inc: { 'usage.resourcesGenerated': -1 } });
+            console.log(`Usage counter resourcesGenerated decremented for teacher ${docenteId} due to resource deletion.`);
+        }
+        // --- END DECREMENT USAGE COUNTER ---
+
         res.status(200).json({ message: 'Recurso eliminado con éxito.' });
 
     } catch (error) {
-        // Manejo de errores generales del servidor
         console.error('Error deleting resource:', error);
+        // Consider if a rollback is needed for the counter if deletion fails at a later stage (complex)
         res.status(500).json({ message: 'Error interno del servidor al eliminar el recurso', error: error.message });
     }
 };
@@ -623,40 +625,41 @@ const updateActivity = async (req, res) => {
 // @desc    Eliminar una Actividad específica del Banco de Contenido
 // @route   DELETE /api/content/activities/:activityId
 // @access  Privado/Docente
-const deleteActivity = async (req, res) => { // <-- Usando async/await y try/catch
+const deleteActivity = async (req, res) => {
     try {
-        // 1. Obtener el ID de la actividad desde los parámetros de la URL
         const activityId = req.params.activityId;
-        // 2. Obtener el ID del docente autenticado
-        const docenteId = req.user._id;
+        const docenteId = req.user._id; // ID of the authenticated teacher
 
-        // Opcional: Validar si el ID es un ObjectId válido
         if (!mongoose.Types.ObjectId.isValid(activityId)) {
              return res.status(400).json({ message: 'ID de actividad inválido' });
         }
 
-        // 3. Buscar la actividad por ID y VERIFICAR PROPIEDAD ANTES DE ELIMINAR
-        const activity = await Activity.findOne({ _id: activityId, docente_id: docenteId }); // <-- Usamos el modelo Activity
+        // Find the activity to verify ownership AND to ensure it exists
+        const activity = await Activity.findOne({ _id: activityId, docente_id: docenteId });
 
-        // 4. Verificar si la actividad fue encontrada y pertenece al docente
         if (!activity) {
             return res.status(404).json({ message: 'Actividad no encontrada o no te pertenece' });
         }
 
-        // 5. Si la actividad existe y pertenece al docente, proceder a eliminarla
-        // Usamos deleteOne con los mismos criterios (ID y docenteId)
-        const deleteResult = await Activity.deleteOne({ _id: activityId, docente_id: docenteId }); // <-- Usamos el modelo Activity
+        // Proceed to delete the activity
+        const deleteResult = await Activity.deleteOne({ _id: activityId, docente_id: docenteId });
 
-        // Opcional: Verificar si la eliminación fue exitosa
         if (deleteResult.deletedCount === 0) {
-             return res.status(500).json({ message: 'Error al eliminar la actividad (puede que ya haya sido eliminada)' });
+             // Safeguard, similar to deleteResource
+             return res.status(500).json({ message: 'Error al eliminar la actividad (puede que ya haya sido eliminada o no se encontró después de la verificación inicial)' });
         }
 
-        // 6. Responder con un mensaje de éxito
+        // --- BEGIN DECREMENT USAGE COUNTER ---
+        if (req.user.tipo_usuario === 'Docente') {
+            // Decrement the activitiesGenerated counter for the teacher
+            await User.findByIdAndUpdate(docenteId, { $inc: { 'usage.activitiesGenerated': -1 } });
+            console.log(`Usage counter activitiesGenerated decremented for teacher ${docenteId} due to activity deletion.`);
+        }
+        // --- END DECREMENT USAGE COUNTER ---
+
         res.status(200).json({ message: 'Actividad eliminada con éxito.' });
 
     } catch (error) {
-        // Manejo de errores
         console.error('Error deleting activity:', error);
         res.status(500).json({ message: 'Error interno del servidor al eliminar la actividad', error: error.message });
     }

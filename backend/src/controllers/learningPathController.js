@@ -849,73 +849,72 @@ const updateLearningPath = async (req, res) => {
 const deleteLearningPath = async (req, res) => {
     const { learningPathId } = req.params;
     const { nombreConfirmacion } = req.body;
-    const docenteId = req.user._id;
+    const docenteId = req.user._id; // The teacher initiating the delete
 
     if (!mongoose.Types.ObjectId.isValid(learningPathId)) {
         return res.status(400).json({ message: 'ID de ruta de aprendizaje inválido' });
     }
 
-    // Iniciar una sesión para la transacción
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
-        // Buscar la ruta de aprendizaje y validar la propiedad
         const learningPath = await LearningPath.findById(learningPathId).populate({
             path: 'group_id',
-            select: 'nombre docente_id activo'
+            select: 'nombre docente_id activo' // Ensure docente_id is selected from group
         }).session(session);
 
+        // Verify ownership and group status
+        // The learningPath's group_id.docente_id is the actual owner of the learning path content.
+        // This should match req.user._id if a teacher is deleting their own path.
         if (!learningPath || !learningPath.group_id || !learningPath.group_id.docente_id.equals(docenteId) || !learningPath.group_id.activo) {
             await session.abortTransaction();
             session.endSession();
             return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada, no te pertenece o el grupo está inactivo.' });
         }
 
-        // Confirmar el nombre para evitar borrados accidentales
         if (!nombreConfirmacion || nombreConfirmacion.trim() !== learningPath.nombre) {
             await session.abortTransaction();
             session.endSession();
             return res.status(400).json({ message: 'El nombre de la ruta de aprendizaje no coincide. Escribe el nombre exacto para confirmar.' });
         }
 
-        // --- Inicio de la lógica de eliminación en cascada ---
-
-        // 1. Encontrar todos los módulos de la ruta de aprendizaje
+        // Cascading delete logic (existing)
         const modules = await Module.find({ learning_path_id: learningPathId }).session(session);
         const moduleIds = modules.map(m => m._id);
 
         if (moduleIds.length > 0) {
-            // 2. Encontrar todos los temas de esos módulos
             const themes = await Theme.find({ module_id: { $in: moduleIds } }).session(session);
             const themeIds = themes.map(t => t._id);
-
             if (themeIds.length > 0) {
-                // 3. Eliminar todas las asignaciones de contenido de esos temas
                 await ContentAssignment.deleteMany({ theme_id: { $in: themeIds } }).session(session);
             }
-
-            // 4. Eliminar todos los temas
             await Theme.deleteMany({ module_id: { $in: moduleIds } }).session(session);
         }
-
-        // 5. Eliminar todos los módulos
         await Module.deleteMany({ learning_path_id: learningPathId }).session(session);
-
-        // 6. Eliminar todo el progreso de estudiantes asociado a la ruta
         await Progress.deleteMany({ learning_path_id: learningPathId }).session(session);
 
-        // 7. Finalmente, eliminar la ruta de aprendizaje
+        // --- BEGIN DECREMENT USAGE COUNTER ---
+        // This should happen for the teacher who owns the group to which this LP belongs.
+        // docenteId is req.user._id, which we've confirmed is the owner of the group.
+        if (req.user.tipo_usuario === 'Docente') {
+            await User.findByIdAndUpdate(docenteId,
+                { $inc: { 'usage.routesCreated': -1 } },
+                { session } // Include this operation in the transaction
+            );
+            console.log(`Usage counter routesCreated decremented for teacher ${docenteId} due to learning path deletion.`);
+        }
+        // --- END DECREMENT USAGE COUNTER ---
+
+        // Finally, delete the learning path itself
         await LearningPath.findByIdAndDelete(learningPathId).session(session);
 
-        // Si todo fue exitoso, confirma la transacción
         await session.commitTransaction();
         session.endSession();
 
         res.status(200).json({ message: `Ruta de aprendizaje '${learningPath.nombre}' y todo su contenido asociado han sido eliminados.` });
 
     } catch (error) {
-        // Si algo falla, revierte todos los cambios
         await session.abortTransaction();
         session.endSession();
         console.error('Error durante la eliminación en cascada de la ruta de aprendizaje:', error);
