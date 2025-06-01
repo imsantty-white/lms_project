@@ -247,133 +247,156 @@ const getMyJoinRequests = async (req, res) => {
 
 // Controlador para que un Docente apruebe o rechace una solicitud de unión
 const respondJoinRequest = async (req, res) => {
-  const { membershipId } = req.params; // Obtenemos el ID de la membresía de los parámetros de la URL
-  const { responseStatus } = req.body; // Obtenemos el estado deseado ('Aprobado' o 'Rechazado') del cuerpo de la petición
-  const docenteId = req.user._id; // Obtenemos el ID del docente autenticado
+  const { membershipId } = req.params;
+  const { responseStatus } = req.body;
+  const respondingTeacherId = req.user._id; // ID del docente autenticado que responde
 
-  // --- Validación de la respuesta ---
   if (!responseStatus || !['Aprobado', 'Rechazado'].includes(responseStatus)) {
       return res.status(400).json({ message: 'Estado de respuesta inválido. Debe ser "Aprobado" o "Rechazado".' });
   }
-  // --- Fin Validación ---
 
   try {
-      // --- Buscar la solicitud de membresía por ID ---
-      // Usamos populate para traer la información del grupo asociado
       const membership = await Membership.findById(membershipId).populate('grupo_id');
 
-      // Si la solicitud de membresía no existe
       if (!membership) {
           return res.status(404).json({ message: 'Solicitud de membresía no encontrada' });
       }
-
-      // Si la solicitud ya no está Pendiente (ya fue respondida)
       if (membership.estado_solicitud !== 'Pendiente') {
           return res.status(400).json({ message: `Esta solicitud ya fue ${membership.estado_solicitud.toLowerCase()}` });
       }
-      // --- Fin Buscar y validar estado ---
 
-
-      // --- VERIFICAR SEGURIDAD: Asegurarse de que el grupo pertenece a este docente ---
-      // Refactor: Use isTeacherOfGroup
-      if (!membership.grupo_id || !(await isTeacherOfGroup(docenteId, membership.grupo_id._id))) {
-           return res.status(403).json({ message: 'No tienes permiso para responder esta solicitud. El grupo no te pertenece.' }); // 403 Forbidden
+      const group = membership.grupo_id; // This is the populated group object
+      if (!group) {
+          // Should not happen if membership is valid and populate worked
+          return res.status(404).json({ message: 'Grupo asociado a la membresía no encontrado.' });
       }
-       // --- Fin Verificación de Seguridad ---
 
+      // VERIFICAR SEGURIDAD: Asegurarse de que el grupo pertenece a este docente (respondingTeacherId)
+      if (!group.docente_id || group.docente_id.toString() !== respondingTeacherId.toString()) {
+           return res.status(403).json({ message: 'No tienes permiso para responder esta solicitud. El grupo no te pertenece.' });
+      }
 
-      // --- Actualizar el estado de la solicitud ---
+      // --- BEGIN maxStudentsPerGroup LIMIT CHECK (if approving) ---
+      if (responseStatus === 'Aprobado') {
+        // Fetch the teacher who owns the group to check their plan
+        const groupOwner = await User.findById(group.docente_id).populate('planId');
+        if (!groupOwner) {
+            return res.status(404).json({ message: 'No se encontró al docente propietario del grupo.' });
+        }
+
+        if (groupOwner.tipo_usuario === 'Docente') { // Only apply limits to teachers
+            const subscription = await SubscriptionService.checkSubscriptionStatus(groupOwner._id);
+            if (!subscription.isActive) {
+                return res.status(403).json({
+                    message: `No se puede aprobar la solicitud: La suscripción del propietario del grupo (${subscription.message || 'no está activa'}).`
+                });
+            }
+
+            if (groupOwner.planId && groupOwner.planId.limits && groupOwner.planId.limits.maxStudentsPerGroup !== undefined) {
+                const maxStudentsAllowed = groupOwner.planId.limits.maxStudentsPerGroup;
+                const currentStudentCount = await Membership.countDocuments({
+                    grupo_id: group._id,
+                    estado_solicitud: 'Aprobado'
+                });
+
+                if (currentStudentCount >= maxStudentsAllowed) {
+                    return res.status(403).json({
+                        message: `No se puede aprobar al estudiante. El grupo ha alcanzado el límite de ${maxStudentsAllowed} estudiantes permitidos por el plan "${groupOwner.planId.name}" del propietario del grupo.`
+                    });
+                }
+            } else {
+                // This means plan details or specific limit is missing for the group owner.
+                // Depending on policy, could allow or deny. For stricter policy, deny.
+                console.warn(`Detalles del plan o límite maxStudentsPerGroup no definidos para el docente ${groupOwner._id} al aprobar solicitud en grupo ${group._id}.`);
+                // It might be safer to deny if limits aren't clear, or allow if only paid plans have this specific limit
+                // For now, let's assume if limit is not defined, it's not enforced.
+                // If a defined limit of 0 should block, the check `currentStudentCount >= maxStudentsAllowed` handles it.
+            }
+        }
+      }
+      // --- END maxStudentsPerGroup LIMIT CHECK ---
+
       membership.estado_solicitud = responseStatus;
-      // Si la solicitud es aprobada, registramos la fecha de aprobación
       if (responseStatus === 'Aprobado') {
           membership.fecha_aprobacion = Date.now();
       }
-      // Si es rechazada, podemos dejar fecha_aprobacion como null o no modificarla
 
-      // Guardar los cambios en la base de datos
-          await membership.save();
-          // --- Fin Actualizar estado ---
+      await membership.save();
 
-          // --- Obtener la membresía actualizada CON usuario poblado para la respuesta ---
-          // Volvemos a buscar la membresía por ID y la poblamos antes de responder
-          const updatedPopulatedMembership = await Membership.findById(membershipId)
-              .populate('usuario_id', 'nombre apellidos email'); // <-- Pobla usuario_id con los campos necesarios
-
-          // Si por alguna razón la membresía desapareció después de guardarla (muy improbable, pero por seguridad)
-          if (!updatedPopulatedMembership) {
-               // Puedes manejar esto como un error, aunque ya se guardó
-               console.error('Error interno: Membresía guardada pero no encontrada inmediatamente después.');
-               return res.status(500).json({ message: 'Error al obtener la membresía actualizada para responder.' });
-          }
-
-          // --- Respuesta exitosa ---
-          res.status(200).json({
-               message: `Solicitud de membresía ${responseStatus.toLowerCase()} exitosamente`,
-               membership: updatedPopulatedMembership // <-- Envía el objeto de membresía recién poblado
+      const updatedPopulatedMembership = await Membership.findById(membershipId)
+          .populate('usuario_id', 'nombre apellidos email')
+          .populate({ // Re-populate group to ensure it's fresh for notifications
+              path: 'grupo_id',
+              select: 'nombre docente_id' // Select fields needed for notification
           });
-          // --- Fin Respuesta ---
 
-          try {
-              // 'updatedPopulatedMembership' contains the student (usuario_id) and group (grupo_id) details.
-              // 'req.user' is the teacher responding.
-              // 'responseStatus' holds 'Aprobado' or 'Rechazado'. (currentStatus from membership is more reliable)
 
-              if (updatedPopulatedMembership && updatedPopulatedMembership.usuario_id && updatedPopulatedMembership.grupo_id) {
-                  const studentId = updatedPopulatedMembership.usuario_id._id; // Student is the recipient
-                  const teacherId = req.user._id; // Teacher is the sender
-                  const groupName = updatedPopulatedMembership.grupo_id.nombre || 'the group';
-                  const currentStatus = updatedPopulatedMembership.estado_solicitud; // This is the new status ('Aprobado' or 'Rechazado')
+      if (!updatedPopulatedMembership) {
+           console.error('Error interno: Membresía guardada pero no encontrada inmediatamente después para la respuesta.');
+           return res.status(500).json({ message: 'Error al obtener la membresía actualizada para responder.' });
+      }
 
-                  let notifType = '';
-                  let message = '';
-                  let link = '';
+      res.status(200).json({
+           message: `Solicitud de membresía ${responseStatus.toLowerCase()} exitosamente`,
+           membership: updatedPopulatedMembership
+      });
 
-                  if (currentStatus === 'Aprobado') {
-                      notifType = 'GROUP_INVITE_ACCEPTED'; // Using existing type, fits the context
-                      message = `Your request to join group '${groupName}' has been approved.`;
-                      // TODO: Confirm student's link to the specific group page
-                      link = `/student/learning-paths/group/${updatedPopulatedMembership.grupo_id._id}`; 
-                  } else if (currentStatus === 'Rechazado') {
-                      notifType = 'GROUP_INVITE_DECLINED'; // Using existing type, fits the context
-                      message = `Your request to join group '${groupName}' has been rejected.`;
-                      // TODO: Confirm student's link to their list of groups or join group page
-                      link = '/student/groups/my-groups'; 
-                  }
+      // Notification Logic (existing)
+      try {
+          if (updatedPopulatedMembership && updatedPopulatedMembership.usuario_id && updatedPopulatedMembership.grupo_id) {
+              const studentId = updatedPopulatedMembership.usuario_id._id;
+              const teacherId = respondingTeacherId; // Teacher responding is the sender
+              const groupName = updatedPopulatedMembership.grupo_id.nombre || 'el grupo';
+              const currentStatus = updatedPopulatedMembership.estado_solicitud;
 
-                  if (notifType && message) {
-                      await NotificationService.createNotification({
-                          recipient: studentId,
-                          sender: teacherId,
-                          type: notifType,
-                          message: message,
-                          link: link
-                      });
+              let notifType = '';
+              let message = '';
+              let link = '';
 
-                      // Actualizar el grupo_id del estudiante en UserModel
-                      try {
-                          const studentToUpdate = await User.findById(studentId);
-                          if (studentToUpdate) {
-                              studentToUpdate.grupo_id = updatedPopulatedMembership.grupo_id._id; // Asignar el ID del grupo
-                              await studentToUpdate.save();
-                              console.log(`Campo grupo_id actualizado para el estudiante ${studentId} al grupo ${updatedPopulatedMembership.grupo_id._id}`);
-                          } else {
-                              console.error(`Estudiante con ID ${studentId} no encontrado, no se pudo actualizar su grupo_id.`);
-                          }
-                      } catch (userUpdateError) {
-                          console.error(`Error al actualizar el grupo_id para el estudiante ${studentId}:`, userUpdateError);
-                          // No fallar la operación principal por esto, pero es importante registrarlo.
+              if (currentStatus === 'Aprobado') {
+                  notifType = 'GROUP_INVITE_ACCEPTED';
+                  message = `Tu solicitud para unirte al grupo '${groupName}' ha sido aprobada.`;
+                  link = `/student/learning-paths/group/${updatedPopulatedMembership.grupo_id._id}`;
+
+                  // Update student's grupo_id in UserModel
+                  try {
+                      const studentToUpdate = await User.findById(studentId);
+                      if (studentToUpdate) {
+                          studentToUpdate.grupo_id = updatedPopulatedMembership.grupo_id._id;
+                          await studentToUpdate.save();
+                          console.log(`Campo grupo_id actualizado para el estudiante ${studentId} al grupo ${updatedPopulatedMembership.grupo_id._id}`);
+                      } else {
+                          console.error(`Estudiante con ID ${studentId} no encontrado, no se pudo actualizar su grupo_id.`);
                       }
+                  } catch (userUpdateError) {
+                      console.error(`Error al actualizar el grupo_id para el estudiante ${studentId}:`, userUpdateError);
                   }
-              } else {
-                  console.error('Could not send join request response notification: Missing details from populated membership.');
+
+              } else if (currentStatus === 'Rechazado') {
+                  notifType = 'GROUP_INVITE_DECLINED';
+                  message = `Tu solicitud para unirte al grupo '${groupName}' ha sido rechazada.`;
+                  link = '/student/groups/my-groups';
               }
-          } catch (notificationError) {
-              console.error('Failed to send join request response notification:', notificationError);
-              // Do not let notification errors break the main response
+
+              if (notifType && message) {
+                  await NotificationService.createNotification({
+                      recipient: studentId,
+                      sender: teacherId,
+                      type: notifType,
+                      message: message,
+                      link: link
+                  });
+              }
           }
+      } catch (notificationError) {
+          console.error('Failed to send join request response notification:', notificationError);
+      }
 
   } catch (error) {
       console.error('Error al responder solicitud de membresía:', error);
+      if (error.name === 'CastError' && error.path === '_id') { // Check if it's a CastError for an ObjectId
+        return res.status(400).json({ message: 'ID de membresía inválido.' });
+      }
       res.status(500).json({ message: 'Error interno del servidor al responder la solicitud', error: error.message });
   }
 };

@@ -9,7 +9,9 @@ const Resource = require('../models/ResourceModel');
 const Activity = require('../models/ActivityModel');
 const Membership = require('../models/MembershipModel');
 const Progress = require('../models/ProgressModel');
-const User = require('../models/UserModel');
+const User = require('../models/UserModel'); // Already imported
+const Plan = require('../models/PlanModel'); // <--- ADD IF NOT PRESENT
+const SubscriptionService = require('../services/SubscriptionService'); // <--- ADD THIS
 const Submission = require('../models/SubmissionModel');
 const mongoose = require('mongoose');
 const NotificationService = require('../services/NotificationService'); // Adjust path if necessary
@@ -77,26 +79,80 @@ const createLearningPath = async (req, res, next) => { // Añadir 'next' para pa
         // Busca el grupo por su ID Y verificando que su docente_id coincida con el docente logueado
         const group = await Group.findOne({ _id: group_id, docente_id: docenteId, activo: true }); // Usamos group_id aquí
         if (!group) {
-            // Si no encuentra el grupo con ese ID Y que pertenezca a este docente
             return res.status(404).json({ message: 'Grupo no encontrado, no está activo o no te pertenece. No puedes crear una ruta aquí.' });
         }
-        // --- Fin Verificación de Propiedad ---
+
+        // --- BEGIN PLAN AND USAGE LIMIT CHECK for Docentes ---
+        if (req.user.tipo_usuario === 'Docente') {
+            // Fetch the full user object with plan populated
+            const teacher = await User.findById(docenteId).populate('planId');
+            if (!teacher) { // Should not happen if protect middleware works
+                return res.status(404).json({ message: 'Usuario docente no encontrado.' });
+            }
+
+            const subscription = await SubscriptionService.checkSubscriptionStatus(docenteId);
+            if (!subscription.isActive) {
+                return res.status(403).json({
+                    message: `No se puede crear la ruta de aprendizaje: ${subscription.message}`
+                });
+            }
+
+            // Check maxRoutes limit
+            if (teacher.planId && teacher.planId.limits && teacher.planId.limits.maxRoutes !== undefined) {
+                // Count existing active learning paths for this teacher.
+                // A learning path is tied to a group, and group is tied to a teacher.
+                // So, we need to find all groups for this teacher, then all LPs for those groups.
+                // Or, if LearningPath model can directly store docente_id (even if redundant), query would be simpler.
+                // Assuming LearningPath does NOT directly store docente_id, and it's derived via group.
+
+                const teacherGroups = await Group.find({ docente_id: docenteId, activo: true }).select('_id');
+                const teacherGroupIds = teacherGroups.map(g => g._id);
+
+                // Count active learning paths in those groups
+                // Assuming LearningPath has an 'activo' field or similar (if not, all are considered active)
+                // For now, let's assume all learning paths are 'active' once created for simplicity of counting.
+                // If LearningPath model has an 'activo' field, add it to the query: activo: true
+                const currentRoutesCount = await LearningPath.countDocuments({ group_id: { $in: teacherGroupIds } });
+
+                // Note: user.usage.routesCreated tracks all routes ever created by the user for this plan period.
+                // The check here is against the 'live' count of routes.
+                // If the plan limit is for concurrent active routes, this 'currentRoutesCount' is correct.
+                // If the plan limit is for total routes created during a subscription period,
+                // then user.usage.routesCreated should be used directly.
+                // The current PlanModel.limits.maxRoutes sounds like concurrent/active routes.
+                // Let's use user.usage.routesCreated as that's what we are tracking.
+
+                if (teacher.usage.routesCreated >= teacher.planId.limits.maxRoutes) {
+                    return res.status(403).json({
+                        message: `Has alcanzado el límite de ${teacher.planId.limits.maxRoutes} rutas de aprendizaje permitidas por tu plan "${teacher.planId.name}".`
+                    });
+                }
+            } else {
+                // Fallback or error if plan details/limits are missing
+                console.warn(`Plan o límite maxRoutes no definidos para el docente ${docenteId} al crear ruta de aprendizaje.`);
+                return res.status(403).json({ message: 'No se pudieron verificar los límites de tu plan para crear rutas de aprendizaje.' });
+            }
+        }
+        // --- END PLAN AND USAGE LIMIT CHECK ---
 
         const learningPath = await LearningPath.create({
             nombre,
             descripcion,
-            group_id: group_id, // Asocia la ruta al grupo usando el campo group_id
+            group_id: group_id,
             fecha_inicio,
             fecha_fin,
             // 'activo' por defecto es true según el modelo
         });
 
-        // Populate el campo group_id con la información del grupo si es necesario para la respuesta
-        // const createdLearningPath = await LearningPath.findById(learningPath._id).populate('group_id');
-        // res.status(201).json(createdLearningPath); // Responde con la ruta creada (populada)
+        // --- BEGIN INCREMENT USAGE COUNTER ---
+        if (req.user.tipo_usuario === 'Docente') {
+            // Re-fetch user to ensure atomicity, or use the 'teacher' object if confident no intermediate changes occurred.
+            // For safety, fetching again or using $inc is better.
+            await User.findByIdAndUpdate(docenteId, { $inc: { 'usage.routesCreated': 1 } });
+        }
+        // --- END INCREMENT USAGE COUNTER ---
 
-        // O simplemente responde con el objeto tal cual se creó si la populación no es necesaria aquí
-        res.status(201).json(learningPath); // Responde con la ruta creada
+        res.status(201).json(learningPath);
 
     } catch (error) {
         console.error('Error creando ruta de aprendizaje:', error);
