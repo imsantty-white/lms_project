@@ -68,8 +68,14 @@ const userSchema = new mongoose.Schema({
       type: Number,
       default: 0,
       min: 0
+    },
+    // --- ADD THIS FIELD ---
+    routesCreated: { // For Learning Paths
+      type: Number,
+      default: 0,
+      min: 0
     }
-    // Add other trackable feature usages here as needed
+    // --- END OF ADD THIS FIELD ---
   },
   // --- END OF NEW FIELDS FOR TEACHER PLANS ---
   // Campo específico para Docentes (existing field, may be redundant if plan limits are used)

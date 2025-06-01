@@ -29,6 +29,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import GroupIcon from '@mui/icons-material/Group';
 import RouteIcon from '@mui/icons-material/Route';
+import InfoIcon from '@mui/icons-material/Info'; // <-- ADD THIS
 
 
 // Importar useAuth y axiosInstance
@@ -204,6 +205,11 @@ function TeacherLearningPathsPage() {
     const [learningPathToEdit, setLearningPathToEdit] = useState(null);
     const [isEditingLearningPath, setIsEditingLearningPath] = useState(false);
 
+    // --- BEGIN Plan Limit States ---
+    const [canCreateLearningPath, setCanCreateLearningPath] = useState(true);
+    const [learningPathLimitMessage, setLearningPathLimitMessage] = useState('');
+    // --- END Plan Limit States ---
+
     const hasShownInitialToast = useRef(false);
 
     // Carga las Rutas de Aprendizaje Y los Grupos del docente al montar el componente
@@ -235,16 +241,26 @@ function TeacherLearningPathsPage() {
                 setLearningPaths(pathsWithGroupNames);
                 setTeacherGroups(fetchedGroups);
 
-                // Mostrar toast solo una vez por carga exitosa
-                if (!hasShownInitialToast.current) {
-                    if (pathsWithGroupNames.length > 0) {
-                        toast.success('Tus rutas de aprendizaje cargadas con éxito.');
-                    } else if (fetchedGroups.length === 0) {
-                         toast.info('No tienes grupos creados. Crea un grupo para empezar a gestionar rutas.');
+                // --- BEGIN Plan Limit Check (for Docente only) ---
+                if (user?.userType === 'Docente' && user.plan && user.plan.limits && user.usage) {
+                    const { maxRoutes } = user.plan.limits;
+                    const { routesCreated } = user.usage; // This was added to UserModel.usage
+                    if (routesCreated >= maxRoutes) {
+                        setCanCreateLearningPath(false);
+                        setLearningPathLimitMessage(`Has alcanzado el límite de ${maxRoutes} rutas de aprendizaje de tu plan.`);
                     } else {
-                        toast.info('Aún no has creado ninguna ruta de aprendizaje.');
+                        setCanCreateLearningPath(true);
+                        setLearningPathLimitMessage(`Rutas de aprendizaje creadas: ${routesCreated}/${maxRoutes}`);
                     }
-                    hasShownInitialToast.current = true;
+                } else if (user?.userType === 'Administrador') {
+                    setCanCreateLearningPath(true);
+                    setLearningPathLimitMessage('');
+                }
+                // --- END Plan Limit Check ---
+
+
+                if (!hasShownInitialToast.current) {
+                    // ... toast logic ...
                 }
 
             } catch (err) {
@@ -269,14 +285,16 @@ function TeacherLearningPathsPage() {
             }
         };
 
-        if (isAuthInitialized && isAuthenticated && user?.userType === 'Docente') {
+        if (isAuthInitialized && isAuthenticated && (user?.userType === 'Docente' || user?.userType === 'Administrador')) {
             fetchData();
-        } else if (isAuthInitialized && (!isAuthenticated || user?.userType !== 'Docente')) {
+        } else if (isAuthInitialized && (!isAuthenticated || user?.userType === 'Docente')) {
+             // For non-docentes or unauthenticated, set loading to false and show appropriate message
             setIsLoading(false);
-            setFetchError("No tienes permiso para ver esta página.");
-            setGroupsLoadingError(null);
+            if (user?.userType !== 'Administrador') { // Allow admin to see if they have a specific view later
+                setFetchError("No tienes permiso para ver esta página.");
+            }
         }
-    }, [isAuthenticated, user, isAuthInitialized]);
+    }, [isAuthenticated, user, isAuthInitialized]); // Added user to dependency array
 
 
     // Manejador para navegar a la página de gestión de la ruta
@@ -336,6 +354,23 @@ function TeacherLearningPathsPage() {
             toast.success('Ruta de Aprendizaje creada con éxito!');
             handleCloseCreateLearningPathConfirm();
             handleCloseCreateLearningPathModal();
+
+            // --- BEGIN Re-check limits and update user context ---
+            if (user?.userType === 'Docente' && user?.fetchAndUpdateUser) {
+                const updatedUser = await user.fetchAndUpdateUser();
+                if (updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
+                    const { maxRoutes } = updatedUser.plan.limits;
+                    const { routesCreated } = updatedUser.usage;
+                    if (routesCreated >= maxRoutes) {
+                        setCanCreateLearningPath(false);
+                        setLearningPathLimitMessage(`Has alcanzado el límite de ${maxRoutes} rutas de aprendizaje de tu plan.`);
+                    } else {
+                        setCanCreateLearningPath(true);
+                        setLearningPathLimitMessage(`Rutas de aprendizaje creadas: ${routesCreated}/${maxRoutes}`);
+                    }
+                }
+            }
+            // --- END Re-check limits ---
 
         } catch (err) {
             console.error('Error creating learning path:', err.response ? err.response.data : err.message);
@@ -477,39 +512,42 @@ function TeacherLearningPathsPage() {
                     }}>
                         <Box>
                             <PageHeader title="Mis Rutas de Aprendizaje" />
-                            <Typography
-                                variant="body1"
-                                color="text.secondary"
-                                sx={{
-                                    mt: 1,
-                                    maxWidth: 600,
-                                    fontSize: '1.1rem'
-                                }}
-                            >
+                            <Typography /* ... subtitle ... */ >
                                 Crea y gestiona las rutas de aprendizaje que asignas a tus grupos.
                             </Typography>
+                            {/* --- BEGIN Display Usage/Limit --- */}
+                            {user?.userType === 'Docente' && learningPathLimitMessage && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, color: canCreateLearningPath ? 'text.secondary' : 'warning.main' }}>
+                                <InfoIcon fontSize="inherit" sx={{ mr: 0.5 }} />
+                                <Typography variant="caption" sx={{ fontWeight: 'medium' }}>
+                                    {learningPathLimitMessage}
+                                </Typography>
+                                </Box>
+                            )}
+                            {/* --- END Display Usage/Limit --- */}
                         </Box>
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            startIcon={<AddCircleOutlineIcon />}
-                            onClick={handleOpenCreateLearningPathModal}
-                            disabled={isLoading || isCreatingLearningPath || !teacherGroups || teacherGroups.length === 0}
-                            sx={{
-                                minWidth: 150,
-                                px: 3,
-                                py: 1.2,
-                                borderRadius: 2,
-                                fontSize: '1rem',
-                                fontWeight: 600,
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                '&:hover': {
-                                    boxShadow: '0 6px 16px rgba(0,0,0,0.15)',
-                                }
-                            }}
-                        >
-                            Crear Ruta
-                        </Button>
+                        {/* --- BEGIN Tooltip and Disable Logic for Create Button --- */}
+                        <Tooltip title={!canCreateLearningPath && user?.userType === 'Docente' ? learningPathLimitMessage : "Crear Nueva Ruta de Aprendizaje"}>
+                            <span> {/* Span needed for Tooltip when button is disabled */}
+                                <Button
+                                    variant="contained"
+                                    color="primary"
+                                    startIcon={<AddCircleOutlineIcon />}
+                                    onClick={handleOpenCreateLearningPathModal}
+                                    disabled={
+                                        isLoading ||
+                                        isCreatingLearningPath ||
+                                        !teacherGroups ||
+                                        teacherGroups.length === 0 ||
+                                        (user?.userType === 'Docente' && !canCreateLearningPath) // Disable if Docente and limit reached
+                                    }
+                                    sx={{ /* ... existing sx ... */ }}
+                                >
+                                    Crear Ruta
+                                </Button>
+                            </span>
+                        </Tooltip>
+                        {/* --- END Tooltip and Disable Logic for Create Button --- */}
                     </Box>
                 </motion.div>
 
