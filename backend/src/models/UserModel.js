@@ -37,13 +37,14 @@ const userSchema = new mongoose.Schema({
     enum: ['Estudiante', 'Docente', 'Administrador'], // Solo permite estos valores
     default: 'Estudiante' // Por defecto, un usuario registrado es Estudiante
   },
-  // Campo específico para Estudiantes
-  grupo_id: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Group',
-    default: null
-  },
-  // --- BEGINNING OF NEW FIELDS FOR TEACHER PLANS ---
+  // --- REMOVE THIS FIELD ---
+  // grupo_id: {
+  //   type: mongoose.Schema.Types.ObjectId,
+  //   ref: 'Group',
+  //   default: null
+  // },
+  // --- END REMOVE THIS FIELD ---
+
   planId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Plan', // Reference to the Plan model

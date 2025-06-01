@@ -358,19 +358,20 @@ const respondJoinRequest = async (req, res) => {
                   message = `Tu solicitud para unirte al grupo '${groupName}' ha sido aprobada.`;
                   link = `/student/learning-paths/group/${updatedPopulatedMembership.grupo_id._id}`;
 
-                  // Update student's grupo_id in UserModel
-                  try {
-                      const studentToUpdate = await User.findById(studentId);
-                      if (studentToUpdate) {
-                          studentToUpdate.grupo_id = updatedPopulatedMembership.grupo_id._id;
-                          await studentToUpdate.save();
-                          console.log(`Campo grupo_id actualizado para el estudiante ${studentId} al grupo ${updatedPopulatedMembership.grupo_id._id}`);
-                      } else {
-                          console.error(`Estudiante con ID ${studentId} no encontrado, no se pudo actualizar su grupo_id.`);
-                      }
-                  } catch (userUpdateError) {
-                      console.error(`Error al actualizar el grupo_id para el estudiante ${studentId}:`, userUpdateError);
-                  }
+                  // --- REMOVE THIS BLOCK ---
+                  // try {
+                  //     const studentToUpdate = await User.findById(studentId);
+                  //     if (studentToUpdate) {
+                  //         studentToUpdate.grupo_id = updatedPopulatedMembership.grupo_id._id; // This line is removed
+                  //         await studentToUpdate.save();
+                  //         console.log(`Campo grupo_id actualizado para el estudiante ${studentId} al grupo ${updatedPopulatedMembership.grupo_id._id}`);
+                  //     } else {
+                  //         console.error(`Estudiante con ID ${studentId} no encontrado, no se pudo actualizar su grupo_id.`);
+                  //     }
+                  // } catch (userUpdateError) {
+                  //     console.error(`Error al actualizar el grupo_id para el estudiante ${studentId}:`, userUpdateError);
+                  // }
+                  // --- END REMOVE THIS BLOCK ---
 
               } else if (currentStatus === 'Rechazado') {
                   notifType = 'GROUP_INVITE_DECLINED';
@@ -697,16 +698,13 @@ const deleteGroup = async (req, res) => { // ¡Ya no se necesita 'io' aquí!
         group.archivedAt = new Date();
         await group.save();
 
-        // --- BEGIN DECREMENT USAGE COUNTER ---
-        // Only decrement if the user is a Docente and the group was successfully archived
-        if (req.user.tipo_usuario === 'Docente') {
-            // We decrement because an active group is now being made inactive (archived)
-            // $inc with a negative value decrements.
-            // Ensure usage.groupsCreated does not go below 0, though logically it shouldn't if always paired with creation.
-            await User.findByIdAndUpdate(docenteId, { $inc: { 'usage.groupsCreated': -1 } });
-            console.log(`Usage counter groupsCreated decremented for teacher ${docenteId} due to group archival.`);
-        }
-        // --- END DECREMENT USAGE COUNTER ---
+        // --- REMOVE DECREMENT USAGE COUNTER ---
+        // if (req.user.tipo_usuario === 'Docente') {
+        //     await User.findByIdAndUpdate(docenteId, { $inc: { 'usage.groupsCreated': -1 } });
+        //     console.log(`Usage counter groupsCreated decremented for teacher ${docenteId} due to group archival.`);
+        // }
+        // --- END REMOVE DECREMENT USAGE COUNTER ---
+        console.log(`Group ${groupId} archived by teacher ${docenteId}. Usage counter NOT decremented at this stage.`);
 
 
         // Notification logic (existing)

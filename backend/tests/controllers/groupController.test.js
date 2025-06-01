@@ -59,31 +59,33 @@ describe('Group Controller - DELETE /api/groups/:groupId (Archive)', () => {
     expect(res.body.message).toContain('Grupo archivado exitosamente');
 
     const updatedGroup = await Group.findById(activeGroup._id);
-    expect(updatedGroup.activo).toBe(false);
+    expect(updatedGroup.activo).toBe(false); // Group is archived
 
     const updatedTeacher = await User.findById(teacherUser._id);
-    expect(updatedTeacher.usage.groupsCreated).toBe(initialUsage - 1); // Should be 0
+    // usage.groupsCreated should REMAIN THE SAME after teacher archives.
+    expect(updatedTeacher.usage.groupsCreated).toBe(initialUsage);
+    // console.log('Usage after teacher archive:', updatedTeacher.usage.groupsCreated); // Expected: 1
   });
 
-  it('should not decrement usage.groupsCreated if archiving an already archived group', async () => {
+  it('should still report "already archived" if attempting to archive an already archived group', async () => {
     // First, archive the group
     await request(app)
       .delete(`/api/groups/${activeGroup._id.toString()}`)
       .set('Authorization', `Bearer ${teacherToken}`);
 
-    let updatedTeacher = await User.findById(teacherUser._id);
-    const usageAfterFirstArchive = updatedTeacher.usage.groupsCreated; // Should be 0
+    const updatedTeacher = await User.findById(teacherUser._id);
+    const usageAfterFirstArchive = updatedTeacher.usage.groupsCreated; // Should be 1
 
     // Attempt to archive again
     const res = await request(app)
       .delete(`/api/groups/${activeGroup._id.toString()}`)
       .set('Authorization', `Bearer ${teacherToken}`);
 
-    expect(res.statusCode).toEqual(200); // Or whatever your API returns for already archived
+    expect(res.statusCode).toEqual(200);
     expect(res.body.message).toContain('El grupo ya se encuentra archivado');
 
-    updatedTeacher = await User.findById(teacherUser._id);
-    expect(updatedTeacher.usage.groupsCreated).toBe(usageAfterFirstArchive); // Should still be 0, not -1
+    const finalTeacherState = await User.findById(teacherUser._id);
+    expect(finalTeacherState.usage.groupsCreated).toBe(usageAfterFirstArchive); // Should still be 1
   });
 
   // Add tests for admin deleting groups and its effect on teacher's counter in adminController.test.js
