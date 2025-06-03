@@ -508,6 +508,7 @@ const getMyOwnedGroups = async (req, res) => {
         $project: {
           _id: 1,
           nombre: 1,
+          descripcion: 1,
           codigo_acceso: 1,
           docente_id: 1,
           activo: 1,

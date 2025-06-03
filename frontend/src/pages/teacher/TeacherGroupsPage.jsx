@@ -125,7 +125,7 @@ const TeacherGroupCard = ({ group, index, isArchived, onArchive, onRestore, isPr
                 </Typography>
               </Stack>
               {group.descripcion && (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontStyle: 'italic' }}>
                   {group.descripcion}
                 </Typography>
               )}
@@ -177,7 +177,7 @@ const CustomTabs = ({ currentTab, onTabChange, activeCount, archivedCount }) => 
 
 // Componente principal
 function TeacherGroupsPage() {
-  const { user, isAuthenticated, isAuthInitialized } = useAuth();
+  const { user, isAuthenticated, isAuthInitialized, fetchAndUpdateUser } = useAuth();
   const navigate = useNavigate();
   const [groups, setGroups] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -288,116 +288,149 @@ function TeacherGroupsPage() {
     setIsConfirmModalOpen(true);
   };
 
+  // Añadir función para actualizar límites
+  const updateLimits = async () => {
+    const updatedUser = await fetchAndUpdateUser();
+    if (updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
+      const { maxGroups } = updatedUser.plan.limits;
+      const { groupsCreated } = updatedUser.usage;
+      if (groupsCreated >= maxGroups) {
+        setCanCreateGroup(false);
+        setGroupLimitMessage(`Has alcanzado el límite de ${maxGroups} grupos de tu plan.`);
+      } else {
+        setCanCreateGroup(true);
+        setGroupLimitMessage(`Grupos creados: ${groupsCreated}/${maxGroups}`);
+      }
+    }
+  };
+
   const handleConfirmSave = async () => {
     if (!dataToSave) return;
-
-    const isEditing = !!groupToEdit;
-    const endpoint = isEditing ? `/api/groups/${groupToEdit._id}` : '/api/groups/create';
-    const method = isEditing ? 'put' : 'post';
     
     setIsSaving(true);
     try {
-      const response = await axiosInstance[method](endpoint, dataToSave);
-      const savedGroup = response.data;
+      const endpoint = groupToEdit ? `/api/groups/${groupToEdit._id}` : '/api/groups/create';
+      const method = groupToEdit ? 'put' : 'post';
       
-      if (isEditing) {
-        toast.success(`Grupo "${savedGroup.nombre}" actualizado.`);
-        setGroups(groups.map(g => g._id === savedGroup._id ? savedGroup : g));
-      } else {
-        toast.success(`Grupo "${savedGroup.nombre}" creado.`);
-        if (currentTab === 'active') {
-          setGroups(prev => [savedGroup, ...prev]);
-          setStats(prev => ({ ...prev, active: prev.active + 1 }));
+      const response = await axiosInstance[method](endpoint, dataToSave);
+      
+      // Asegurarnos de que tenemos una respuesta válida
+      if (!response.data) {
+        throw new Error('No se recibieron datos del servidor');
+      }
+
+      // La respuesta puede venir directamente en data o en data.data
+      const savedGroup = response.data.data || response.data;
+      
+      if (!savedGroup || !savedGroup._id) {
+        throw new Error('Los datos del grupo recibidos no son válidos');
+      }
+
+      // Actualizar la lista de grupos
+      setGroups(prevGroups => {
+        if (groupToEdit) {
+          return prevGroups.map(g => g._id === savedGroup._id ? savedGroup : g);
+        } else {
+          return [...prevGroups, savedGroup];
         }
-        // --- BEGIN Re-check limits and update user context ---
-        if (user?.fetchAndUpdateUser) { // Check if function exists
-          const updatedUser = await user.fetchAndUpdateUser();
-          if (updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
-            const { maxGroups } = updatedUser.plan.limits;
-            const { groupsCreated } = updatedUser.usage;
-            if (groupsCreated >= maxGroups) {
-              setCanCreateGroup(false);
-              setGroupLimitMessage(`Has alcanzado el límite de ${maxGroups} grupos de tu plan.`);
-            } else {
-              setCanCreateGroup(true);
-              setGroupLimitMessage(`Grupos creados: ${groupsCreated}/${maxGroups}`);
-            }
-          }
-        }
-        // --- END Re-check limits ---
+      });
+
+      // Actualizar estadísticas si es un grupo nuevo
+      if (!groupToEdit) {
+        setStats(prev => ({
+          ...prev,
+          active: prev.active + 1
+        }));
       }
       
-      handleCloseModal();
-    } catch (err) {
-      const action = isEditing ? 'actualizar' : 'crear';
-      console.error(`Error al ${action} el grupo:`, err.response ? err.response.data : err.message);
-      const errorMessage = err.response?.data?.message || `Error al intentar ${action} el grupo.`;
+      toast.success(groupToEdit ? 'Grupo actualizado con éxito.' : 'Grupo creado con éxito.');
+      
+      // Actualizar límites después de crear/editar
+      await updateLimits();
+      
+      setIsConfirmModalOpen(false);
+      setIsModalOpen(false);
+      setGroupToEdit(null);
+      setDataToSave(null);
+      
+    } catch (error) {
+      console.error('Error al guardar el grupo:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Error al guardar el grupo.';
       toast.error(errorMessage);
     } finally {
       setIsSaving(false);
-      setIsConfirmModalOpen(false);
-      setDataToSave(null);
     }
   };
 
   const handleOpenArchiveConfirm = (group) => {
-    setGroupToArchive({ id: group._id, nombre: group.nombre });
+    if (!group) return;
+    setGroupToArchive(group);
     setIsArchiveConfirmOpen(true);
   };
 
   const handleConfirmArchive = async () => {
     if (!groupToArchive) return;
+    
     setIsArchiving(true);
     try {
-      await axiosInstance.delete(`/api/groups/${groupToArchive.id}`);
-      toast.success(`Grupo "${groupToArchive.nombre}" archivado.`);
-      setGroups(prev => prev.filter(g => g._id !== groupToArchive.id));
-      setStats(prev => ({ ...prev, active: prev.active - 1, archived: prev.archived + 1 }));
-
-      // --- BEGIN Refresh user data ---
-      if (user?.fetchAndUpdateUser) {
-        const updatedUser = await user.fetchAndUpdateUser();
-        if (updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
-          const { maxGroups } = updatedUser.plan.limits;
-          const { groupsCreated } = updatedUser.usage;
-          if (groupsCreated >= maxGroups) {
-            setCanCreateGroup(false); // Assuming setCanCreateGroup state exists
-            setGroupLimitMessage(`Has alcanzado el límite de ${maxGroups} grupos de tu plan.`); // Assuming setGroupLimitMessage state exists
-          } else {
-            setCanCreateGroup(true);
-            setGroupLimitMessage(`Grupos creados: ${groupsCreated}/${maxGroups}`);
-          }
-        }
-      }
-      // --- END Refresh user data ---
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Error al archivar el grupo.');
-    } finally {
-      setIsArchiving(false);
+      await axiosInstance.put(`/api/groups/${groupToArchive._id}/archive`);
+      
+      // Actualizar la lista y estadísticas
+      setGroups(prevGroups => prevGroups.filter(g => g._id !== groupToArchive._id));
+      setStats(prev => ({
+        active: prev.active - 1,
+        archived: prev.archived + 1
+      }));
+      
+      // Actualizar límites después de archivar
+      await updateLimits();
+      
+      toast.success('Grupo archivado con éxito.');
       setIsArchiveConfirmOpen(false);
       setGroupToArchive(null);
+      
+    } catch (error) {
+      console.error('Error al archivar el grupo:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Error al archivar el grupo.';
+      toast.error(errorMessage);
+    } finally {
+      setIsArchiving(false);
     }
   };
 
   const handleOpenUnarchiveConfirm = (group) => {
-    setGroupToUnarchive({ id: group._id, nombre: group.nombre });
+    if (!group) return;
+    setGroupToUnarchive(group);
     setIsUnarchiveConfirmOpen(true);
   };
 
   const handleConfirmUnarchive = async () => {
     if (!groupToUnarchive) return;
+    
     setIsUnarchiving(true);
     try {
-      await axiosInstance.put(`/api/groups/${groupToUnarchive.id}/restore`);
-      toast.success(`Grupo "${groupToUnarchive.nombre}" restaurado.`);
-      setGroups(prev => prev.filter(g => g._id !== groupToUnarchive.id));
-      setStats(prev => ({ ...prev, active: prev.active + 1, archived: prev.archived - 1 }));
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Error al restaurar el grupo.');
-    } finally {
-      setIsUnarchiving(false);
+      await axiosInstance.put(`/api/groups/${groupToUnarchive._id}/unarchive`);
+      
+      // Actualizar la lista y estadísticas
+      setGroups(prevGroups => prevGroups.filter(g => g._id !== groupToUnarchive._id));
+      setStats(prev => ({
+        active: prev.active + 1,
+        archived: prev.archived - 1
+      }));
+      
+      // Actualizar límites después de desarchivar
+      await updateLimits();
+      
+      toast.success('Grupo restaurado con éxito.');
       setIsUnarchiveConfirmOpen(false);
       setGroupToUnarchive(null);
+      
+    } catch (error) {
+      console.error('Error al restaurar el grupo:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Error al restaurar el grupo.';
+      toast.error(errorMessage);
+    } finally {
+      setIsUnarchiving(false);
     }
   };
 

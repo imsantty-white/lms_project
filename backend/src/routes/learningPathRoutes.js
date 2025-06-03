@@ -17,7 +17,7 @@ router.use(protect);
 // @desc    Crear una nueva Ruta de Aprendizaje
 // @route   POST /api/learning-paths
 // @access  Privado/Docente
-router.post('/', authorize('Docente'), createLearningPath); // Aseguramos que la creación es solo para docentes
+router.post('/create', authorize('Docente'), createLearningPath); // Aseguramos que la creación es solo para docentes
 
 // @desc    Crear un nuevo Módulo
 // @route   POST /api/learning-paths/:learningPathId/modules

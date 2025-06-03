@@ -52,7 +52,7 @@ router.use(protect, authorize('Docente'));
  *       401:
  *         description: No autorizado
  */
-router.post('/resources', createResource);
+router.post('/resources/create', createResource);
 
 /**
  * @swagger
@@ -80,7 +80,7 @@ router.post('/resources', createResource);
  *       401:
  *         description: No autorizado
  */
-router.post('/activities', createActivity);
+router.post('/activities/create', createActivity);
 
 /**
  * @swagger

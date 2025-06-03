@@ -81,6 +81,60 @@ export const AuthProvider = ({ children }) => {
       loadAuthFromStorage();
   }, []);
 
+  // Función para actualizar los datos del usuario
+  const fetchAndUpdateUser = async () => {
+    try {
+      const response = await axiosInstance.get('/api/auth/me');
+      const updatedUserData = response.data.data;
+
+      const refreshedUser = {
+        _id: updatedUserData._id,
+        email: updatedUserData.email,
+        userType: updatedUserData.tipo_usuario,
+        tipo_usuario: updatedUserData.tipo_usuario,
+        nombre: updatedUserData.nombre,
+        apellidos: updatedUserData.apellidos,
+        institucion: updatedUserData.institucion,
+        telefono: updatedUserData.telefono,
+        fecha_registro: updatedUserData.fecha_registro,
+        aprobado: updatedUserData.aprobado,
+        activo: updatedUserData.activo,
+      };
+
+      if (updatedUserData.tipo_usuario === 'Docente') {
+        refreshedUser.plan = updatedUserData.plan;
+        refreshedUser.subscriptionEndDate = updatedUserData.subscriptionEndDate;
+        refreshedUser.usage = updatedUserData.usage;
+      }
+
+      setUser(refreshedUser);
+      localStorage.setItem('user', JSON.stringify(refreshedUser));
+      return refreshedUser;
+    } catch (error) {
+      console.error('Error refreshing user data:', error);
+      if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+        logout();
+      }
+      return null;
+    }
+  };
+
+  // Efecto para actualizar periódicamente los límites del usuario
+  useEffect(() => {
+    let intervalId;
+    
+    if (token && user?.userType === 'Docente') {
+      // Actualizar cada 5 minutos
+      intervalId = setInterval(fetchAndUpdateUser, 5 * 60 * 1000);
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [token, user?.userType]);
+
   // Función para manejar el Login
   const login = async (email, password) => {
     try {
@@ -170,7 +224,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    fetchAndUpdateUser, // Expose the new function
+    fetchAndUpdateUser,
     isAuthenticated: !!token,
     isAuthInitialized,
   };
@@ -193,46 +247,3 @@ export const useAuth = () => {
 };
 
 // La instancia de axiosInstance ya se exporta arriba donde se define.
-
-// Function to refresh user data (e.g., using /api/auth/me)
-// This is important for keeping user state (including plan) up-to-date
-const fetchAndUpdateUser = async () => {
-  try {
-      const response = await axiosInstance.get('/api/auth/me');
-      const updatedUserData = response.data.data; // Assuming backend wraps user data in 'data' field
-
-      // Construct the user object similar to how it's done in login
-      const refreshedUser = {
-          _id: updatedUserData._id,
-          email: updatedUserData.email,
-          userType: updatedUserData.tipo_usuario,
-          tipo_usuario: updatedUserData.tipo_usuario,
-          nombre: updatedUserData.nombre,
-          apellidos: updatedUserData.apellidos,
-          // Include other fields that 'me' endpoint returns like institucion, telefono etc.
-          institucion: updatedUserData.institucion,
-          telefono: updatedUserData.telefono,
-          fecha_registro: updatedUserData.fecha_registro,
-          aprobado: updatedUserData.aprobado,
-          activo: updatedUserData.activo,
-      };
-
-      if (updatedUserData.tipo_usuario === 'Docente') {
-          refreshedUser.plan = updatedUserData.plan;
-          refreshedUser.subscriptionEndDate = updatedUserData.subscriptionEndDate;
-          refreshedUser.usage = updatedUserData.usage;
-      }
-
-      setUser(refreshedUser);
-      localStorage.setItem('user', JSON.stringify(refreshedUser));
-      console.log('User data refreshed and updated in AuthContext.', refreshedUser);
-      return refreshedUser;
-  } catch (error) {
-      console.error('Error refreshing user data:', error);
-      // Potentially logout user if /me fails (e.g. token truly invalid)
-      if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-          logout(); // Or handle more gracefully
-      }
-      return null;
-  }
-};

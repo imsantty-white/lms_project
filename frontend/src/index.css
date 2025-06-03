@@ -121,3 +121,8 @@ button:focus-visible {
   overflow-x: hidden; /* Mantiene la prevención de scroll horizontal */
   position: relative; /* position: relative está bien */
 }
+
+/* Corrección global para evitar saltos de layout al abrir modales */
+html {
+  overflow-y: scroll;
+}

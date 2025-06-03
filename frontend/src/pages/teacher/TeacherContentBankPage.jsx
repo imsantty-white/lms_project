@@ -137,7 +137,7 @@ const renderActivityDetails = (item) => {
 function TeacherContentBankPage() {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-    const { user, isAuthenticated, isAuthInitialized } = useAuth();
+    const { user, isAuthenticated, isAuthInitialized, fetchAndUpdateUser } = useAuth();
     const _navigate = useNavigate();
 
     const [resources, setResources] = useState([]);
@@ -232,6 +232,31 @@ function TeacherContentBankPage() {
         }
     }, [isAuthenticated, user, isAuthInitialized]); // Added user to dependency array
 
+    // Función para actualizar límites
+    const updateLimits = async () => {
+        const updatedUser = await fetchAndUpdateUser();
+        if (updatedUser?.userType === 'Docente' && updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
+            const { maxResources, maxActivities } = updatedUser.plan.limits;
+            const { resourcesGenerated, activitiesGenerated } = updatedUser.usage;
+
+            if (resourcesGenerated >= maxResources) {
+                setCanCreateResource(false);
+                setResourceLimitMessage(`Límite de ${maxResources} recursos alcanzado.`);
+            } else {
+                setCanCreateResource(true);
+                setResourceLimitMessage(`Recursos: ${resourcesGenerated}/${maxResources}`);
+            }
+
+            if (activitiesGenerated >= maxActivities) {
+                setCanCreateActivity(false);
+                setActivityLimitMessage(`Límite de ${maxActivities} actividades alcanzado.`);
+            } else {
+                setCanCreateActivity(true);
+                setActivityLimitMessage(`Actividades: ${activitiesGenerated}/${maxActivities}`);
+            }
+        }
+    };
+
     const handleOpenDeleteDialog = (id, type) => {
         if (isCreatingResource || isCreatingActivity || isDeleting) return;
         setDeleteItemDetails({ open: true, id, type });
@@ -249,55 +274,30 @@ function TeacherContentBankPage() {
         }
 
         setIsDeleting(true);
-        const { id, type } = deleteItemDetails;
-
         try {
-            const endpoint = type === 'resource' ? `/api/content/resources/${id}` : `/api/content/activities/${id}`;
-            const response = await axiosInstance.delete(endpoint);
+            const endpoint = deleteItemDetails.type === 'resource' 
+                ? `/api/content/resources/${deleteItemDetails.id}`
+                : `/api/content/activities/${deleteItemDetails.id}`;
+            
+            await axiosInstance.delete(endpoint);
 
-            const responseMessage = response.data.message || `${type === 'resource' ? 'Recurso' : 'Actividad'} eliminado con éxito.`;
-            toast.success(responseMessage);
-
-            if (type === 'resource') {
-                setResources(prevResources => prevResources.filter(resource => resource._id !== id));
-            } else if (type === 'activity') {
-                setActivities(prevActivities => prevActivities.filter(activity => activity._id !== id));
+            if (deleteItemDetails.type === 'resource') {
+                setResources(prev => prev.filter(r => r._id !== deleteItemDetails.id));
+            } else {
+                setActivities(prev => prev.filter(a => a._id !== deleteItemDetails.id));
             }
 
-            // --- BEGIN Refresh user data ---
-            if (user?.userType === 'Docente' && user?.fetchAndUpdateUser) {
-                const updatedUser = await user.fetchAndUpdateUser();
-                if (updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
-                    // Update resource limits display
-                    const { maxResources } = updatedUser.plan.limits;
-                    const { resourcesGenerated } = updatedUser.usage;
-                    if (resourcesGenerated >= maxResources) {
-                        setCanCreateResource(false);
-                        setResourceLimitMessage(`Límite de ${maxResources} recursos alcanzado.`);
-                    } else {
-                        setCanCreateResource(true);
-                        setResourceLimitMessage(`Recursos: ${resourcesGenerated}/${maxResources}`);
-                    }
+            // Actualizar límites después de eliminar
+            await updateLimits();
 
-                    // Update activity limits display
-                    const { maxActivities } = updatedUser.plan.limits;
-                    const { activitiesGenerated } = updatedUser.usage;
-                    if (activitiesGenerated >= maxActivities) {
-                        setCanCreateActivity(false);
-                        setActivityLimitMessage(`Límite de ${maxActivities} actividades alcanzado.`);
-                    } else {
-                        setCanCreateActivity(true);
-                        setActivityLimitMessage(`Actividades: ${activitiesGenerated}/${maxActivities}`);
-                    }
-                }
-            }
-            // --- END Refresh user data ---
-
-        } catch (err) {
-            // ... error handling ...
+            toast.success(`${deleteItemDetails.type === 'resource' ? 'Recurso' : 'Actividad'} eliminado con éxito.`);
+            handleCloseDeleteDialog();
+        } catch (error) {
+            console.error('Error al eliminar:', error);
+            const errorMessage = error.response?.data?.message || error.message || 'Error al eliminar el elemento.';
+            toast.error(errorMessage);
         } finally {
             setIsDeleting(false);
-            handleCloseDeleteDialog();
         }
     };
 
@@ -326,37 +326,36 @@ function TeacherContentBankPage() {
 
     const handleConfirmCreateResource = async () => {
         if (!resourceDataToCreate) return;
-
+        
         setIsCreatingResource(true);
-
         try {
-            const response = await axiosInstance.post('/api/content/resources', resourceDataToCreate);
-            const newResource = response.data;
-            toast.success('Recurso creado con éxito!');
-            setResources(prevResources => [...prevResources, newResource]);
-            handleCloseCreateResourceConfirm();
-            handleCloseCreateResourceModal();
-            // --- BEGIN Re-check limits and update user context ---
-            if (user?.userType === 'Docente' && user?.fetchAndUpdateUser) {
-                const updatedUser = await user.fetchAndUpdateUser();
-                if (updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
-                    const { maxResources } = updatedUser.plan.limits;
-                    const { resourcesGenerated } = updatedUser.usage;
-                    if (resourcesGenerated >= maxResources) {
-                        setCanCreateResource(false);
-                        setResourceLimitMessage(`Límite de ${maxResources} recursos alcanzado.`);
-                    } else {
-                        setCanCreateResource(true);
-                        setResourceLimitMessage(`Recursos: ${resourcesGenerated}/${maxResources}`);
-                    }
-                }
+            const response = await axiosInstance.post('/api/content/resources/create', resourceDataToCreate);
+            
+            // Asegurarnos de que tenemos una respuesta válida
+            if (!response.data) {
+                throw new Error('No se recibieron datos del servidor');
             }
-            // --- END Re-check limits ---
-        } catch (err) {
-            console.error('Error creating resource:', err.response ? err.response.data : err.message);
-            const errorMessage = err.response && err.response.data && err.response.data.message
-                ? err.response.data.message
-                : 'Error al intentar crear el recurso.';
+
+            // La respuesta puede venir directamente en data o en data.data
+            const newResource = response.data.data || response.data;
+            
+            if (!newResource || !newResource._id) {
+                throw new Error('Los datos del recurso recibidos no son válidos');
+            }
+
+            setResources(prev => [...prev, { ...newResource, isAssigned: false }]);
+            
+            // Actualizar límites después de crear
+            await updateLimits();
+            
+            toast.success('Recurso creado con éxito.');
+            setIsCreateResourceConfirmOpen(false);
+            setIsCreateResourceModalOpen(false);
+            setResourceDataToCreate(null);
+            
+        } catch (error) {
+            console.error('Error al crear el recurso:', error);
+            const errorMessage = error.response?.data?.message || error.message || 'Error al crear el recurso.';
             toast.error(errorMessage);
         } finally {
             setIsCreatingResource(false);
@@ -388,37 +387,36 @@ function TeacherContentBankPage() {
 
     const handleConfirmCreateActivity = async () => {
         if (!activityDataToCreate) return;
-
+        
         setIsCreatingActivity(true);
-
         try {
-            const response = await axiosInstance.post('/api/content/activities', activityDataToCreate);
-            const newActivity = response.data;
-            toast.success('Actividad creada con éxito!');
-            setActivities(prevActivities => [...prevActivities, newActivity]);
-            handleCloseCreateActivityConfirm();
-            handleCloseCreateActivityModal();
-            // --- BEGIN Re-check limits and update user context ---
-            if (user?.userType === 'Docente' && user?.fetchAndUpdateUser) {
-                const updatedUser = await user.fetchAndUpdateUser();
-                if (updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
-                    const { maxActivities } = updatedUser.plan.limits;
-                    const { activitiesGenerated } = updatedUser.usage;
-                    if (activitiesGenerated >= maxActivities) {
-                        setCanCreateActivity(false);
-                        setActivityLimitMessage(`Límite de ${maxActivities} actividades alcanzado.`);
-                    } else {
-                        setCanCreateActivity(true);
-                        setActivityLimitMessage(`Actividades: ${activitiesGenerated}/${maxActivities}`);
-                    }
-                }
+            const response = await axiosInstance.post('/api/content/activities/create', activityDataToCreate);
+            
+            // Asegurarnos de que tenemos una respuesta válida
+            if (!response.data) {
+                throw new Error('No se recibieron datos del servidor');
             }
-            // --- END Re-check limits ---
-        } catch (err) {
-            console.error('Error creating activity:', err.response ? err.response.data : err.message);
-            const errorMessage = err.response && err.response.data && err.response.data.message
-                ? err.response.data.message
-                : 'Error al intentar crear la actividad.';
+
+            // La respuesta puede venir directamente en data o en data.data
+            const newActivity = response.data.data || response.data;
+            
+            if (!newActivity || !newActivity._id) {
+                throw new Error('Los datos de la actividad recibidos no son válidos');
+            }
+
+            setActivities(prev => [...prev, { ...newActivity, isAssigned: false }]);
+            
+            // Actualizar límites después de crear
+            await updateLimits();
+            
+            toast.success('Actividad creada con éxito.');
+            setIsCreateActivityConfirmOpen(false);
+            setIsCreateActivityModalOpen(false);
+            setActivityDataToCreate(null);
+            
+        } catch (error) {
+            console.error('Error al crear la actividad:', error);
+            const errorMessage = error.response?.data?.message || error.message || 'Error al crear la actividad.';
             toast.error(errorMessage);
         } finally {
             setIsCreatingActivity(false);
@@ -439,12 +437,25 @@ function TeacherContentBankPage() {
         setEditingResourceId(null);
     };
 
-    const handleResourceUpdateSuccess = (updatedResourceData) => {
-        setResources(prevResources =>
-            prevResources.map(resource =>
-                resource._id === updatedResourceData._id ? updatedResourceData : resource
-            )
-        );
+    const handleResourceUpdateSuccess = async (updatedResourceData) => {
+        // Actualizar el recurso en el estado local
+        setResources(prev => prev.map(r => 
+            r._id === updatedResourceData._id ? { ...updatedResourceData, isAssigned: r.isAssigned } : r
+        ));
+        
+        // Recargar todo el banco de contenido
+        try {
+            const response = await axiosInstance.get('/api/content/my-bank');
+            const { resources, activities } = response.data;
+            setResources(resources.map(r => ({ ...r, isAssigned: r.isAssigned || false })));
+            setActivities(activities.map(a => ({ ...a, isAssigned: a.isAssigned || false })));
+        } catch (err) {
+            console.error('Error recargando el banco de contenido:', err);
+        }
+
+        setIsEditResourceModalOpen(false);
+        setEditingResourceId(null);
+        toast.success('Recurso actualizado con éxito.');
     };
 
     const handleOpenEditActivityModal = (activityId) => {
@@ -461,12 +472,25 @@ function TeacherContentBankPage() {
         setEditingActivityId(null);
     };
 
-    const handleActivityUpdateSuccess = (updatedActivityData) => {
-        setActivities(prevActivities =>
-            prevActivities.map(item =>
-                item._id === updatedActivityData._id ? updatedActivityData : item
-            )
-        );
+    const handleActivityUpdateSuccess = async (updatedActivityData) => {
+        // Actualizar la actividad en el estado local
+        setActivities(prev => prev.map(a => 
+            a._id === updatedActivityData._id ? { ...updatedActivityData, isAssigned: a.isAssigned } : a
+        ));
+        
+        // Recargar todo el banco de contenido
+        try {
+            const response = await axiosInstance.get('/api/content/my-bank');
+            const { resources, activities } = response.data;
+            setResources(resources.map(r => ({ ...r, isAssigned: r.isAssigned || false })));
+            setActivities(activities.map(a => ({ ...a, isAssigned: a.isAssigned || false })));
+        } catch (err) {
+            console.error('Error recargando el banco de contenido:', err);
+        }
+
+        setIsEditActivityModalOpen(false);
+        setEditingActivityId(null);
+        toast.success('Actividad actualizada con éxito.');
     };
 
     // Card variants (kept the same)

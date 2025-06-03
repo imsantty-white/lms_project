@@ -150,6 +150,7 @@ const createActivity = async (req, res, next) => {
     try {
         // --- BEGIN PLAN AND USAGE LIMIT CHECK (Only for Docentes) ---
         if (req.user.tipo_usuario === 'Docente') {
+            const docenteId = req.user._id; // Definir docenteId aquí
             const user = await User.findById(docenteId).populate('planId');
             if (!user) {
                 return res.status(404).json({ message: 'Usuario docente no encontrado.' });
@@ -187,7 +188,7 @@ const createActivity = async (req, res, next) => {
 
         // --- BEGIN INCREMENT USAGE COUNTER (Only for Docentes) ---
         if (req.user.tipo_usuario === 'Docente') {
-            const userToUpdate = await User.findById(docenteId);
+            const userToUpdate = await User.findById(req.user._id);
             if (userToUpdate) {
                 userToUpdate.usage.activitiesGenerated = (userToUpdate.usage.activitiesGenerated || 0) + 1;
                 await userToUpdate.save();

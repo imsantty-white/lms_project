@@ -191,57 +191,60 @@ function ManageLearningPathPage() {
 
   // --- NUEVA FUNCIÓN PARA EJECUTAR EL CAMBIO DE ESTADO ---
   const executeStatusChange = async () => {
-      const { assignmentId, newStatus, _assignmentName, _themeName } = pendingStatusChange;
-
-      // Cierra el diálogo de confirmación inmediatamente
+      const { assignmentId, newStatus, assignmentName, themeName } = pendingStatusChange;
       setOpenConfirmStatusDialog(false);
 
-      // Si por alguna razón los datos no están, salir
       if (!assignmentId || !newStatus) {
           toast.error("Datos incompletos para cambiar el estado.");
           setPendingStatusChange({ assignmentId: null, newStatus: '', assignmentName: '', themeName: '' });
           return;
       }
 
-      console.log(`Confirmado: Intentando cambiar estado de asignación ${assignmentId} a ${newStatus}`);
-      setUpdatingAssignmentStatus(assignmentId); // Muestra el spinner de carga
+      setUpdatingAssignmentStatus(assignmentId);
+
+      // Actualización optimista
+      setLearningPath(prevPath => {
+          const newPath = JSON.parse(JSON.stringify(prevPath));
+          let updated = false;
+          
+          newPath.modules?.forEach(module => {
+              module.themes?.forEach(theme => {
+                  const assignment = theme.assignments?.find(a => a._id === assignmentId);
+                  if (assignment) {
+                      assignment.status = newStatus;
+                      updated = true;
+                  }
+              });
+          });
+          
+          return updated ? newPath : prevPath;
+      });
 
       try {
-          // *** LLAMADA AXIOS AL BACKEND ***
-          const response = await axiosInstance.put(`/api/learning-paths/assignments/${assignmentId}/status`, { status: newStatus });
-          console.log('Estado actualizado en backend:', response.data);
-
-          // *** Lógica para actualizar el estado localmente tras el éxito ***
-          setLearningPath(prevLearningPath => {
-              const newLearningPath = structuredClone ? structuredClone(prevLearningPath) : JSON.parse(JSON.stringify(prevLearningPath));
-              if (newLearningPath && newLearningPath.modules) {
-                  newLearningPath.modules.forEach(module => {
-                      if (module.themes) {
-                          module.themes.forEach(themeItem => {
-                              if (themeItem.assignments) {
-                                  const assignmentIndex = themeItem.assignments.findIndex(a => a._id === assignmentId);
-                                  if (assignmentIndex !== -1) {
-                                      themeItem.assignments[assignmentIndex].status = newStatus;
-                                  }
-                              }
-                          });
+          await axiosInstance.put(`/api/learning-paths/assignments/${assignmentId}/status`, { status: newStatus });
+          const newStatusLabel = ASSIGNMENT_STATUS_OPTIONS.find(o => o.value === newStatus)?.label || newStatus;
+          toast.success(`Estado actualizado a "${newStatusLabel}"!`);
+      } catch (error) {
+          console.error('Error al cambiar estado:', error);
+          const errorMessage = error.response?.data?.message || 'Error al cambiar el estado.';
+          toast.error(`Error: ${errorMessage}`);
+          
+          // Revertir actualización optimista
+          setLearningPath(prevPath => {
+              const newPath = JSON.parse(JSON.stringify(prevPath));
+              newPath.modules?.forEach(module => {
+                  module.themes?.forEach(theme => {
+                      const assignment = theme.assignments?.find(a => a._id === assignmentId);
+                      if (assignment) {
+                          assignment.status = pendingStatusChange.originalStatus;
                       }
                   });
-              }
-              return newLearningPath;
+              });
+              return newPath;
           });
-
-          // Encuentra el label legible del nuevo estado para el toast
-          const newStatusLabel = ASSIGNMENT_STATUS_OPTIONS.find(o => o.value === newStatus)?.label || newStatus;
-          toast.success(`Estado de "${pendingStatusChange.assignmentName}" en tema "${pendingStatusChange.themeName}" actualizado a "${newStatusLabel}"!`);
-
-      } catch (error) {
-          console.error('Error al cambiar estado de asignación:', error.response?.data || error.message);
-          const errorMessage = error.response?.data?.message || 'Error al cambiar el estado.';
-          toast.error(`Error al cambiar estado de "${pendingStatusChange.assignmentName}": ${errorMessage}`);
       } finally {
-          setUpdatingAssignmentStatus(null); // Oculta el spinner de carga
-          setPendingStatusChange({ assignmentId: null, newStatus: '', assignmentName: '', themeName: '' }); // Resetear el estado pendiente
+          setUpdatingAssignmentStatus(null);
+          setPendingStatusChange({ assignmentId: null, newStatus: '', assignmentName: '', themeName: '' });
       }
   };
   // --- FUNCIÓN PARA CANCELAR EL CAMBIO DE ESTADO ---
@@ -387,67 +390,52 @@ function ManageLearningPathPage() {
     }
 
     dispatchModuleModal({ type: 'SET_MODULE_ACTION_LOADING', payload: { actionType: 'isCreatingModule', isLoading: true } });
-    handleCloseCreateModuleConfirm(); // Close confirmation dialog immediately
+    handleCloseCreateModuleConfirm();
 
     const tempId = `temp-${Date.now()}`;
     const optimisticModule = {
       _id: tempId,
       nombre: moduleDataToCreate.nombre,
       descripcion: moduleDataToCreate.descripcion,
-      orden: (learningPath.modules?.length || 0) + 1, // Provisional order
+      orden: (learningPath.modules?.length || 0) + 1,
       themes: [],
-      isOptimistic: true, // Temporary flag
+      isOptimistic: true,
     };
 
-    // Optimistic UI Update
-    setLearningPath(prevLearningPath => {
-      const newLearningPath = JSON.parse(JSON.stringify(prevLearningPath));
-      if (!newLearningPath.modules) {
-        newLearningPath.modules = [];
-      }
-      newLearningPath.modules.push(optimisticModule);
-      return newLearningPath;
-    });
+    // Actualización optimista
+    setLearningPath(prevPath => ({
+      ...prevPath,
+      modules: [...(prevPath.modules || []), optimisticModule]
+    }));
     
-    dispatchModuleModal({ type: 'CLOSE_CREATE_MODULE_MODAL' }); // Close the form modal
+    dispatchModuleModal({ type: 'CLOSE_CREATE_MODULE_MODAL' });
 
     try {
       const response = await axiosInstance.post(`/api/learning-paths/${pathId}/modules`, moduleDataToCreate);
-      const actualModule = response.data; // Backend returns the created module with actual _id and orden
+      const actualModule = response.data;
 
-      // Update UI with actual module from backend
-      setLearningPath(prevLearningPath => {
-        const newLearningPath = JSON.parse(JSON.stringify(prevLearningPath));
-        const moduleIndex = newLearningPath.modules.findIndex(m => m._id === tempId);
-        if (moduleIndex !== -1) {
-          newLearningPath.modules[moduleIndex] = actualModule;
-        } else {
-          // If not found (shouldn't happen if optimistic add worked), add it anyway or re-fetch
-           newLearningPath.modules.push(actualModule); // Fallback, ideally re-sort or fetch
-        }
-        // Ensure modules are sorted by 'orden' if the backend might change it or if order is critical
-        newLearningPath.modules.sort((a, b) => a.orden - b.orden);
-        return newLearningPath;
-      });
+      // Actualizar con datos reales
+      setLearningPath(prevPath => ({
+        ...prevPath,
+        modules: prevPath.modules.map(m => 
+          m._id === tempId ? actualModule : m
+        ).sort((a, b) => a.orden - b.orden)
+      }));
 
       toast.success(`Módulo "${actualModule.nombre}" creado con éxito!`);
-      // No need to call fetchLearningPathStructure() if optimistic update is successful and complete
-      // await fetchLearningPathStructure(); 
     } catch (err) {
-      console.error('Error creating module:', err.response ? err.response.data : err.message);
-      const errorMessage = err.response && err.response.data && err.response.data.message ? err.response.data.message : 'Error al intentar crear el módulo.';
+      console.error('Error creating module:', err);
+      const errorMessage = err.response?.data?.message || 'Error al intentar crear el módulo.';
       toast.error(`Error al crear módulo "${moduleDataToCreate.nombre}": ${errorMessage}`);
 
-      // Rollback UI Update on error
-      setLearningPath(prevLearningPath => {
-        const newLearningPath = JSON.parse(JSON.stringify(prevLearningPath));
-        newLearningPath.modules = newLearningPath.modules.filter(m => m._id !== tempId);
-        return newLearningPath;
-      });
+      // Revertir actualización optimista
+      setLearningPath(prevPath => ({
+        ...prevPath,
+        modules: prevPath.modules.filter(m => m._id !== tempId)
+      }));
     } finally {
       dispatchModuleModal({ type: 'SET_MODULE_ACTION_LOADING', payload: { actionType: 'isCreatingModule', isLoading: false } });
-      // Reset moduleDataToCreate as it's handled by its own useState
-      setModuleDataToCreate(null); 
+      setModuleDataToCreate(null);
     }
   };
 
@@ -458,19 +446,73 @@ function ManageLearningPathPage() {
   const handleThemeFormSubmit = (formData) => { setThemeDataToCreate(formData); setIsCreateThemeConfirmOpen(true); };
   const handleCloseCreateThemeConfirm = () => { setIsCreateThemeConfirmOpen(false); setThemeDataToCreate(null); };
   const handleConfirmCreateTheme = async () => {
-    if (!themeDataToCreate || !selectedModuleIdForTheme) { toast.error('No se pudo crear el tema. Datos incompletos.'); handleCloseCreateThemeConfirm(); handleCloseCreateThemeModal(); return; }
-    setIsCreatingTheme(true); try {
-      // *** Usar axiosInstance.post en lugar de axios.post ***
-      const response = await axiosInstance.post(`/api/learning-paths/modules/${selectedModuleIdForTheme}/themes`, themeDataToCreate); // <-- Modificado
+    if (!themeDataToCreate || !selectedModuleIdForTheme) {
+      toast.error('No se pudo crear el tema. Datos incompletos.');
+      handleCloseCreateThemeConfirm();
+      handleCloseCreateThemeModal();
+      return;
+    }
+
+    setIsCreatingTheme(true);
+    const tempId = `temp-${Date.now()}`;
+    
+    // Actualización optimista
+    setLearningPath(prevPath => {
+      const newPath = JSON.parse(JSON.stringify(prevPath));
+      const module = newPath.modules?.find(m => m._id === selectedModuleIdForTheme);
+      if (module) {
+        module.themes = [...(module.themes || []), {
+          _id: tempId,
+          nombre: themeDataToCreate.nombre,
+          descripcion: themeDataToCreate.descripcion,
+          orden: (module.themes?.length || 0) + 1,
+          assignments: [],
+          isOptimistic: true
+        }];
+      }
+      return newPath;
+    });
+
+    handleCloseCreateThemeConfirm();
+    handleCloseCreateThemeModal();
+
+    try {
+      const response = await axiosInstance.post(
+        `/api/learning-paths/modules/${selectedModuleIdForTheme}/themes`,
+        themeDataToCreate
+      );
       const createdTheme = response.data;
+
+      // Actualizar con datos reales
+      setLearningPath(prevPath => {
+        const newPath = JSON.parse(JSON.stringify(prevPath));
+        const module = newPath.modules?.find(m => m._id === selectedModuleIdForTheme);
+        if (module) {
+          module.themes = module.themes.map(t => 
+            t._id === tempId ? createdTheme : t
+          ).sort((a, b) => a.orden - b.orden);
+        }
+        return newPath;
+      });
+
       toast.success(`Tema "${createdTheme.nombre}" creado con éxito!`);
-      await fetchLearningPathStructure(); // Recargar la estructura
-      handleCloseCreateThemeConfirm(); handleCloseCreateThemeModal();
-    } catch (err) { 
-        console.error('Error creating theme:', err.response ? err.response.data : err.message); 
-        const errorMessage = err.response && err.response.data && err.response.data.message ? err.response.data.message : 'Error al intentar crear el tema.'; 
-        toast.error(`Error al crear tema "${themeDataToCreate.nombre}": ${errorMessage}`); 
-    } finally { setIsCreatingTheme(false); }
+    } catch (err) {
+      console.error('Error creating theme:', err);
+      const errorMessage = err.response?.data?.message || 'Error al intentar crear el tema.';
+      toast.error(`Error al crear tema "${themeDataToCreate.nombre}": ${errorMessage}`);
+
+      // Revertir actualización optimista
+      setLearningPath(prevPath => {
+        const newPath = JSON.parse(JSON.stringify(prevPath));
+        const module = newPath.modules?.find(m => m._id === selectedModuleIdForTheme);
+        if (module) {
+          module.themes = module.themes.filter(t => t._id !== tempId);
+        }
+        return newPath;
+      });
+    } finally {
+      setIsCreatingTheme(false);
+    }
   };
 
 

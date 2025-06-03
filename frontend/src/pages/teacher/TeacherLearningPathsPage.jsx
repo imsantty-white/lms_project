@@ -181,7 +181,7 @@ const LearningPathCard = ({ path, index, onEdit, onDelete, onNavigate }) => {
 
 
 function TeacherLearningPathsPage() {
-    const { user, isAuthenticated, isAuthInitialized } = useAuth();
+    const { user, isAuthenticated, isAuthInitialized, fetchAndUpdateUser } = useAuth();
     const navigate = useNavigate();
 
     const [learningPaths, setLearningPaths] = useState([]);
@@ -333,54 +333,62 @@ function TeacherLearningPathsPage() {
         setLearningPathDataToCreate(null);
     };
 
-    const handleConfirmCreateLearningPath = async () => {
-        if (!learningPathDataToCreate) {
-            toast.error('No se pudo crear la ruta. Datos incompletos.');
-            handleCloseCreateLearningPathConfirm();
-            handleCloseCreateLearningPathModal();
-            return;
-        }
-
-        setIsCreatingLearningPath(true);
-
-        try {
-            const dataToSend = learningPathDataToCreate;
-            const response = await axiosInstance.post('/api/learning-paths', dataToSend);
-            const newLearningPath = response.data;
-
-            const groupName = teacherGroups.find(g => g._id === newLearningPath.group_id)?.nombre || 'Grupo Desconocido';
-            setLearningPaths(prevPaths => [...prevPaths, { ...newLearningPath, group_name: groupName }]);
-
-            toast.success('Ruta de Aprendizaje creada con éxito!');
-            handleCloseCreateLearningPathConfirm();
-            handleCloseCreateLearningPathModal();
-
-            // --- BEGIN Re-check limits and update user context ---
-            if (user?.userType === 'Docente' && user?.fetchAndUpdateUser) {
-                const updatedUser = await user.fetchAndUpdateUser();
-                if (updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
-                    const { maxRoutes } = updatedUser.plan.limits;
-                    const { routesCreated } = updatedUser.usage;
-                    if (routesCreated >= maxRoutes) {
-                        setCanCreateLearningPath(false);
-                        setLearningPathLimitMessage(`Has alcanzado el límite de ${maxRoutes} rutas de aprendizaje de tu plan.`);
-                    } else {
-                        setCanCreateLearningPath(true);
-                        setLearningPathLimitMessage(`Rutas de aprendizaje creadas: ${routesCreated}/${maxRoutes}`);
-                    }
-                }
+    // Añadir función para actualizar límites
+    const updateLimits = async () => {
+        const updatedUser = await fetchAndUpdateUser();
+        if (updatedUser?.userType === 'Docente' && updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
+            const { maxRoutes } = updatedUser.plan.limits;
+            const { routesCreated } = updatedUser.usage;
+            if (routesCreated >= maxRoutes) {
+                setCanCreateLearningPath(false);
+                setLearningPathLimitMessage(`Has alcanzado el límite de ${maxRoutes} rutas de aprendizaje de tu plan.`);
+            } else {
+                setCanCreateLearningPath(true);
+                setLearningPathLimitMessage(`Rutas de aprendizaje creadas: ${routesCreated}/${maxRoutes}`);
             }
-            // --- END Re-check limits ---
+        }
+    };
 
-        } catch (err) {
-            console.error('Error creating learning path:', err.response ? err.response.data : err.message);
-            const errorMessage = err.response?.data?.message || 'Error al intentar crear la ruta de aprendizaje.';
+    const handleConfirmCreateLearningPath = async () => {
+        if (!learningPathDataToCreate) return;
+        
+        setIsCreatingLearningPath(true);
+        try {
+            const response = await axiosInstance.post('/api/learning-paths/create', learningPathDataToCreate);
+            
+            // Asegurarnos de que tenemos una respuesta válida
+            if (!response.data) {
+                throw new Error('No se recibieron datos del servidor');
+            }
+
+            // La respuesta puede venir directamente en data o en data.data
+            const newPath = response.data.data || response.data;
+            
+            if (!newPath || !newPath._id) {
+                throw new Error('Los datos de la ruta recibidos no son válidos');
+            }
+            
+            // Actualizar la lista de rutas
+            const group = teacherGroups.find(g => g._id === newPath.group_id);
+            newPath.group_name = group ? group.nombre : 'Grupo Desconocido';
+            setLearningPaths(prev => [...prev, newPath]);
+            
+            // Actualizar límites después de crear
+            await updateLimits();
+            
+            toast.success('Ruta de aprendizaje creada con éxito.');
+            setIsCreateLearningPathConfirmOpen(false);
+            setIsCreateLearningPathModalOpen(false);
+            setLearningPathDataToCreate(null);
+            
+        } catch (error) {
+            console.error('Error al crear la ruta de aprendizaje:', error);
+            const errorMessage = error.response?.data?.message || error.message || 'Error al crear la ruta de aprendizaje.';
             toast.error(errorMessage);
         } finally {
             setIsCreatingLearningPath(false);
         }
     };
-    // --- FIN Lógica ---
 
     // --- Lógica para eliminar Ruta de Aprendizaje ---
     const handleOpenDeleteDialog = (path) => {
@@ -405,40 +413,30 @@ function TeacherLearningPathsPage() {
 
     const handleConfirmDeleteLearningPath = async () => {
         if (!learningPathToDelete) return;
+        
         setIsDeleting(true);
         try {
-            await axiosInstance.delete(`/api/learning-paths/${learningPathToDelete._id}`, {
-                data: { nombreConfirmacion: deleteConfirmationName }
-            });
-            toast.success('Ruta eliminada exitosamente');
-            setLearningPaths(prev => prev.filter(lp => lp._id !== learningPathToDelete._id));
-
-            // --- BEGIN Refresh user data ---
-            if (user?.userType === 'Docente' && user?.fetchAndUpdateUser) {
-                const updatedUser = await user.fetchAndUpdateUser();
-                if (updatedUser?.plan && updatedUser?.plan.limits && updatedUser?.usage) {
-                    const { maxRoutes } = updatedUser.plan.limits;
-                    const { routesCreated } = updatedUser.usage;
-                    if (routesCreated >= maxRoutes) {
-                        setCanCreateLearningPath(false);
-                        setLearningPathLimitMessage(`Has alcanzado el límite de ${maxRoutes} rutas de aprendizaje de tu plan.`);
-                    } else {
-                        setCanCreateLearningPath(true);
-                        setLearningPathLimitMessage(`Rutas de aprendizaje creadas: ${routesCreated}/${maxRoutes}`);
-                    }
-                }
-            }
-            // --- END Refresh user data ---
-            handleCloseDeleteDialog(); // Moved here to ensure it's called after user data refresh attempt
-        } catch (err) {
-            toast.error(err.response?.data?.message || 'Error al eliminar la ruta');
+            await axiosInstance.delete(`/api/learning-paths/${learningPathToDelete._id}`);
+            
+            // Actualizar la lista
+            setLearningPaths(prev => prev.filter(path => path._id !== learningPathToDelete._id));
+            
+            // Actualizar límites después de eliminar
+            await updateLimits();
+            
+            toast.success('Ruta de aprendizaje eliminada con éxito.');
+            setIsDeleteDialogOpen(false);
+            setLearningPathToDelete(null);
+            setDeleteConfirmationName('');
+            
+        } catch (error) {
+            console.error('Error al eliminar la ruta de aprendizaje:', error);
+            const errorMessage = error.response?.data?.message || error.message || 'Error al eliminar la ruta de aprendizaje.';
+            toast.error(errorMessage);
         } finally {
             setIsDeleting(false);
-            // Ensure handleCloseDeleteDialog is called if not already on success path
-            // if (isDeleteDialogOpen) handleCloseDeleteDialog(); // This might be redundant if already called
         }
     };
-    // --- FIN Lógica ---
 
     // --- Lógica para editar Ruta de Aprendizaje ---
     const handleEditLearningPath = (path) => {
@@ -459,26 +457,44 @@ function TeacherLearningPathsPage() {
 
     const handleEditLearningPathFormSubmit = async (formData) => {
         if (!learningPathToEdit) return;
+        
         setIsEditingLearningPath(true);
         try {
             const response = await axiosInstance.put(`/api/learning-paths/${learningPathToEdit._id}`, formData);
-            let updated = response.data;
+            
+            // Asegurarnos de que tenemos una respuesta válida
+            if (!response.data) {
+                throw new Error('No se recibieron datos del servidor');
+            }
 
-            const group = teacherGroups.find(g => g._id === (updated.group_id._id || updated.group_id));
-            const groupName = group ? group.nombre : 'Grupo Desconocido';
-
-            setLearningPaths(prev =>
-                prev.map(lp => (lp._id === updated._id ? { ...updated, group_name: groupName } : lp))
-            );
-            toast.success('Ruta actualizada exitosamente');
-            handleCloseEditLearningPathModal();
-        } catch (err) {
-            toast.error(err.response?.data?.message || 'Error al actualizar la ruta');
+            // La respuesta puede venir directamente en data o en data.data
+            const updatedPath = response.data.data || response.data;
+            
+            if (!updatedPath || !updatedPath._id) {
+                throw new Error('Los datos de la ruta actualizados no son válidos');
+            }
+            
+            // Actualizar el nombre del grupo en la ruta actualizada
+            const group = teacherGroups.find(g => g._id === updatedPath.group_id);
+            updatedPath.group_name = group ? group.nombre : 'Grupo Desconocido';
+            
+            // Actualizar la lista de rutas
+            setLearningPaths(prev => prev.map(path => 
+                path._id === updatedPath._id ? updatedPath : path
+            ));
+            
+            toast.success('Ruta de aprendizaje actualizada con éxito.');
+            setIsEditModalOpen(false);
+            setLearningPathToEdit(null);
+            
+        } catch (error) {
+            console.error('Error al actualizar la ruta de aprendizaje:', error);
+            const errorMessage = error.response?.data?.message || error.message || 'Error al actualizar la ruta de aprendizaje.';
+            toast.error(errorMessage);
         } finally {
             setIsEditingLearningPath(false);
         }
     };
-    // --- FIN Lógica ---
 
 
     // Renderizar mensajes de acceso denegado o carga si la autenticación aún no está lista o el rol es incorrecto

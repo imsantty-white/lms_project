@@ -9,6 +9,11 @@ const groupSchema = new mongoose.Schema({
     trim: true,
     maxlength: [100, 'El nombre del grupo no puede exceder los 100 caracteres']
   },
+  descripcion: {
+    type: String,
+    trim: true,
+    maxlength: [150, 'La descripción del grupo no puede exceder los 150 caracteres']
+  },
   codigo_acceso: {
     type: String,
     required: [true, 'El código de acceso es obligatorio'],
