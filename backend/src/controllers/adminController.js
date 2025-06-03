@@ -718,29 +718,6 @@ async function markMessageAsResolved(req, res) {
     }
 }
 
-
-module.exports = {
-    getPendingDocentes,
-    approveDocente,
-    getAllUsers,
-    getUserById,
-    updateUserStatus,
-    getAllGroupsForAdmin,
-    deleteGroupAsAdmin,
-    createSystemNotification, // Added
-    getTechnicalSupportReports, // Added
-    getComplaintsAndClaims, // Added
-    getAdminContactMessages, // Added
-    getSystemStatistics, // Added
-    markMessageAsResolved, // Added
-    // --- Add these ---
-    createPlan,
-    getPlans,
-    getPlanById,
-    updatePlan,
-    deletePlan
-};
-
 // --- Plan Management Functions ---
 
 // @desc    Create a new plan
@@ -953,4 +930,28 @@ const deletePlan = async (req, res) => {
         console.error('Error al eliminar plan:', error);
         res.status(500).json({ message: 'Error interno del servidor al eliminar el plan.', error: error.message });
     }
+};
+
+
+
+module.exports = {
+    getPendingDocentes,
+    approveDocente,
+    getAllUsers,
+    getUserById,
+    updateUserStatus,
+    getAllGroupsForAdmin,
+    deleteGroupAsAdmin,
+    createSystemNotification, // Added
+    getTechnicalSupportReports, // Added
+    getComplaintsAndClaims, // Added
+    getAdminContactMessages, // Added
+    getSystemStatistics, // Added
+    markMessageAsResolved, // Added
+    // --- Add these ---
+    createPlan,
+    getPlans,
+    getPlanById,
+    updatePlan,
+    deletePlan
 };

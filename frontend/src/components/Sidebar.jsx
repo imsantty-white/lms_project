@@ -116,16 +116,17 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
           items: [
             { text: 'Usuarios', icon: <SupervisedUserCircleSharpIcon />, path: '/admin/user-management' },
             { text: 'Grupos', icon: <GroupsIcon />, path: '/admin/groups' },
-            { text: 'Gestión de Reportes', icon: <AssessmentIcon />, path: '/admin/report-management' }, // Nuevo
-            { text: 'Mensajes de Soporte', icon: <ContactMailIcon />, path: '/admin/contact-messages' }, // Nuevo
+            { text: 'Reportes, Quejas y Reclamos', icon: <AssessmentIcon />, path: '/admin/report-management' },
+            { text: 'Mensajes de Soporte', icon: <ContactMailIcon />, path: '/admin/contact-messages' },
+            { text: 'Planes de Suscripción', icon: <SettingsIcon />, path: '/admin/plans' },
           ]
         },
         {
           title: 'Sistema',
           items: [
             { text: 'Crear Anuncios', icon: <NotificationsIcon />, path: '/admin/announcements' },
-            { text: 'Enviar Notificaciones', icon: <AnnouncementRoundedIcon />, path: '/admin/system-notifications' }, // Nuevo
-            { text: 'Configuración', icon: <SettingsIcon />, path: '/admin/config' },
+            { text: 'Enviar Notificaciones', icon: <AnnouncementRoundedIcon />, path: '/admin/system-notifications' },
+            
           ]
         }
       ]
