@@ -147,7 +147,7 @@ const TeacherGroupCard = ({ group, index, isArchived, onArchive, onRestore, isPr
                 {!isArchived ? (
                   <Tooltip title="Archivar grupo">
                     <IconButton onClick={(e) => handleActionClick(e, onArchive)} disabled={isProcessing} sx={{ bgcolor: (theme) => alpha(theme.palette.warning.main, 0.1), '&:hover': { bgcolor: (theme) => alpha(theme.palette.warning.main, 0.2) } }}>
-                      <ArchiveIcon color="warning" />
+                      <ArchiveIcon color="info" />
                     </IconButton>
                   </Tooltip>
                 ) : (
