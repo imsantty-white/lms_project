@@ -12,6 +12,7 @@ const Submission = require('../models/SubmissionModel');
 const Progress = require('../models/ProgressModel');
 const User = require('../models/UserModel');
 const mongoose = require('mongoose');
+const AppError = require('../utils/appError');
 const { isApprovedGroupMember, isTeacherOfContentAssignment, isTeacherOfSubmission } = require('../utils/permissionUtils');
 const NotificationService = require('../services/NotificationService'); // Adjust path if necessary
 
@@ -27,6 +28,9 @@ function shuffleArray(array) {
 // @route   GET /api/activities/student/:assignmentId/start
 // @access  Privado/Estudiante (miembro aprobado del grupo de la ruta de la asignación)
 const getStudentActivityForAttempt = async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.assignmentId)) {
+        return next(new AppError('El ID de la asignación no tiene un formato válido.', 400));
+    }
     try {
         const { assignmentId } = req.params;
         const studentId = req.user._id;
@@ -100,7 +104,8 @@ const getStudentActivityForAttempt = async (req, res, next) => {
                 return res.status(403).json({ message: 'No tienes permiso para acceder a esta actividad. No eres miembro aprobado del grupo.' });
             }
         } else {
-            return res.status(500).json({ message: 'Error interno del servidor al obtener la información del grupo.' });
+            // Esto indica que la asignación existe pero su estructura de datos está incompleta
+            return next(new AppError('La estructura de la asignación está incompleta y no se pudo verificar el grupo.', 404));
         }
 
         // Contar intentos previos (mantener)
@@ -146,9 +151,6 @@ const getStudentActivityForAttempt = async (req, res, next) => {
 
     } catch (error) {
         console.error('Error fetching student activity for attempt:', error);
-        if (error.name === 'CastError') {
-            return res.status(400).json({ message: 'ID de asignación no válido.' });
-        }
         next(error);
     }
 };
@@ -159,6 +161,9 @@ const getStudentActivityForAttempt = async (req, res, next) => {
 // @route   POST /api/activities/student/:assignmentId/submit-attempt
 // @access  Privado/Estudiante (miembro aprobado del grupo de la ruta de la asignación)
 const submitStudentActivityAttempt = async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.assignmentId)) {
+        return next(new AppError('El ID de la asignación no tiene un formato válido.', 400));
+    }
     try {
         // *** Añadir verificación explícita para req.user ***
         if (!req.user || !req.user._id || !req.user.tipo_usuario) {
@@ -272,11 +277,11 @@ const submitStudentActivityAttempt = async (req, res, next) => {
                 }
             } else { // Si no se pudo obtener el groupId de la asignación
                 console.error(`Could not get groupId from assignment ${assignmentId} for student ${studentId}.`);
-                return res.status(500).json({ message: 'Error interno del servidor al verificar permisos del grupo.' });
+                return next(new AppError('La estructura de la asignación es incompleta y no se pudo obtener el ID del grupo.', 404));
             }
         } else { // Si la jerarquía de la asignación no contiene la información del grupo
             console.error(`Assignment ${assignmentId} hierarchy does not contain group information for student ${studentId}.`);
-            return res.status(500).json({ message: 'Error interno del servidor al verificar la asignación.' });
+            return next(new AppError('La estructura de la asignación es incompleta y no se pudo verificar la información del grupo.', 404));
         }
         // *** Fin verificación y asignación ***
 
@@ -462,9 +467,6 @@ const submitStudentActivityAttempt = async (req, res, next) => {
 
     } catch (error) {
         console.error('Error al registrar la entrega de la actividad:', error);
-        if (error.name === 'CastError') {
-            return res.status(400).json({ message: 'ID de asignación no válido.' });
-        }
         next(error);
     }
 };
@@ -473,6 +475,9 @@ const submitStudentActivityAttempt = async (req, res, next) => {
 // @route   GET /api/activities/assignments/:assignmentId/submissions
 // @access  Privado/Docente, Admin
 const getAssignmentSubmissions = async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.assignmentId)) {
+        return next(new AppError('El ID de la asignación no tiene un formato válido.', 400));
+    }
     try {
         const userId = req.user._id; // ID del usuario autenticado
         const userType = req.user.tipo_usuario;
@@ -606,9 +611,6 @@ const getAssignmentSubmissions = async (req, res, next) => {
 
     } catch (error) {
         console.error('Error fetching latest assignment submissions per student:', error);
-         if (error.name === 'CastError') {
-            return res.status(400).json({ message: 'ID de asignación no válido.' });
-        }
         next(error);
     }
 };
@@ -799,6 +801,9 @@ const getTeacherAssignments = async (req, res, next) => {
 // @route   PUT /api/submissions/:submissionId/grade
 // @access  Privado/Docente, Admin
 const gradeSubmission = async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.submissionId)) {
+        return next(new AppError('El ID de la entrega no tiene un formato válido.', 400));
+    }
     try {
         const userId = req.user._id;
         const userType = req.user.tipo_usuario;
@@ -867,6 +872,10 @@ const gradeSubmission = async (req, res, next) => {
 
         const activityType = submissionWithActivity.assignment_id.activity_id.type;
 
+        if (!activityType) { // Si activityType es null o undefined porque la cadena de populate falló en algun punto
+             return next(new AppError('No se pudo determinar el tipo de actividad para esta entrega debido a datos referenciales incompletos en la asignación o actividad base.', 400));
+        }
+
         if (activityType !== 'Cuestionario' && activityType !== 'Trabajo') {
             return res.status(400).json({ message: `Las entregas de tipo ${activityType} no se califican manualmente.` });
         }
@@ -931,15 +940,15 @@ const gradeSubmission = async (req, res, next) => {
 
     } catch (error) {
         console.error('Error grading submission:', error);
-        if (error.name === 'CastError') {
-            return res.status(400).json({ message: 'ID de entrega no válido.' });
-        }
         next(error);
     }
 };
 
 // Obtener una asignación por ID
 const getAssignmentById = async (req, res, next) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.assignmentId)) {
+      return next(new AppError('El ID de la asignación no tiene un formato válido.', 400));
+  }
   try {
     const { assignmentId } = req.params;
     const assignment = await ContentAssignment.findById(assignmentId)
@@ -1040,6 +1049,9 @@ const getMyPendingActivities = async (req, res) => {
 // @route   PATCH /api/activities/assignments/:assignmentId/status
 // @access  Privado/Docente, Administrador
 const updateAssignmentStatus = async (req, res, next) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.assignmentId)) {
+      return next(new AppError('El ID de la asignación no tiene un formato válido.', 400));
+  }
   try {
     const { assignmentId } = req.params;
     const { status } = req.body;
@@ -1132,9 +1144,6 @@ const updateAssignmentStatus = async (req, res, next) => {
 
   } catch (error) {
     console.error('Error updating assignment status:', error);
-    if (error.name === 'CastError') {
-        return res.status(400).json({ message: 'ID de asignación no válido.' });
-    }
     next(error);
   }
 };

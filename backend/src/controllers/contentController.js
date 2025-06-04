@@ -7,6 +7,7 @@ const LearningPath = require('../models/LearningPathModel'); // Necesario para v
 const Module = require('../models/ModuleModel'); // Necesario para verificaciones
 const Theme = require('../models/ThemeModel'); // Necesario para verificaciones
 const mongoose = require('mongoose');
+const AppError = require('../utils/appError');
 const User = require('../models/UserModel'); // <--- ADD THIS
 const Plan = require('../models/PlanModel'); // <--- ADD THIS
 const SubscriptionService = require('../services/SubscriptionService'); // <--- ADD THIS
@@ -82,7 +83,7 @@ const createResource = async (req, res) => {
 
     } catch (error) {
         console.error('Error creando recurso:', error);
-        res.status(500).json({ message: 'Error interno del servidor al crear el recurso', error: error.message });
+        next(error);
     }
 };
 
@@ -271,7 +272,7 @@ const getDocenteContentBank = async (req, res) => {
 
     } catch (error) {
         console.error('Error al obtener el banco de contenido del docente:', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener tu banco de contenido', error: error.message });
+        next(error);
     }
 };
 
@@ -285,7 +286,7 @@ const getResourceById = async (req, res) => { // <-- SIN asyncHandler, usando as
 
         // Opcional: Validar si el ID es un ObjectId válido antes de buscar
         if (!mongoose.Types.ObjectId.isValid(resourceId)) {
-             return res.status(400).json({ message: 'ID de recurso no válido' });
+             return next(new AppError('El ID del recurso no tiene un formato válido.', 400));
         }
 
         // 2. Buscar el recurso por ID
@@ -311,7 +312,7 @@ const getResourceById = async (req, res) => { // <-- SIN asyncHandler, usando as
     } catch (error) {
         // Manejo de errores generales del servidor (ej. error de conexión a DB)
         console.error('Error fetching resource by ID:', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener el recurso', error: error.message });
+        next(error);
     }
 };
 
@@ -326,7 +327,7 @@ const getActivityById = async (req, res) => { // <-- Usando async/await directam
 
         // Opcional: Validar si el ID es un ObjectId válido
         if (!mongoose.Types.ObjectId.isValid(activityId)) {
-             return res.status(400).json({ message: 'ID de actividad no válido' });
+             return next(new AppError('El ID de actividad no tiene un formato válido.', 400));
         }
 
         // 2. Buscar la actividad por ID en la base de datos
@@ -351,7 +352,7 @@ const getActivityById = async (req, res) => { // <-- Usando async/await directam
     } catch (error) {
         // Manejo de errores generales del servidor (ej. error de conexión a DB)
         console.error('Error fetching activity by ID:', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener la actividad', error: error.message });
+        next(error);
     }
 };
 
@@ -367,7 +368,7 @@ const updateResource = async (req, res) => { // <-- Usando async/await directame
 
     // Basic validation for Resource ID
     if (!mongoose.Types.ObjectId.isValid(resourceId)) {
-        return res.status(400).json({ message: 'ID de recurso inválido' });
+        return next(new AppError('El ID del recurso no tiene un formato válido.', 400));
     }
 
     // **Validación de campos en el body (Ajustada)**
@@ -462,7 +463,7 @@ const updateResource = async (req, res) => { // <-- Usando async/await directame
         }
         console.error('Error updating resource:', error);
         // Otros errores (ej. DB)
-        res.status(500).json({ message: 'Error interno del servidor al actualizar el recurso', error: error.message });
+        next(error);
     }
 };
 
@@ -476,7 +477,7 @@ const deleteResource = async (req, res) => {
         const docenteId = req.user._id; // ID of the authenticated teacher
 
         if (!mongoose.Types.ObjectId.isValid(resourceId)) {
-             return res.status(400).json({ message: 'ID de recurso inválido' });
+             return next(new AppError('El ID del recurso no tiene un formato válido.', 400));
         }
 
         // Find the resource to verify ownership AND to ensure it exists before trying to decrement count
@@ -510,7 +511,7 @@ const deleteResource = async (req, res) => {
     } catch (error) {
         console.error('Error deleting resource:', error);
         // Consider if a rollback is needed for the counter if deletion fails at a later stage (complex)
-        res.status(500).json({ message: 'Error interno del servidor al eliminar el recurso', error: error.message });
+        next(error);
     }
 };
 
@@ -533,7 +534,7 @@ const updateActivity = async (req, res) => {
 
         // Validar ID
         if (!mongoose.Types.ObjectId.isValid(activityId)) {
-             return res.status(400).json({ message: 'ID de actividad inválido' });
+             return next(new AppError('El ID de actividad no tiene un formato válido.', 400));
         }
 
         // Validaciones de campos en el body
@@ -618,7 +619,7 @@ const updateActivity = async (req, res) => {
             return res.status(400).json({ message: 'Error de validación al actualizar actividad', errors: messages });
         }
         console.error('Error updating activity:', error);
-        res.status(500).json({ message: 'Error interno del servidor al actualizar la actividad', error: error.message });
+        next(error);
     }
 };
 
@@ -632,7 +633,7 @@ const deleteActivity = async (req, res) => {
         const docenteId = req.user._id; // ID of the authenticated teacher
 
         if (!mongoose.Types.ObjectId.isValid(activityId)) {
-             return res.status(400).json({ message: 'ID de actividad inválido' });
+             return next(new AppError('El ID de actividad no tiene un formato válido.', 400));
         }
 
         // Find the activity to verify ownership AND to ensure it exists
@@ -662,7 +663,7 @@ const deleteActivity = async (req, res) => {
 
     } catch (error) {
         console.error('Error deleting activity:', error);
-        res.status(500).json({ message: 'Error interno del servidor al eliminar la actividad', error: error.message });
+        next(error);
     }
 };
 

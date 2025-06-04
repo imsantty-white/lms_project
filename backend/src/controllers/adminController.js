@@ -5,6 +5,7 @@ const Group = require('../models/GroupModel'); // Necesitamos el modelo de Grupo
 const Membership = require('../models/MembershipModel'); // Necesitamos el modelo de Membresía para contar miembros
 const Plan = require('../models/PlanModel'); // <--- ADD THIS LINE
 const mongoose = require('mongoose'); // Para validar ObjectIds
+const AppError = require('../utils/appError');
 const NotificationService = require('../services/NotificationService');
 const ContactMessage = require('../models/ContactMessageModel'); // Importar el modelo de mensajes de contacto
 
@@ -20,7 +21,7 @@ const getPendingDocentes = async (req, res) => {
 
     } catch (error) {
         console.error('Error al obtener docentes pendientes:', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener docentes pendientes', error: error.message });
+        next(error);
     }
 };
 
@@ -32,7 +33,7 @@ const approveDocente = async (req, res) => {
 
     // Validación básica del ID de usuario
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-        return res.status(400).json({ message: 'ID de usuario inválido' });
+        return next(new AppError('El ID de usuario no tiene un formato válido.', 400));
     }
 
     try {
@@ -63,7 +64,7 @@ const approveDocente = async (req, res) => {
 
     } catch (error) {
         console.error('Error al aprobar docente:', error);
-        res.status(500).json({ message: 'Error interno del servidor al aprobar docente', error: error.message });
+        next(error);
     }
 };
 
@@ -217,7 +218,7 @@ const getAllUsers = async (req, res) => {
     } catch (error) {
         // Manejo de errores generales
         console.error('Error al obtener todos los usuarios (paginado):', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener usuarios paginados', error: error.message });
+        next(error);
     }
 };
 
@@ -229,7 +230,7 @@ const getUserById = async (req, res) => {
 
      // Validación básica del ID de usuario
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-        return res.status(400).json({ message: 'ID de usuario inválido' });
+        return next(new AppError('El ID de usuario no tiene un formato válido.', 400));
     }
 
     try {
@@ -247,7 +248,7 @@ const getUserById = async (req, res) => {
 
     } catch (error) {
         console.error('Error al obtener usuario por ID:', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener usuario por ID', error: error.message });
+        next(error);
     }
 };
 
@@ -260,7 +261,7 @@ const updateUserStatus = async (req, res) => {
 
     // Validación básica del ID de usuario y del estado proporcionado
      if (!mongoose.Types.ObjectId.isValid(userId)) {
-        return res.status(400).json({ message: 'ID de usuario inválido' });
+        return next(new AppError('El ID de usuario no tiene un formato válido.', 400));
     }
     if (isActive === undefined || typeof isActive !== 'boolean') { // isActive debe ser un booleano
          return res.status(400).json({ message: 'El estado "isActive" es obligatorio y debe ser verdadero o falso' });
@@ -308,7 +309,7 @@ const updateUserStatus = async (req, res) => {
             return res.status(400).json({ message: 'Error de validación al actualizar estado del usuario', errors: messages });
         }
         console.error('Error actualizando estado de usuario:', error);
-        res.status(500).json({ message: 'Error interno del servidor al actualizar estado del usuario', error: error.message });
+        next(error);
     }
 };
 
@@ -409,6 +410,7 @@ const getAllGroupsForAdmin = async (req, res) => {
             message: 'Error interno del servidor al obtener los grupos.',
             error: error.message,
         });
+        next(error);
     }
 };
 
@@ -420,7 +422,7 @@ const deleteGroupAsAdmin = async (req, res) => {
 
     // Validar ObjectId
     if (!mongoose.Types.ObjectId.isValid(groupId)) {
-        return res.status(400).json({ success: false, message: 'ID de grupo inválido.' });
+        return next(new AppError('El ID de grupo no tiene un formato válido.', 400));
     }
 
     try {
@@ -474,6 +476,7 @@ const deleteGroupAsAdmin = async (req, res) => {
             message: 'Error interno del servidor al eliminar el grupo.',
             error: error.message,
         });
+        next(error);
     }
 };
 
@@ -504,7 +507,7 @@ async function createSystemNotification(req, res) {
         return res.status(400).json({ message: 'El campo "recipient_id" es obligatorio cuando la audiencia es "usuario_especifico".' });
     }
     if (audience === 'usuario_especifico' && !mongoose.Types.ObjectId.isValid(recipient_id)) {
-        return res.status(400).json({ message: 'El "recipient_id" proporcionado no es un ID de usuario válido.' });
+        return next(new AppError('El "recipient_id" proporcionado no tiene un formato válido.', 400));
     }
 
     try {
@@ -569,7 +572,7 @@ async function createSystemNotification(req, res) {
 
     } catch (error) {
         console.error('Error al crear notificación del sistema:', error);
-        res.status(500).json({ message: 'Error interno del servidor al crear la notificación del sistema.', error: error.message });
+        next(error);
     }
 }
 
@@ -642,6 +645,7 @@ async function getAdminContactMessages(req, res) {
             message: 'Error interno del servidor al obtener los mensajes de contacto.', 
             error: error.message 
         });
+        next(error);
     }
 }
 
@@ -668,7 +672,7 @@ async function getSystemStatistics(req, res) {
         });
     } catch (error) {
         console.error('Error al obtener estadísticas del sistema:', error);
-        res.status(500).json({ success: false, message: 'Error interno del servidor al obtener estadísticas.', error: error.message });
+        next(error);
     }
 }
 
@@ -681,7 +685,7 @@ async function markMessageAsResolved(req, res) {
     // const { isResolved } = req.body; // Si quieres que sea más flexible (true/false)
     
     if (!mongoose.Types.ObjectId.isValid(messageId)) {
-        return res.status(400).json({ success: false, message: 'ID de mensaje inválido.' });
+        return next(new AppError('El ID de mensaje no tiene un formato válido.', 400));
     }
 
     try {
@@ -715,6 +719,7 @@ async function markMessageAsResolved(req, res) {
             message: 'Error interno del servidor al actualizar el estado del mensaje.', 
             error: error.message 
         });
+        next(error);
     }
 }
 
@@ -776,7 +781,7 @@ const createPlan = async (req, res) => {
             return res.status(400).json({ message: 'Error de validación al crear el plan.', errors: messages });
         }
         console.error('Error al crear plan:', error);
-        res.status(500).json({ message: 'Error interno del servidor al crear el plan.', error: error.message });
+        next(error);
     }
 };
 
@@ -793,7 +798,7 @@ const getPlans = async (req, res) => {
         });
     } catch (error) {
         console.error('Error al obtener planes:', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener planes.', error: error.message });
+        next(error);
     }
 };
 
@@ -804,7 +809,7 @@ const getPlanById = async (req, res) => {
     const { planId } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(planId)) {
-        return res.status(400).json({ message: 'ID de plan inválido.' });
+        return next(new AppError('El ID de plan no tiene un formato válido.', 400));
     }
 
     try {
@@ -818,7 +823,7 @@ const getPlanById = async (req, res) => {
         });
     } catch (error) {
         console.error('Error al obtener plan por ID:', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener el plan.', error: error.message });
+        next(error);
     }
 };
 
@@ -830,7 +835,7 @@ const updatePlan = async (req, res) => {
     const { name, duration, price, limits, isDefaultFree, isActive } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(planId)) {
-        return res.status(400).json({ message: 'ID de plan inválido.' });
+        return next(new AppError('El ID de plan no tiene un formato válido.', 400));
     }
 
     try {
@@ -886,7 +891,7 @@ const updatePlan = async (req, res) => {
             return res.status(400).json({ message: 'Error de validación al actualizar el plan.', errors: messages });
         }
         console.error('Error al actualizar plan:', error);
-        res.status(500).json({ message: 'Error interno del servidor al actualizar el plan.', error: error.message });
+        next(error);
     }
 };
 
@@ -897,7 +902,7 @@ const deletePlan = async (req, res) => {
     const { planId } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(planId)) {
-        return res.status(400).json({ message: 'ID de plan inválido.' });
+        return next(new AppError('El ID de plan no tiene un formato válido.', 400));
     }
 
     try {
@@ -928,7 +933,7 @@ const deletePlan = async (req, res) => {
 
     } catch (error) {
         console.error('Error al eliminar plan:', error);
-        res.status(500).json({ message: 'Error interno del servidor al eliminar el plan.', error: error.message });
+        next(error);
     }
 };
 

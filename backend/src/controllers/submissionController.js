@@ -5,6 +5,7 @@ const ContentAssignment = require('../models/ContentAssignmentModel'); // Para o
 const Activity = require('../models/ActivityModel'); // Para obtener detalles de la actividad (preguntas)
 const Membership = require('../models/MembershipModel'); // Para verificar membresía del estudiante
 const mongoose = require('mongoose'); // Para comparación de ObjectIds
+const AppError = require('../utils/appError');
 const LearningPath = require('../models/LearningPathModel');
 const Module = require('../models/ModuleModel');
 const Theme = require('../models/ThemeModel');
@@ -29,6 +30,9 @@ const createSubmission = async (req, res) => {
     // --- Validación básica de entrada (mantener) ---
     if (!assignmentId || respuesta === undefined) {
         return res.status(400).json({ message: 'ID de asignación y respuesta son obligatorios' });
+    }
+    if (!mongoose.Types.ObjectId.isValid(assignmentId)) {
+        return next(new AppError('El ID de la asignación proporcionado en el cuerpo no tiene un formato válido.', 400));
     }
     // --- Fin Validación básica ---
 
@@ -91,7 +95,7 @@ const createSubmission = async (req, res) => {
         const intentosPermitidos = assignment.intentos_permitidos;
         if (intentosPermitidos === undefined || typeof intentosPermitidos !== 'number' || intentosPermitidos < 1) {
             console.error(`Advertencia: Asignación ${assignmentId} tiene un valor inválido para intentos_permitidos: ${intentosPermitidos}`);
-            return res.status(500).json({ message: 'Error en la configuración de la asignación: intentos permitidos inválidos.' });
+            return next(new AppError('La configuración de intentos permitidos para esta asignación es inválida.', 400));
         }
 
         if (attemptNumber > intentosPermitidos) {
@@ -158,7 +162,7 @@ const createSubmission = async (req, res) => {
             submissionResponseData.quiz_answers = respuesta.quiz_answers;
 
         } else {
-            return res.status(500).json({ message: 'Tipo de actividad desconocido en la asignación. No se puede procesar la entrega.' });
+            return next(new AppError(`Tipo de actividad '${activityType}' desconocido en la asignación. No se puede procesar la entrega.`, 400));
         }
         // --- Fin Validar Data de Respuesta ---
 
@@ -251,7 +255,7 @@ const createSubmission = async (req, res) => {
             return res.status(400).json({ message: 'Parece que ya existe una entrega similar. Error de duplicado.' });
         }
         console.error('Error creando entrega:', error);
-        res.status(500).json({ message: 'Error interno del servidor al crear la entrega', error: error.message });
+        next(error);
     }
 };
 
@@ -265,7 +269,7 @@ const getStudentSubmissionsForAssignment = async (req, res) => {
 
     // Validación básica del ID de la asignación si es necesario
     if (!mongoose.Types.ObjectId.isValid(assignmentId)) {
-         return res.status(400).json({ message: 'ID de asignación inválido' });
+         return next(new AppError('El ID de la asignación no tiene un formato válido.', 400));
     }
 
     try {
@@ -288,7 +292,7 @@ const getStudentSubmissionsForAssignment = async (req, res) => {
 
     } catch (error) {
         console.error('Error al obtener entregas del estudiante para asignación:', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener tus entregas para la asignación', error: error.message });
+        next(error);
     }
 };
 
@@ -303,7 +307,7 @@ const getAssignmentSubmissionsForDocente = async (req, res) => {
 
     // Validación básica del ID de la asignación
      if (!mongoose.Types.ObjectId.isValid(assignmentId)) {
-         return res.status(400).json({ message: 'ID de asignación inválido' });
+         return next(new AppError('El ID de la asignación no tiene un formato válido.', 400));
     }
 
 
@@ -332,7 +336,7 @@ const getAssignmentSubmissionsForDocente = async (req, res) => {
 
     } catch (error) {
         console.error('Error al obtener entregas para asignación (Docente):', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener entregas para la asignación', error: error.message });
+        next(error);
     }
 };
 
@@ -347,7 +351,7 @@ const getSubmissionByIdForDocente = async (req, res) => {
 
     // Validación básica del ID de la entrega
      if (!mongoose.Types.ObjectId.isValid(submissionId)) {
-         return res.status(400).json({ message: 'ID de entrega inválido' });
+         return next(new AppError('El ID de entrega no tiene un formato válido.', 400));
     }
 
     try {
@@ -383,7 +387,7 @@ const getSubmissionByIdForDocente = async (req, res) => {
 
     } catch (error) {
         console.error('Error al obtener entrega por ID (Docente):', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener la entrega', error: error.message });
+        next(error);
     }
 };
 
@@ -400,7 +404,7 @@ const gradeSubmission = async (req, res) => {
     // --- Validación de entrada ---
     // Validar que el ID de la entrega sea un ObjectId válido
     if (!mongoose.Types.ObjectId.isValid(submissionId)) {
-        return res.status(400).json({ message: 'ID de entrega inválido' });
+        return next(new AppError('El ID de entrega no tiene un formato válido.', 400));
     }
     // Validar que la calificación sea un número no negativo. 0 es una calificación válida.
     // Se permite `null` para calificaciones vacías o descalificadas
@@ -453,7 +457,7 @@ const gradeSubmission = async (req, res) => {
         // Si activityType es null, algo salió mal al poblar, es un error interno
         if (!activityType) {
             console.error(`Error: No se pudo obtener el tipo de actividad para la asignación ${submission.assignment_id._id} en la entrega ${submissionId}`);
-            return res.status(500).json({ message: 'Error interno: No se pudo determinar el tipo de actividad.' });
+            return next(new AppError('No se pudo determinar el tipo de actividad para la entrega debido a datos referenciales incompletos en la asignación o actividad base.', 400));
         }
         // --- Fin Verificación Tipo de Actividad ---
 
@@ -523,7 +527,7 @@ const gradeSubmission = async (req, res) => {
             return res.status(400).json({ message: 'Error de validación al calificar la entrega', errors: messages });
         }
         console.error('Error calificando entrega:', error);
-        res.status(500).json({ message: 'Error interno del servidor al calificar la entrega', error: error.message });
+        next(error);
     }
 };
 
@@ -542,7 +546,7 @@ const deleteSubmissionByDocente = async (req, res) => {
 
      // Validación básica del ID de la Entrega
      if (!mongoose.Types.ObjectId.isValid(submissionId)) {
-         return res.status(400).json({ message: 'ID de entrega inválido' });
+         return next(new AppError('El ID de entrega no tiene un formato válido.', 400));
     }
 
     try {
@@ -590,7 +594,7 @@ const deleteSubmissionByDocente = async (req, res) => {
 
     } catch (error) {
          console.error('Error al eliminar entrega por docente:', error);
-         res.status(500).json({ message: 'Error interno del servidor al eliminar la entrega', error: error.message });
+         next(error);
     }
 };
 

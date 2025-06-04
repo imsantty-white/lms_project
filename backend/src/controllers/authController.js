@@ -2,6 +2,7 @@
 const User = require('../models/UserModel');
 const Plan = require('../models/PlanModel'); // <--- ADD THIS LINE
 const jwt = require('jsonwebtoken');
+const AppError = require('../utils/appError');
 const NotificationService = require('../services/NotificationService'); // Importar NotificationService
 
 // Función del controlador para manejar el registro de usuarios
@@ -125,18 +126,11 @@ const registerUser = async (req, res) => {
     }
 
   } catch (error) {
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map(val => val.message);
-      // Añadir un mensaje más genérico si los específicos son muy técnicos
-      return res.status(400).json({ message: 'Error de validación. Verifica los datos ingresados.', errors: messages });
-    }
-    if (error.code === 11000 && error.keyPattern && error.keyPattern.email) {
-      // Este error ya se maneja arriba con findOne, pero es una salvaguarda.
-      return res.status(400).json({ message: 'El email ya está registrado.' });
-    }
-    console.error('Error en el registro de usuario:', error);
-    res.status(500).json({ message: 'Error interno del servidor al registrar usuario.' });
-  }
+            // console.error se mantiene para logging
+            console.error('Error en el registro de usuario:', error);
+            // Delegar al globalErrorHandler
+            next(error);
+        }
 };
 
 // Función del controlador para manejar el login de usuarios
@@ -226,7 +220,7 @@ const loginUser = async (req, res) => {
 
   } catch (error) {
     console.error('Error en el login de usuario:', error);
-    res.status(500).json({ message: 'Error interno del servidor al iniciar sesión' });
+    next(error);
   }
 };
 
@@ -283,10 +277,7 @@ const getMe = async (req, res) => {
     });
   } catch (error) {
     console.error('Error en el controlador getMe:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error al obtener datos del usuario autenticado.'
-    });
+    next(error);
   }
 };
 

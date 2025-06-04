@@ -14,6 +14,7 @@ const Plan = require('../models/PlanModel'); // <--- ADD IF NOT PRESENT
 const SubscriptionService = require('../services/SubscriptionService'); // <--- ADD THIS
 const Submission = require('../models/SubmissionModel');
 const mongoose = require('mongoose');
+const AppError = require('../utils/appError');
 const NotificationService = require('../services/NotificationService'); // Adjust path if necessary
 // Membership is already imported
 // ContentAssignment is already imported
@@ -166,6 +167,9 @@ const createLearningPath = async (req, res, next) => { // Añadir 'next' para pa
 // @route   POST /api/learning-paths/:learningPathId/modules
 // @access  Privado/Docente
 const createModule = async (req, res, next) => { // Añadir 'next'
+    if (!mongoose.Types.ObjectId.isValid(req.params.learningPathId)) {
+        return next(new AppError('El ID de la ruta de aprendizaje no tiene un formato válido.', 400));
+    }
     // Extrae nombre y descripcion del cuerpo de la petición
     const { nombre, descripcion } = req.body; // NO esperamos 'orden' aquí
     const { learningPathId } = req.params; // Obtiene el ID de la ruta de los parámetros de la URL
@@ -225,6 +229,9 @@ const createModule = async (req, res, next) => { // Añadir 'next'
 // @route   POST /api/learning-paths/modules/:moduleId/themes
 // @access  Privado/Docente
 const createTheme = async (req, res, next) => { // Añadir 'next'
+    if (!mongoose.Types.ObjectId.isValid(req.params.moduleId)) {
+        return next(new AppError('El ID del módulo no tiene un formato válido.', 400));
+    }
     // Extrae nombre y descripcion del cuerpo de la petición
     const { nombre, descripcion } = req.body; // NO esperamos 'orden' aquí
     const { moduleId } = req.params; // Obtiene el ID del módulo de los parámetros de la URL
@@ -291,6 +298,9 @@ const createTheme = async (req, res, next) => { // Añadir 'next'
 // @route   POST /api/learning-paths/themes/:themeId/assign-content
 // @access  Privado/Docente, Admin
 const assignContentToTheme = async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.themeId)) {
+        return next(new AppError('El ID del tema no tiene un formato válido.', 400));
+    }
     const { themeId } = req.params;
     // Obtener los campos de la asignación del cuerpo de la petición
     // Mantener solo los campos relevantes del body
@@ -389,7 +399,7 @@ const assignContentToTheme = async (req, res, next) => {
               assignmentFields.docente_id = theme.module_id.learning_path_id.group_id.docente_id;
          } else {
               console.error('Error lógico: La verificación de propiedad pasó pero no se pudo obtener group_id/docente_id del tema.');
-              return res.status(500).json({ message: 'Error interno al procesar la asignación.' }); // Error interno si no se puede asociar a grupo/docente
+              return next(new AppError('La estructura del tema o su jerarquía es inválida y no se pudo procesar la asignación.', 400));
          }
 
 
@@ -519,7 +529,10 @@ const assignContentToTheme = async (req, res, next) => {
 // @desc    Obtener Rutas de Aprendizaje para un grupo (Vista Docente)
 // @route   GET /api/learning-paths/groups/:groupId/docente
 // Acceso: Privado/Docente (dueño del grupo)
-const getGroupLearningPathsForDocente = async (req, res) => {
+const getGroupLearningPathsForDocente = async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.groupId)) {
+        return next(new AppError('El ID del grupo no tiene un formato válido.', 400));
+    }
     const { groupId } = req.params; // ID del grupo de la URL
     const docenteId = req.user._id; // ID del docente autenticado
 
@@ -538,7 +551,7 @@ const getGroupLearningPathsForDocente = async (req, res) => {
 
     } catch (error) {
         console.error('Error al obtener rutas de aprendizaje del grupo (Docente):', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener rutas de aprendizaje del grupo', error: error.message });
+        next(error);
     }
 };
 
@@ -546,7 +559,10 @@ const getGroupLearningPathsForDocente = async (req, res) => {
 // @desc    Obtener Rutas de Aprendizaje para un grupo (Vista Estudiante)
 // @route   GET /api/learning-paths/groups/:groupId/student
 // Acceso: Privado/Estudiante (miembro aprobado del grupo)
-const getGroupLearningPathsForStudent = async (req, res) => {
+const getGroupLearningPathsForStudent = async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.groupId)) {
+        return next(new AppError('El ID del grupo no tiene un formato válido.', 400));
+    }
     const { groupId } = req.params; // ID del grupo de la URL
     const userId = req.user._id; // ID del usuario (estudiante) autenticado
     const userType = req.user.tipo_usuario;
@@ -583,7 +599,7 @@ const getGroupLearningPathsForStudent = async (req, res) => {
 
     } catch (error) {
         console.error('Error al obtener rutas de aprendizaje del grupo (Estudiante):', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener rutas de aprendizaje del grupo', error: error.message });
+        next(error);
     }
 };
 
@@ -591,7 +607,10 @@ const getGroupLearningPathsForStudent = async (req, res) => {
 // @desc    Obtener la estructura completa de una Ruta de Aprendizaje específica
 // @route   GET /api/learning-paths/:pathId/structure
 // Acceso: Privado/Docente (dueño del grupo) O Estudiante (miembro aprobado del grupo)
-const getLearningPathStructure = async (req, res) => {
+const getLearningPathStructure = async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.pathId)) {
+        return next(new AppError('El ID de la ruta de aprendizaje no tiene un formato válido.', 400));
+    }
     const { pathId } = req.params;
     const userId = req.user._id;
     const userType = req.user.tipo_usuario;
@@ -710,7 +729,7 @@ const getLearningPathStructure = async (req, res) => {
 
     } catch (error) {
         console.error('Error al obtener la estructura de la ruta de aprendizaje:', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener la estructura de la ruta de aprendizaje', error: error.message });
+        next(error);
     }
 };
 
@@ -785,10 +804,7 @@ const getMyAssignedLearningPaths = async (req, res) => {
 
     } catch (error) {
         console.error('Error al obtener las rutas de aprendizaje asignadas:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message || 'Error al obtener las rutas de aprendizaje asignadas.'
-        });
+        next(error);
     }
 };
 
@@ -796,14 +812,13 @@ const getMyAssignedLearningPaths = async (req, res) => {
 // @desc    Actualizar detalles de una Ruta de Aprendizaje
 // @route   PUT /api/learning-paths/:learningPathId
 // @access  Privado/Docente
-const updateLearningPath = async (req, res) => {
+const updateLearningPath = async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.learningPathId)) {
+        return next(new AppError('El ID de la ruta de aprendizaje no tiene un formato válido.', 400));
+    }
     const { learningPathId } = req.params;
     const { nombre, descripcion } = req.body; // <-- Cambia aquí
     const docenteId = req.user._id;
-
-    if (!mongoose.Types.ObjectId.isValid(learningPathId)) {
-        return res.status(400).json({ message: 'ID de ruta de aprendizaje inválido' });
-    }
 
     // Validación de los campos a actualizar si se proporcionaron
     if (nombre !== undefined && (typeof nombre !== 'string' || nombre.trim() === '')) {
@@ -838,7 +853,7 @@ const updateLearningPath = async (req, res) => {
             return res.status(400).json({ message: 'Error de validación al actualizar ruta de aprendizaje', errors: messages });
         }
         console.error('Error actualizando ruta de aprendizaje:', error);
-        res.status(500).json({ message: 'Error interno del servidor al actualizar la ruta de aprendizaje', error: error.message });
+        next(error);
     }
 };
 
@@ -846,14 +861,13 @@ const updateLearningPath = async (req, res) => {
 // @desc    Eliminar una Ruta de Aprendizaje y todo su contenido asociado
 // @route   DELETE /api/learning-paths/:learningPathId
 // @access  Privado/Docente
-const deleteLearningPath = async (req, res) => {
+const deleteLearningPath = async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.learningPathId)) {
+        return next(new AppError('El ID de la ruta de aprendizaje no tiene un formato válido.', 400));
+    }
     const { learningPathId } = req.params;
     const { nombreConfirmacion } = req.body;
     const docenteId = req.user._id; // The teacher initiating the delete
-
-    if (!mongoose.Types.ObjectId.isValid(learningPathId)) {
-        return res.status(400).json({ message: 'ID de ruta de aprendizaje inválido' });
-    }
 
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -918,7 +932,7 @@ const deleteLearningPath = async (req, res) => {
         await session.abortTransaction();
         session.endSession();
         console.error('Error durante la eliminación en cascada de la ruta de aprendizaje:', error);
-        res.status(500).json({ message: 'Error interno del servidor al eliminar la ruta de aprendizaje.', error: error.message });
+        next(error);
     }
 };
 
@@ -926,6 +940,9 @@ const deleteLearningPath = async (req, res) => {
 // @route   PUT /api/modules/:moduleId
 // @access  Privado/Docente
 const updateModule = async (req, res, next) => { // Añadir 'next'
+    if (!mongoose.Types.ObjectId.isValid(req.params.moduleId)) {
+        return next(new AppError('El ID del módulo no tiene un formato válido.', 400));
+    }
     const { moduleId } = req.params; // Obtiene el ID del módulo
     // Obtiene los datos actualizados del cuerpo de la petición
     // Permitimos actualizar nombre, descripción y orden
@@ -998,6 +1015,9 @@ const updateModule = async (req, res, next) => { // Añadir 'next'
 // @route   DELETE /api/modules/:moduleId
 // @access  Privado/Docente
 const deleteModule = async (req, res, next) => { // Añadir 'next'
+    if (!mongoose.Types.ObjectId.isValid(req.params.moduleId)) {
+        return next(new AppError('El ID del módulo no tiene un formato válido.', 400));
+    }
     const { moduleId } = req.params; // Obtiene el ID del módulo
 
     try {
@@ -1058,6 +1078,9 @@ const deleteModule = async (req, res, next) => { // Añadir 'next'
 // @route   PUT /api/themes/:themeId
 // @access  Privado/Docente
 const updateTheme = async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.themeId)) {
+        return next(new AppError('El ID del tema no tiene un formato válido.', 400));
+    }
     const { themeId } = req.params;
     const { nombre, descripcion, orden } = req.body;
 
@@ -1120,6 +1143,9 @@ const updateTheme = async (req, res, next) => {
 // @route   DELETE /api/themes/:themeId
 // @access  Privado/Docente
 const deleteTheme = async (req, res, next) => { // Añadir 'next'
+    if (!mongoose.Types.ObjectId.isValid(req.params.themeId)) {
+        return next(new AppError('El ID del tema no tiene un formato válido.', 400));
+    }
     const { themeId } = req.params; // Obtiene el ID del tema
 
     try {
@@ -1172,6 +1198,9 @@ const deleteTheme = async (req, res, next) => { // Añadir 'next'
 // @route   PUT /api/content-assignments/:assignmentId
 // @access  Privado/Docente, Admin
 const updateContentAssignment = async (req, res, next) => { // Añadir 'next'
+    if (!mongoose.Types.ObjectId.isValid(req.params.assignmentId)) {
+        return next(new AppError('El ID de la asignación no tiene un formato válido.', 400));
+    }
     const { assignmentId } = req.params; // Obtiene el ID de la asignación
     // Obtiene los datos actualizados del cuerpo de la petición
     // *** REMOVER 'orden' del destructuring del body ***
@@ -1312,6 +1341,9 @@ const updateContentAssignment = async (req, res, next) => { // Añadir 'next'
 // @route   DELETE /api/content-assignments/:assignmentId
 // @access  Privado/Docente
 const deleteContentAssignment = async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.assignmentId)) {
+        return next(new AppError('El ID de la asignación no tiene un formato válido.', 400));
+    }
     const { assignmentId } = req.params;
 
     try {
@@ -1388,9 +1420,6 @@ const deleteContentAssignment = async (req, res, next) => {
 
     } catch (error) {
         console.error('Error eliminando o reorganizando asignación de contenido:', error);
-         if (error.name === 'CastError') {
-            return res.status(400).json({ message: 'ID de asignación no válido.' });
-         }
         next(error); // Pasa el error al siguiente middleware
     }
 };
@@ -1400,13 +1429,11 @@ const deleteContentAssignment = async (req, res, next) => {
 // @route   GET /api/learning-paths/assignments/:assignmentId
 // @access  Privado/Docente
 const getContentAssignmentById = async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.assignmentId)) {
+        return next(new AppError('El ID de la asignación no tiene un formato válido.', 400));
+    }
     try {
         const assignmentId = req.params.assignmentId;
-
-        // Validar que el ID sea un ObjectId válido
-        if (!assignmentId.match(/^[0-9a-fA-F]{24}$/)) {
-            return res.status(400).json({ message: 'ID de asignación no válido.' });
-        }
 
         // Buscar la asignación por ID y poblar referencias clave
         // Asegúrate de poblar el tema para la verificación de propiedad
@@ -1455,10 +1482,6 @@ const getContentAssignmentById = async (req, res, next) => {
 
     } catch (error) {
         console.error('Error fetching content assignment by ID:', error);
-        // Si el error es de Mongoose por casting de ObjectId
-        if (error.name === 'CastError') {
-            return res.status(400).json({ message: 'ID de asignación no válido.' });
-        }
         next(error); // Pasa otros errores al siguiente middleware
     }
 };
@@ -1468,6 +1491,9 @@ const getContentAssignmentById = async (req, res, next) => {
 // @route   PUT /api/learning-paths/assignments/:assignmentId/status
 // @access  Privado/Docente, Admin
 const updateContentAssignmentStatus = async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.assignmentId)) {
+        return next(new AppError('El ID de la asignación no tiene un formato válido.', 400));
+    }
     const { assignmentId } = req.params;
     const { status } = req.body;
 
@@ -1581,9 +1607,6 @@ const updateContentAssignmentStatus = async (req, res, next) => {
 
     } catch (error) {
         // Manejo de errores
-        if (error.name === 'CastError') {
-            return res.status(400).json({ message: 'ID de asignación inválido.' });
-        }
         console.error('Error al actualizar estado de asignación:', error);
         next(error); // Pasa el error al siguiente middleware para manejo centralizado
     }
@@ -1592,7 +1615,10 @@ const updateContentAssignmentStatus = async (req, res, next) => {
 // @desc    Obtener todas las actividades asignadas a un estudiante en una ruta de aprendizaje
 // @route   GET /api/learning-paths/:learningPathId/student-activities
 // @access  Privado/Estudiante
-const getStudentActivitiesForLearningPath = async (req, res) => {
+const getStudentActivitiesForLearningPath = async (req, res, next) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.learningPathId)) {
+      return next(new AppError('El ID de la ruta de aprendizaje no tiene un formato válido.', 400));
+  }
   try {
     const { learningPathId } = req.params;
     const studentId = req.user._id;
@@ -1633,7 +1659,8 @@ const getStudentActivitiesForLearningPath = async (req, res) => {
 
     res.json({ activities: results });
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener actividades del estudiante', error: error.message });
+    console.error('Error al obtener actividades del estudiante', error);
+    next(error);
   }
 };
 

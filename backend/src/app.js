@@ -1,5 +1,6 @@
 // backend/src/app.js
 const express = require('express');
+const globalErrorHandler = require('./middleware/errorHandler'); // Importar el manejador de errores global
 const app = express(); // Crea una instancia de la aplicación Express
 require('dotenv').config();
 
@@ -126,5 +127,8 @@ app.use('/api/announcements', announcementRoutes);
 app.get('/', (req, res) => {
   res.send('API del Sistema de Gestión de Aprendizaje funcionando!');
 });
+
+// Middleware de manejo de errores global (debe ser el último)
+app.use(globalErrorHandler);
 
 module.exports = app; // Exporta la aplicación Express configurada

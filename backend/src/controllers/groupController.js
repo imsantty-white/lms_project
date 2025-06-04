@@ -1,5 +1,5 @@
 // src/controllers/groupController.js
-
+const AppError = require('../utils/appError');
 const dotenv = require('dotenv'); // Necesario si no estás seguro de que dotenv se carga al inicio
 dotenv.config();
 const mongoose = require('mongoose'); 
@@ -101,7 +101,7 @@ const createGroup = async (req, res) => {
 
     } catch (error) {
         console.error('Error creando grupo:', error);
-        res.status(500).json({ message: 'Error interno del servidor al crear el grupo', error: error.message });
+        next(error);
     }
 };
 
@@ -202,7 +202,7 @@ const requestJoinGroup = async (req, res) => {
 
   } catch (error) {
       console.error('Error al procesar solicitud de unión a grupo:', error);
-      res.status(500).json({ message: 'Error interno del servidor al procesar la solicitud', error: error.message });
+      next(error);
   }
 };
 
@@ -240,7 +240,7 @@ const getMyJoinRequests = async (req, res) => {
 
   } catch (error) {
       console.error('Error al obtener solicitudes pendientes del docente:', error);
-      res.status(500).json({ message: 'Error interno del servidor al obtener solicitudes pendientes', error: error.message });
+      next(error);
   }
 };
 
@@ -395,10 +395,7 @@ const respondJoinRequest = async (req, res) => {
 
   } catch (error) {
       console.error('Error al responder solicitud de membresía:', error);
-      if (error.name === 'CastError' && error.path === '_id') { // Check if it's a CastError for an ObjectId
-        return res.status(400).json({ message: 'ID de membresía inválido.' });
-      }
-      res.status(500).json({ message: 'Error interno del servidor al responder la solicitud', error: error.message });
+      next(error);
   }
 };
 
@@ -434,7 +431,7 @@ const getGroupStudents = async (req, res) => {
 
   } catch (error) {
     console.error('Error al obtener estudiantes del grupo:', error);
-    res.status(500).json({ message: 'Error interno del servidor al obtener estudiantes del grupo', error: error.message });
+    next(error);
   }
 };
 
@@ -460,7 +457,7 @@ const getMyApprovedGroups = async (req, res) => {
 
   } catch (error) {
     console.error('Error al obtener grupos del usuario:', error);
-    res.status(500).json({ message: 'Error interno del servidor al obtener tus grupos', error: error.message });
+    next(error);
   }
 };
 
@@ -527,10 +524,7 @@ const getMyOwnedGroups = async (req, res) => {
 
   } catch (error) {
     console.error('Error en getMyOwnedGroups:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener los grupos del docente.'
-    });
+    next(error);
   }
 };
 
@@ -593,7 +587,7 @@ const getMyMembershipsWithStatus = async (req, res) => {
 
     } catch (error) {
         console.error('Error al obtener las membresías del usuario:', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener tus grupos y estados.', error: error.message });
+        next(error);
     }
 };
 
@@ -662,7 +656,7 @@ const updateGroup = async (req, res) => {
             return res.status(400).json({ message: 'Error de validación al actualizar el grupo.', errors: messages });
         }
         console.error('Error actualizando grupo:', error);
-        res.status(500).json({ message: 'Error interno del servidor al actualizar el grupo.', error: error.message });
+        next(error);
     }
 };
 
@@ -737,7 +731,7 @@ const deleteGroup = async (req, res) => { // ¡Ya no se necesita 'io' aquí!
         // Rollback group status if user update failed? Complex, consider for future.
         // For now, if user update fails, the group is archived but counter might be off.
         // A more robust solution might use transactions if DB supports it.
-        res.status(500).json({ message: 'Error interno del servidor al archivar el grupo', error: error.message });
+        next(error);
     }
 };
 
@@ -804,7 +798,7 @@ const removeStudentFromGroup = async (req, res) => {
 
   } catch (error) {
        console.error('Error al eliminar estudiante del grupo:', error);
-       res.status(500).json({ message: 'Error interno del servidor al eliminar el estudiante del grupo', error: error.message });
+       next(error);
   }
 };
 
@@ -844,14 +838,7 @@ const getGroupById = async (req, res, next) => {
 
   } catch (error) {
     console.error('Error al obtener grupo por ID:', error);
-    // 5. Manejar error si el ID proporcionado no es un formato válido de ObjectId (CastError)
-     if (error.name === 'CastError') {
-         return res.status(400).json({ message: `ID de grupo no válido.` });
-         // Si usas ErrorResponse: return next(new ErrorResponse(`ID de grupo no válido.`, 400));
-     }
-    // 6. Manejar otros errores internos del servidor
-    res.status(500).json({ message: 'Error interno del servidor al obtener el grupo.', error: error.message });
-    // Si usas ErrorResponse: next(error);
+    next(error);
   }
 };
 
@@ -892,14 +879,7 @@ const getGroupMemberships = async (req, res, next) => {
 
     } catch (error) {
         console.error('Error al obtener membresías del grupo:', error);
-        // 5. Manejar error si el ID de grupo no es válido
-         if (error.name === 'CastError') {
-             return res.status(400).json({ message: `ID de grupo no válido.` });
-             // Si usas ErrorResponse: return next(new ErrorResponse(`ID de grupo no válido.`, 400));
-         }
-        // 6. Manejar otros errores internos del servidor
-        res.status(500).json({ message: 'Error interno del servidor al obtener las membresías.', error: error.message });
-        // Si usas ErrorResponse: next(error);
+        next(error);
     }
 };
 
@@ -982,7 +962,7 @@ const removeMembershipById = async (req, res) => {
   } catch (error) {
     console.error('Error al eliminar membresía del grupo:', error);
     // Manejar otros errores, como problemas de conexión a la BD
-    res.status(500).json({ message: 'Error interno del servidor al eliminar la membresía.', error: error.message });
+    next(error);
   }
 };
 
@@ -1023,7 +1003,7 @@ const restoreGroup = async (req, res) => {
 
   } catch (error) {
     console.error('Error restaurando grupo:', error);
-    res.status(500).json({ message: 'Error interno del servidor al restaurar el grupo.', error: error.message });
+    next(error);
   }
 };
 
