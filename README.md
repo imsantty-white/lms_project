@@ -1,6 +1,6 @@
 # LMS Project
 
-Sistema de Gestión de Aprendizaje (LMS, Sin Nombre)
+Sistema de Gestión de Aprendizaje (LMS, Sin Nombre por ahora)
 
 ## Descripción
 
