@@ -7,10 +7,10 @@ const Group = require('../models/GroupModel'); // Importamos el modelo de Grupo
 const { generateUniqueCode } = require('../utils/codeGenerator'); // Importamos nuestra utilidad para códigos
 const Membership = require('../models/MembershipModel'); // Importamos el modelo de Membresía
 const User = require('../models/UserModel');
-const Plan = require('../models/PlanModel'); // <--- ADD THIS
-const SubscriptionService = require('../services/SubscriptionService'); // <--- ADD THIS
+const Plan = require('../models/PlanModel');
+const SubscriptionService = require('../services/SubscriptionService');
 const { isTeacherOfGroup } = require('../utils/permissionUtils');
-const NotificationService = require('../services/NotificationService'); // Adjust path if necessary
+const NotificationService = require('../services/NotificationService');
 
 // Es una buena práctica tener la constante cerca o importarla si es global
 const MAX_GROUPS_PER_DOCENTE = parseInt(process.env.MAX_GROUPS_PER_DOCENTE, 10) || 3;
@@ -18,7 +18,7 @@ const MAX_GROUPS_PER_DOCENTE = parseInt(process.env.MAX_GROUPS_PER_DOCENTE, 10) 
 // @desc    Crear un nuevo grupo
 // @route   POST /api/groups/create
 // @access  Privado/Docente
-const createGroup = async (req, res) => {
+const createGroup = async (req, res, next) => {
     // Aceptar nombre y limite_estudiantes del cuerpo de la petición
     const { nombre, descripcion, limite_estudiantes } = req.body;
     const docenteId = req.user._id;
@@ -36,23 +36,22 @@ const createGroup = async (req, res) => {
         // --- BEGIN PLAN AND USAGE LIMIT CHECK ---
         if (req.user.tipo_usuario === 'Docente') {
             const user = await User.findById(docenteId).populate('planId');
-            if (!user) { // Should not happen if protect middleware works
-                return res.status(404).json({ message: 'Usuario docente no encontrado.' });
+            if (!user) {
+                return next(new AppError('Usuario docente no encontrado.', 404));
             }
 
             const subscription = await SubscriptionService.checkSubscriptionStatus(docenteId);
             if (!subscription.isActive) {
-                return res.status(403).json({ message: `No se puede crear el grupo: ${subscription.message}` });
+                 return next(new AppError(`No se puede crear el grupo: ${subscription.message}`, 403));
             }
 
             if (user.planId && user.planId.limits && user.planId.limits.maxGroups !== undefined) {
                 if (user.usage.groupsCreated >= user.planId.limits.maxGroups) {
-                    return res.status(403).json({ message: `Has alcanzado el límite de ${user.planId.limits.maxGroups} grupos permitidos por tu plan "${user.planId.name}".` });
+                    return next(new AppError(`Has alcanzado el límite de ${user.planId.limits.maxGroups} grupos permitidos por tu plan "${user.planId.name}".`, 403));
                 }
             } else {
-                // Fallback or error if plan details/limits are missing, though checkSubscriptionStatus should catch inactive plans
                 console.warn(`Plan o límites no definidos para el docente ${docenteId} al crear grupo.`);
-                return res.status(403).json({ message: 'No se pudieron verificar los límites de tu plan para crear grupos.' });
+                return next(new AppError('No se pudieron verificar los límites de tu plan para crear grupos.', 403));
             }
         }
         // --- END PLAN AND USAGE LIMIT CHECK ---
@@ -73,114 +72,77 @@ const createGroup = async (req, res) => {
 
         if (!uniqueCodeFound) {
             console.error('Error al generar código de acceso único después de varios intentos.');
-            return res.status(500).json({ message: 'No se pudo generar un código de acceso único para el grupo. Por favor, inténtalo de nuevo.' });
+            return next(new AppError('No se pudo generar un código de acceso único para el grupo. Por favor, inténtalo de nuevo.', 500));
         }
-        // --- Fin Generar código ---
 
-        // --- Crear el nuevo grupo (Lógica preservada) ---
         const newGroup = await Group.create({
             nombre: nombre.trim(),
             descripcion: descripcion || '',
             codigo_acceso,
             docente_id: docenteId,
             limite_estudiantes: limite_estudiantes !== undefined ? limite_estudiantes : 0,
-            // activo: true is default in model
         });
 
-        // --- BEGIN INCREMENT USAGE COUNTER ---
         if (req.user.tipo_usuario === 'Docente') {
-            const userToUpdate = await User.findById(docenteId); // Re-fetch or use the one from above if still in scope and not modified
+            const userToUpdate = await User.findById(docenteId);
             if (userToUpdate) {
                 userToUpdate.usage.groupsCreated = (userToUpdate.usage.groupsCreated || 0) + 1;
                 await userToUpdate.save();
             }
         }
-        // --- END INCREMENT USAGE COUNTER ---
-
         res.status(201).json(newGroup);
-
     } catch (error) {
         console.error('Error creando grupo:', error);
         next(error);
     }
 };
 
-
-
 // Controlador para que un usuario solicite unirse a un grupo
-const requestJoinGroup = async (req, res) => {
-  const { codigo_acceso } = req.body; // Obtenemos el código de acceso del cuerpo de la petición
-  const userId = req.user._id; // Obtenemos el ID del usuario autenticado
-  const userType = req.user.tipo_usuario; // Obtenemos el tipo de usuario
+const requestJoinGroup = async (req, res, next) => {
+  const { codigo_acceso } = req.body;
+  const userId = req.user._id;
+  const userType = req.user.tipo_usuario;
 
-  // --- Validación: Solo Estudiantes pueden solicitar unirse ---
   if (userType !== 'Estudiante') {
-      return res.status(403).json({ message: 'Solo los estudiantes pueden solicitar unirse a grupos' }); // 403 Forbidden
+      return next(new AppError('Solo los estudiantes pueden solicitar unirse a grupos', 403));
   }
-  // --- Fin Validación ---
-
-  // --- Validación básica de entrada ---
   if (!codigo_acceso) {
-      return res.status(400).json({ message: 'Por favor, ingresa el código de acceso del grupo' });
+      return next(new AppError('Por favor, ingresa el código de acceso del grupo', 400));
   }
-  // --- Fin Validación ---
 
   try {
-      // --- Buscar el grupo por código de acceso ---
-      const group = await Group.findOne({ codigo_acceso: codigo_acceso.toUpperCase(), activo: true }); // Buscar usando el código en mayúsculas
-
-      // Si el grupo no existe
+      const group = await Group.findOne({ codigo_acceso: codigo_acceso.toUpperCase(), activo: true });
       if (!group) {
-          return res.status(404).json({ message: 'Grupo no encontrado con ese código de acceso' });
+          return next(new AppError('Grupo no encontrado con ese código de acceso', 404));
       }
-      // --- Fin Buscar grupo ---
 
-
-      // --- Verificar si el estudiante ya tiene cualquier membresía en este grupo ---
       const existingMembership = await Membership.findOne({
           usuario_id: userId,
           grupo_id: group._id
       });
 
       if (existingMembership) {
-          return res.status(400).json({
-              message: 'Ya tienes una solicitud o membresía para este grupo. No puedes enviar otra hasta que sea eliminada.'
-          });
+          return next(new AppError('Ya tienes una solicitud o membresía para este grupo. No puedes enviar otra hasta que sea eliminada.', 400));
       }
-      // --- Fin Verificar membresía existente ---
 
-      // --- Verificar límite de estudiantes en el grupo (Futura Implementación de Limitaciones) ---
-      // Esto lo implementaríamos más adelante, consultando el 'limite_estudiantes' del grupo
-      // y contando los miembros 'Aprobado'.
-      // if (group.limite_estudiantes > 0) { ... }
-      // --- Fin Límite estudiantes ---
-
-
-      // --- Crear la nueva solicitud de membresía (Estado Pendiente) ---
       const membershipRequest = await Membership.create({
           usuario_id: userId,
           grupo_id: group._id,
-          estado_solicitud: 'Pendiente' // Estado por defecto
+          estado_solicitud: 'Pendiente'
       });
-      // --- Fin Crear solicitud ---
 
       try {
-          // 'group' is already fetched and available.
-          // 'req.user' (student) is available.
           if (group && group.docente_id && req.user) {
-              const student = req.user; // student making the request
-              const teacherId = group.docente_id; // Recipient of the notification
+              const student = req.user;
+              const teacherId = group.docente_id;
               const groupName = group.nombre || 'the group';
               const studentName = `${student.nombre} ${student.apellidos || ''}`.trim();
-
               const message = `${studentName} has requested to join your group '${groupName}'.`;
-              // TODO: Confirm teacher's link to manage join requests for this specific group.
-              // Assuming a route like /teacher/groups/:groupId/manage or similar where requests are listed.
-              const link = `/teacher/groups/${group._id}/manage`; // Link to member management page
+              const link = `/teacher/groups/${group._id}/manage`;
 
               await NotificationService.createNotification({
                   recipient: teacherId,
-                  sender: student._id, // Student who sent the request
+                  sender: student._id,
                   type: 'JOIN_REQUEST',
                   message: message,
                   link: link
@@ -190,106 +152,117 @@ const requestJoinGroup = async (req, res) => {
           }
       } catch (notificationError) {
           console.error('Failed to send join request notification:', notificationError);
-          // Do not let notification errors break the main response
       }
 
-      // --- Respuesta exitosa ---
       res.status(201).json({
           message: 'Solicitud para unirse al grupo enviada exitosamente',
-          membership: membershipRequest // Opcional: enviar los datos de la solicitud creada
+          membership: membershipRequest
       });
-      // --- Fin Respuesta ---
-
   } catch (error) {
       console.error('Error al procesar solicitud de unión a grupo:', error);
       next(error);
   }
 };
 
-
-
-
 // Controlador para que un Docente vea las solicitudes pendientes de sus grupos
-const getMyJoinRequests = async (req, res) => {
-  const docenteId = req.user._id; // Obtenemos el ID del docente autenticado
+const getMyJoinRequests = async (req, res, next) => {
+    const { page = 1, limit = 10 } = req.query;
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
 
-  try {
-      // --- Encontrar todos los grupos creados por este docente ---
-      const docentesGroups = await Group.find({ docente_id: docenteId });
+    if (pageNumber <= 0 || limitNumber <= 0) {
+        return next(new AppError('Los parámetros page y limit deben ser números positivos.', 400));
+    }
+    const skip = (pageNumber - 1) * limitNumber;
+    const docenteId = req.user._id;
 
-      // Si el docente no tiene grupos, no hay solicitudes pendientes para él
-      if (docentesGroups.length === 0) {
-          return res.status(200).json([]); // Devuelve un array vacío
-      }
+    try {
+        const docentesGroups = await Group.find({ docente_id: docenteId }).select('_id').lean();
+        const docentesGroupIds = docentesGroups.map(group => group._id);
 
-      // Obtener los IDs de esos grupos
-      const docentesGroupIds = docentesGroups.map(group => group._id);
+        const defaultPagination = { totalItems: 0, currentPage: pageNumber, itemsPerPage: limitNumber, totalPages: 0, hasNextPage: false, hasPrevPage: false, nextPage: null, prevPage: null };
 
-      // --- Buscar solicitudes de membresía pendientes para esos grupos ---
-      const pendingRequests = await Membership.find({
-          grupo_id: { $in: docentesGroupIds }, // Buscar solicitudes donde el grupo_id esté en la lista de IDs del docente
-          estado_solicitud: 'Pendiente' // Filtrar solo las solicitudes pendientes
-      })
-      .populate('usuario_id', 'nombre apellidos email'); // 'Poblar' la información del usuario (estudiante) que hizo la solicitud
-      // El segundo argumento de populate ('nombre apellidos email') especifica qué campos del usuario traer
+        if (docentesGroupIds.length === 0) {
+            return res.status(200).json({ data: [], pagination: defaultPagination });
+        }
 
+        const filter = {
+            grupo_id: { $in: docentesGroupIds },
+            estado_solicitud: 'Pendiente'
+        };
 
-      // --- Respuesta exitosa ---
-      res.status(200).json(pendingRequests); // Envía la lista de solicitudes pendientes
-      // --- Fin Respuesta ---
+        const totalItems = await Membership.countDocuments(filter);
+        const pendingRequests = await Membership.find(filter)
+            .populate('usuario_id', 'nombre apellidos email')
+            .populate('grupo_id', 'nombre')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNumber)
+            .lean();
 
-  } catch (error) {
-      console.error('Error al obtener solicitudes pendientes del docente:', error);
-      next(error);
-  }
+        const totalPages = Math.ceil(totalItems / limitNumber);
+
+        res.status(200).json({
+            data: pendingRequests,
+            pagination: {
+                totalItems,
+                currentPage: pageNumber,
+                itemsPerPage: limitNumber,
+                totalPages,
+                hasNextPage: pageNumber < totalPages,
+                hasPrevPage: pageNumber > 1,
+                nextPage: pageNumber < totalPages ? pageNumber + 1 : null,
+                prevPage: pageNumber > 1 ? pageNumber - 1 : null,
+            }
+        });
+    } catch (error) {
+        console.error('Error al obtener solicitudes pendientes del docente:', error);
+        next(error);
+    }
 };
 
-
 // Controlador para que un Docente apruebe o rechace una solicitud de unión
-const respondJoinRequest = async (req, res) => {
+const respondJoinRequest = async (req, res, next) => {
   const { membershipId } = req.params;
   const { responseStatus } = req.body;
-  const respondingTeacherId = req.user._id; // ID del docente autenticado que responde
+  const respondingTeacherId = req.user._id;
 
+  if (!mongoose.Types.ObjectId.isValid(membershipId)) {
+      return next(new AppError('ID de membresía inválido.', 400));
+  }
   if (!responseStatus || !['Aprobado', 'Rechazado'].includes(responseStatus)) {
-      return res.status(400).json({ message: 'Estado de respuesta inválido. Debe ser "Aprobado" o "Rechazado".' });
+      return next(new AppError('Estado de respuesta inválido. Debe ser "Aprobado" o "Rechazado".', 400));
   }
 
   try {
       const membership = await Membership.findById(membershipId).populate('grupo_id');
 
       if (!membership) {
-          return res.status(404).json({ message: 'Solicitud de membresía no encontrada' });
+          return next(new AppError('Solicitud de membresía no encontrada', 404));
       }
       if (membership.estado_solicitud !== 'Pendiente') {
-          return res.status(400).json({ message: `Esta solicitud ya fue ${membership.estado_solicitud.toLowerCase()}` });
+          return next(new AppError(`Esta solicitud ya fue ${membership.estado_solicitud.toLowerCase()}`, 400));
       }
 
-      const group = membership.grupo_id; // This is the populated group object
+      const group = membership.grupo_id;
       if (!group) {
-          // Should not happen if membership is valid and populate worked
-          return res.status(404).json({ message: 'Grupo asociado a la membresía no encontrado.' });
+          return next(new AppError('Grupo asociado a la membresía no encontrado.', 404));
       }
 
-      // VERIFICAR SEGURIDAD: Asegurarse de que el grupo pertenece a este docente (respondingTeacherId)
       if (!group.docente_id || group.docente_id.toString() !== respondingTeacherId.toString()) {
-           return res.status(403).json({ message: 'No tienes permiso para responder esta solicitud. El grupo no te pertenece.' });
+           return next(new AppError('No tienes permiso para responder esta solicitud. El grupo no te pertenece.', 403));
       }
 
-      // --- BEGIN maxStudentsPerGroup LIMIT CHECK (if approving) ---
       if (responseStatus === 'Aprobado') {
-        // Fetch the teacher who owns the group to check their plan
         const groupOwner = await User.findById(group.docente_id).populate('planId');
         if (!groupOwner) {
-            return res.status(404).json({ message: 'No se encontró al docente propietario del grupo.' });
+            return next(new AppError('No se encontró al docente propietario del grupo.', 404));
         }
 
-        if (groupOwner.tipo_usuario === 'Docente') { // Only apply limits to teachers
+        if (groupOwner.tipo_usuario === 'Docente') {
             const subscription = await SubscriptionService.checkSubscriptionStatus(groupOwner._id);
             if (!subscription.isActive) {
-                return res.status(403).json({
-                    message: `No se puede aprobar la solicitud: La suscripción del propietario del grupo (${subscription.message || 'no está activa'}).`
-                });
+                return next(new AppError(`No se puede aprobar la solicitud: La suscripción del propietario del grupo (${subscription.message || 'no está activa'}).`, 403));
             }
 
             if (groupOwner.planId && groupOwner.planId.limits && groupOwner.planId.limits.maxStudentsPerGroup !== undefined) {
@@ -300,40 +273,29 @@ const respondJoinRequest = async (req, res) => {
                 });
 
                 if (currentStudentCount >= maxStudentsAllowed) {
-                    return res.status(403).json({
-                        message: `No se puede aprobar al estudiante. El grupo ha alcanzado el límite de ${maxStudentsAllowed} estudiantes permitidos por el plan "${groupOwner.planId.name}" del propietario del grupo.`
-                    });
+                    return next(new AppError(`No se puede aprobar al estudiante. El grupo ha alcanzado el límite de ${maxStudentsAllowed} estudiantes permitidos por el plan "${groupOwner.planId.name}" del propietario del grupo.`, 403));
                 }
             } else {
-                // This means plan details or specific limit is missing for the group owner.
-                // Depending on policy, could allow or deny. For stricter policy, deny.
                 console.warn(`Detalles del plan o límite maxStudentsPerGroup no definidos para el docente ${groupOwner._id} al aprobar solicitud en grupo ${group._id}.`);
-                // It might be safer to deny if limits aren't clear, or allow if only paid plans have this specific limit
-                // For now, let's assume if limit is not defined, it's not enforced.
-                // If a defined limit of 0 should block, the check `currentStudentCount >= maxStudentsAllowed` handles it.
             }
         }
       }
-      // --- END maxStudentsPerGroup LIMIT CHECK ---
 
       membership.estado_solicitud = responseStatus;
       if (responseStatus === 'Aprobado') {
           membership.fecha_aprobacion = Date.now();
       }
-
       await membership.save();
 
       const updatedPopulatedMembership = await Membership.findById(membershipId)
           .populate('usuario_id', 'nombre apellidos email')
-          .populate({ // Re-populate group to ensure it's fresh for notifications
+          .populate({
               path: 'grupo_id',
-              select: 'nombre docente_id' // Select fields needed for notification
+              select: 'nombre docente_id'
           });
 
-
       if (!updatedPopulatedMembership) {
-           console.error('Error interno: Membresía guardada pero no encontrada inmediatamente después para la respuesta.');
-           return res.status(500).json({ message: 'Error al obtener la membresía actualizada para responder.' });
+           return next(new AppError('Error al obtener la membresía actualizada para responder.', 500));
       }
 
       res.status(200).json({
@@ -341,14 +303,12 @@ const respondJoinRequest = async (req, res) => {
            membership: updatedPopulatedMembership
       });
 
-      // Notification Logic (existing)
       try {
           if (updatedPopulatedMembership && updatedPopulatedMembership.usuario_id && updatedPopulatedMembership.grupo_id) {
               const studentId = updatedPopulatedMembership.usuario_id._id;
-              const teacherId = respondingTeacherId; // Teacher responding is the sender
+              const teacherId = respondingTeacherId;
               const groupName = updatedPopulatedMembership.grupo_id.nombre || 'el grupo';
               const currentStatus = updatedPopulatedMembership.estado_solicitud;
-
               let notifType = '';
               let message = '';
               let link = '';
@@ -357,22 +317,6 @@ const respondJoinRequest = async (req, res) => {
                   notifType = 'GROUP_INVITE_ACCEPTED';
                   message = `Tu solicitud para unirte al grupo '${groupName}' ha sido aprobada.`;
                   link = `/student/learning-paths/group/${updatedPopulatedMembership.grupo_id._id}`;
-
-                  // --- REMOVE THIS BLOCK ---
-                  // try {
-                  //     const studentToUpdate = await User.findById(studentId);
-                  //     if (studentToUpdate) {
-                  //         studentToUpdate.grupo_id = updatedPopulatedMembership.grupo_id._id; // This line is removed
-                  //         await studentToUpdate.save();
-                  //         console.log(`Campo grupo_id actualizado para el estudiante ${studentId} al grupo ${updatedPopulatedMembership.grupo_id._id}`);
-                  //     } else {
-                  //         console.error(`Estudiante con ID ${studentId} no encontrado, no se pudo actualizar su grupo_id.`);
-                  //     }
-                  // } catch (userUpdateError) {
-                  //     console.error(`Error al actualizar el grupo_id para el estudiante ${studentId}:`, userUpdateError);
-                  // }
-                  // --- END REMOVE THIS BLOCK ---
-
               } else if (currentStatus === 'Rechazado') {
                   notifType = 'GROUP_INVITE_DECLINED';
                   message = `Tu solicitud para unirte al grupo '${groupName}' ha sido rechazada.`;
@@ -392,7 +336,6 @@ const respondJoinRequest = async (req, res) => {
       } catch (notificationError) {
           console.error('Failed to send join request response notification:', notificationError);
       }
-
   } catch (error) {
       console.error('Error al responder solicitud de membresía:', error);
       next(error);
@@ -400,147 +343,182 @@ const respondJoinRequest = async (req, res) => {
 };
 
 // Controlador para que un Docente vea la lista de estudiantes aprobados en uno de sus grupos
-const getGroupStudents = async (req, res) => {
-  const { groupId } = req.params; // Obtenemos el ID del grupo de los parámetros de la URL
-  const docenteId = req.user._id; // Obtenemos el ID del docente autenticado
+const getGroupStudents = async (req, res, next) => {
+    const { page = 1, limit = 10 } = req.query;
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
 
-  try {
-    // --- VERIFICAR SEGURIDAD: Asegurarse de que el grupo existe y pertenece a este docente ---
-    // Refactor: Use isTeacherOfGroup
-    const isOwner = await isTeacherOfGroup(docenteId, groupId);
-    if (!isOwner) {
-      // Si el grupo no se encuentra con ese ID *y* asociado a este docente
-      return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece' });
+    if (pageNumber <= 0 || limitNumber <= 0) {
+        return next(new AppError('Los parámetros page y limit deben ser números positivos.', 400));
     }
-    // --- Fin Verificación de Seguridad ---
+    const skip = (pageNumber - 1) * limitNumber;
+    const { groupId } = req.params;
+    const docenteId = req.user._id;
 
+    try {
+        if (!mongoose.Types.ObjectId.isValid(groupId)) {
+             return next(new AppError('El ID del grupo no tiene un formato válido.', 400));
+        }
+        const isOwner = await isTeacherOfGroup(docenteId, groupId);
+        if (!isOwner) {
+            return next(new AppError('Grupo no encontrado o no te pertenece', 404));
+        }
 
-    // --- Buscar membresías 'Aprobado' para este grupo ---
-    const approvedMemberships = await Membership.find({
-      grupo_id: groupId,
-      estado_solicitud: 'Aprobado' // Filtrar solo estudiantes aprobados
-    })
-    .populate('usuario_id', 'nombre apellidos email tipo_identificacion numero_identificacion'); // 'Poblar' la información del usuario (estudiante)
+        const filter = {
+            grupo_id: groupId,
+            estado_solicitud: 'Aprobado'
+        };
 
-    // Extraer solo los objetos de usuario (estudiante) de las membresías encontradas
-    // Esto devuelve un array de objetos de usuario
-    const students = approvedMemberships.map(membership => membership.usuario_id);
+        const totalItems = await Membership.countDocuments(filter);
+        const approvedMemberships = await Membership.find(filter)
+            .populate('usuario_id', 'nombre apellidos email tipo_identificacion numero_identificacion')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNumber)
+            .lean();
 
-    // --- Respuesta ---
-    res.status(200).json(students); // Envía la lista de estudiantes
+        const students = approvedMemberships.map(membership => membership.usuario_id);
+        const totalPages = Math.ceil(totalItems / limitNumber);
 
-  } catch (error) {
-    console.error('Error al obtener estudiantes del grupo:', error);
-    next(error);
-  }
+        res.status(200).json({
+            data: students,
+            pagination: {
+                totalItems,
+                currentPage: pageNumber,
+                itemsPerPage: limitNumber,
+                totalPages,
+                hasNextPage: pageNumber < totalPages,
+                hasPrevPage: pageNumber > 1,
+                nextPage: pageNumber < totalPages ? pageNumber + 1 : null,
+                prevPage: pageNumber > 1 ? pageNumber - 1 : null,
+            }
+        });
+    } catch (error) {
+        console.error('Error al obtener estudiantes del grupo:', error);
+        next(error);
+    }
 };
 
-
 // Controlador para que un usuario (Estudiante) vea la lista de grupos a los que pertenece (aprobado)
-const getMyApprovedGroups = async (req, res) => {
-  const userId = req.user._id; // Obtenemos el ID del usuario autenticado
-  // No necesitamos el tipo de usuario aquí, ya que cualquier usuario puede ser miembro de un grupo (aunque en este LMS solo estudiantes solicitan unirse)
-
+const getMyApprovedGroups = async (req, res, next) => {
+  const userId = req.user._id;
   try {
-    // --- Buscar membresías 'Aprobado' para este usuario ---
     const approvedMemberships = await Membership.find({
       usuario_id: userId,
-      estado_solicitud: 'Aprobado' // Filtrar solo membresías aprobadas
+      estado_solicitud: 'Aprobado'
     })
-    .populate('grupo_id', 'nombre codigo_acceso docente_id activo'); // 'Poblar' la información del grupo
+    .populate('grupo_id', 'nombre codigo_acceso docente_id activo');
 
-    // Extraer solo los objetos de grupo de las membresías encontradas
     const groups = approvedMemberships.map(membership => membership.grupo_id);
-
-    // --- Respuesta ---
-    res.status(200).json(groups); // Envía la lista de grupos a los que pertenece el usuario
-
+    res.status(200).json(groups);
   } catch (error) {
     console.error('Error al obtener grupos del usuario:', error);
     next(error);
   }
 };
 
-
 // @desc    Obtener grupos creados por el docente autenticado
 // @route   GET /api/groups/docente/me
 // Acceso:  Privado/Docente
-const getMyOwnedGroups = async (req, res) => {
-  try {
-    const docenteId = new mongoose.Types.ObjectId(req.user._id);
-    const { status } = req.query; // Get status from query parameters
+const getMyOwnedGroups = async (req, res, next) => {
+    const { page = 1, limit = 10, status } = req.query;
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
 
-    const matchCriteria = { docente_id: docenteId };
-
-    if (status === 'archived') {
-      matchCriteria.activo = false;
-    } else { // Default to active if status is 'active', undefined, or any other value
-      matchCriteria.activo = true;
+    if (pageNumber <= 0 || limitNumber <= 0) {
+        return next(new AppError('Los parámetros page y limit deben ser números positivos.', 400));
     }
+    const skip = (pageNumber - 1) * limitNumber;
 
-    const groupsWithStudentCount = await Group.aggregate([
-      { $match: matchCriteria },
-      {
-        $lookup: {
-          from: 'memberships',
-          localField: '_id',
-          foreignField: 'grupo_id',
-          as: 'memberships'
+    try {
+        const docenteId = new mongoose.Types.ObjectId(req.user._id);
+        const matchCriteria = { docente_id: docenteId };
+
+        if (status === 'archived') {
+            matchCriteria.activo = false;
+        } else {
+            matchCriteria.activo = true;
         }
-      },
-      {
-        $addFields: {
-          approvedStudentCount: {
-            $size: {
-              $filter: {
-                input: '$memberships',
-                as: 'membership',
-                cond: { $eq: ['$$membership.estado_solicitud', 'Aprobado'] }
-              }
+
+        const baseAggregationPipeline = [{ $match: matchCriteria }];
+
+        const dataAggregationPipeline = [
+            ...baseAggregationPipeline,
+            { $sort: { fecha_creacion: -1 } },
+            { $skip: skip },
+            { $limit: limitNumber },
+            {
+                $lookup: {
+                    from: 'memberships',
+                    localField: '_id',
+                    foreignField: 'grupo_id',
+                    as: 'memberships'
+                }
+            },
+            {
+                $addFields: {
+                    approvedStudentCount: {
+                        $size: {
+                            $filter: {
+                                input: '$memberships',
+                                as: 'membership',
+                                cond: { $eq: ['$$membership.estado_solicitud', 'Aprobado'] }
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    _id: 1, nombre: 1, descripcion: 1, codigo_acceso: 1, docente_id: 1,
+                    activo: 1, limite_estudiantes: 1, fecha_creacion: 1, approvedStudentCount: 1,
+                }
             }
-          }
-        }
-      },
-      {
-        $project: {
-          _id: 1,
-          nombre: 1,
-          descripcion: 1,
-          codigo_acceso: 1,
-          docente_id: 1,
-          activo: 1,
-          limite_estudiantes: 1,
-          fecha_creacion: 1,
-          approvedStudentCount: 1,
-        }
-      }
-    ]);
+        ];
 
-    res.status(200).json({
-      success: true,
-      count: groupsWithStudentCount.length,
-      data: groupsWithStudentCount
-    });
+        const results = await Group.aggregate([
+            {
+                $facet: {
+                    metadata: [...baseAggregationPipeline, { $count: "totalItems" }],
+                    data: dataAggregationPipeline
+                }
+            }
+        ]);
 
-  } catch (error) {
-    console.error('Error en getMyOwnedGroups:', error);
-    next(error);
-  }
+        const data = results[0].data;
+        const totalItems = results[0].metadata.length > 0 ? results[0].metadata[0].totalItems : 0;
+        const totalPages = Math.ceil(totalItems / limitNumber);
+
+        res.status(200).json({
+            data,
+            pagination: {
+                totalItems,
+                currentPage: pageNumber,
+                itemsPerPage: limitNumber,
+                totalPages,
+                hasNextPage: pageNumber < totalPages,
+                hasPrevPage: pageNumber > 1,
+                nextPage: pageNumber < totalPages ? pageNumber + 1 : null,
+                prevPage: pageNumber > 1 ? pageNumber - 1 : null,
+            }
+        });
+
+    } catch (error) {
+        console.error('Error en getMyOwnedGroups:', error);
+        next(error);
+    }
 };
 
 // @desc    Obtener todas las membresías de un usuario autenticado con detalles del grupo y estado
 // @route   GET /api/groups/my-memberships
 // Acceso: Privado
-const getMyMembershipsWithStatus = async (req, res) => {
+const getMyMembershipsWithStatus = async (req, res, next) => {
     const userId = req.user._id;
-
     try {
-        // 1. Buscar todas las membresías asociadas a este usuario y poblar el grupo y el docente.
-        // Es crucial seleccionar el campo 'activo' del grupo.
         const membershipsWithGroups = await Membership.find({ usuario_id: userId })
             .populate({
                 path: 'grupo_id',
-                select: 'nombre codigo_acceso docente_id activo', // <-- Asegúrate de incluir 'activo'
+                select: 'nombre codigo_acceso docente_id activo',
                 populate: {
                     path: 'docente_id',
                     model: 'User',
@@ -549,24 +527,18 @@ const getMyMembershipsWithStatus = async (req, res) => {
             })
             .sort({ createdAt: -1 });
 
-        // 2. Filtrar las membresías:
-        //    a) Asegurarse de que el grupo se populó correctamente.
-        //    b) Asegurarse de que el grupo esté activo (no archivado).
         const activeMemberships = membershipsWithGroups.filter(membership =>
-            membership.grupo_id && membership.grupo_id.activo // <-- Filtra solo grupos activos
+            membership.grupo_id && membership.grupo_id.activo
         );
 
-        // 3. Filtrar para dejar solo la membresía más reciente por grupo (si el estudiante se unió y salió varias veces)
-        //    Esto se mantiene para tu lógica de "uniqueGroups", pero ahora solo con grupos activos.
         const uniqueGroups = new Map();
-        for (const membership of activeMemberships) { // <-- Iterar sobre las membresías activas
+        for (const membership of activeMemberships) {
             const groupId = membership.grupo_id?._id?.toString();
             if (groupId && !uniqueGroups.has(groupId)) {
                 uniqueGroups.set(groupId, membership);
             }
         }
 
-        // 4. Mapear la respuesta final
         const studentGroups = Array.from(uniqueGroups.values()).map(membership => ({
             _id: membership.grupo_id._id,
             nombre: membership.grupo_id.nombre,
@@ -578,13 +550,10 @@ const getMyMembershipsWithStatus = async (req, res) => {
             } : null,
             student_status: membership.estado_solicitud,
             membership_id: membership._id,
-            // Opcional: Puedes incluir el estado 'activo' del grupo en la respuesta
-            // para que el frontend lo pueda usar, aunque ya esté filtrado.
             is_group_active: membership.grupo_id.activo
         }));
 
         res.status(200).json(studentGroups);
-
     } catch (error) {
         console.error('Error al obtener las membresías del usuario:', error);
         next(error);
@@ -594,115 +563,82 @@ const getMyMembershipsWithStatus = async (req, res) => {
 // @desc    Actualizar detalles del grupo (nombre, descripcion)
 // @route   PUT /api/groups/:groupId
 // @access  Privado/Docente
-const updateGroup = async (req, res) => {
-    const { groupId } = req.params; // ID del grupo a actualizar de la URL
-    // Campos permitidos para actualizar: nombre y descripcion
+const updateGroup = async (req, res, next) => {
+    const { groupId } = req.params;
     const { nombre, descripcion } = req.body;
-    const docenteId = req.user._id; // ID del docente autenticado
+    const docenteId = req.user._id;
 
-    // Validación básica del ID del grupo
     if (!mongoose.Types.ObjectId.isValid(groupId)) {
-        return res.status(400).json({ message: 'ID de grupo inválido' });
+        return next(new AppError('ID de grupo inválido', 400));
     }
-
-    // --- Validación de los campos a actualizar ---
-
-    // Si nombre está definido, debe ser un texto no vacío
     if (nombre !== undefined && (typeof nombre !== 'string' || nombre.trim() === '')) {
-        return res.status(400).json({ message: 'El nombre, si se proporciona, debe ser un texto no vacío.' });
+        return next(new AppError('El nombre, si se proporciona, debe ser un texto no vacío.', 400));
     }
-    // Si descripcion está definida, debe ser un texto. Se permite texto vacío.
     if (descripcion !== undefined && typeof descripcion !== 'string') {
-        return res.status(400).json({ message: 'La descripción, si se proporciona, debe ser un texto.' });
+        return next(new AppError('La descripción, si se proporciona, debe ser un texto.', 400));
     }
-    // Si no se proporcionó ni nombre ni descripcion
     if (nombre === undefined && descripcion === undefined) {
-        return res.status(400).json({ message: 'Se debe proporcionar al menos el nombre o la descripción para actualizar.' });
+        return next(new AppError('Se debe proporcionar al menos el nombre o la descripción para actualizar.', 400));
     }
 
     try {
-        // Buscar el grupo por ID y verificar que pertenece al docente autenticado
         const group = await Group.findOne({ _id: groupId, docente_id: docenteId });
-
         if (!group) {
-            // Se usa 404 para no revelar si el grupo existe pero pertenece a otro docente
-            return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece.' });
+            return next(new AppError('Grupo no encontrado o no te pertenece.', 404));
         }
-        
-        // El grupo debe estar activo para ser modificado
         if (!group.activo) {
-            return res.status(403).json({ message: 'No se puede modificar un grupo que ha sido desactivado.'});
+            return next(new AppError('No se puede modificar un grupo que ha sido desactivado.', 403));
         }
 
-        // Actualizar los campos permitidos solo si se proporcionaron
         if (nombre !== undefined) {
-            group.nombre = nombre.trim(); // Eliminar espacios en blanco alrededor del nombre
+            group.nombre = nombre.trim();
         }
         if (descripcion !== undefined) {
             group.descripcion = descripcion;
         }
-        // Nota: Campos como limite_estudiantes, codigo_acceso, etc., no se modifican.
 
-        // Guardar los cambios en la base de datos
         const updatedGroup = await group.save();
-
-        // Responder con el grupo actualizado
         res.status(200).json(updatedGroup);
-
     } catch (error) {
-        // Manejo de errores de validación de Mongoose u otros errores
         if (error.name === 'ValidationError') {
             const messages = Object.values(error.errors).map(val => val.message);
-            return res.status(400).json({ message: 'Error de validación al actualizar el grupo.', errors: messages });
+            return next(new AppError(`Error de validación al actualizar el grupo. ${messages.join('. ')}`, 400));
         }
         console.error('Error actualizando grupo:', error);
         next(error);
     }
 };
 
-
 // @desc    Eliminar un grupo (Soft Delete - Archivar)
 // @route   DELETE /api/groups/:groupId
 // @access  Privado/Docente
-const deleteGroup = async (req, res) => { // ¡Ya no se necesita 'io' aquí!
+const deleteGroup = async (req, res, next) => {
     const { groupId } = req.params;
-    const docenteId = req.user._id; // El docente que archiva el grupo
+    const docenteId = req.user._id;
     const userType = req.user.tipo_usuario;
 
     if (userType !== 'Docente') {
-        return res.status(403).json({ message: 'Solo los docentes pueden archivar grupos.' });
+        return next(new AppError('Solo los docentes pueden archivar grupos.', 403));
     }
-
     if (!mongoose.Types.ObjectId.isValid(groupId)) {
-        return res.status(400).json({ message: 'ID de grupo inválido.' });
+        return next(new AppError('ID de grupo inválido.', 400));
     }
 
     try {
         const group = await Group.findOne({ _id: groupId, docente_id: docenteId });
-
         if (!group) {
-            return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece.' });
+            return next(new AppError('Grupo no encontrado o no te pertenece.', 404));
         }
-
-        if (!group.activo) { // If already archived
+        if (!group.activo) {
             return res.status(200).json({ message: 'El grupo ya se encuentra archivado.' });
         }
 
-        // Proceed to archive
         group.activo = false;
         group.archivedAt = new Date();
         await group.save();
 
-        // --- REMOVE DECREMENT USAGE COUNTER ---
-        // if (req.user.tipo_usuario === 'Docente') {
-        //     await User.findByIdAndUpdate(docenteId, { $inc: { 'usage.groupsCreated': -1 } });
-        //     console.log(`Usage counter groupsCreated decremented for teacher ${docenteId} due to group archival.`);
-        // }
-        // --- END REMOVE DECREMENT USAGE COUNTER ---
         console.log(`Group ${groupId} archived by teacher ${docenteId}. Usage counter NOT decremented at this stage.`);
 
-
-        // Notification logic (existing)
         const approvedMemberships = await Membership.find({
             grupo_id: groupId,
             estado_solicitud: 'Aprobado'
@@ -725,12 +661,8 @@ const deleteGroup = async (req, res) => { // ¡Ya no se necesita 'io' aquí!
         await Promise.allSettled(notificationPromises);
 
         res.status(200).json({ message: 'Grupo archivado exitosamente.' });
-
     } catch (error) {
         console.error('Error archivando el grupo:', error);
-        // Rollback group status if user update failed? Complex, consider for future.
-        // For now, if user update fails, the group is archived but counter might be off.
-        // A more robust solution might use transactions if DB supports it.
         next(error);
     }
 };
@@ -738,64 +670,39 @@ const deleteGroup = async (req, res) => { // ¡Ya no se necesita 'io' aquí!
 // @desc    Eliminar un estudiante de un grupo (eliminar membresía aprobada)
 // @route   DELETE /api/groups/:groupId/students/:studentId
 // @access  Privado/Docente
-const removeStudentFromGroup = async (req, res) => {
-  // Obtiene los IDs del grupo y del estudiante de los parámetros de la URL
+const removeStudentFromGroup = async (req, res, next) => {
   const { groupId, studentId } = req.params;
-  const docenteId = req.user._id; // ID del docente autenticado
-  const userType = req.user.tipo_usuario; // Tipo de usuario
+  const docenteId = req.user._id;
+  const userType = req.user.tipo_usuario;
 
-  // Verificación de Permiso (redundante si la ruta usa authorize)
   if (userType !== 'Docente') {
-      return res.status(403).json({ message: 'Solo los docentes pueden eliminar estudiantes de los grupos' });
+      return next(new AppError('Solo los docentes pueden eliminar estudiantes de los grupos', 403));
   }
-
-   // Validación básica de los IDs
-   if (!mongoose.Types.ObjectId.isValid(groupId) || !mongoose.Types.ObjectId.isValid(studentId)) {
-       return res.status(400).json({ message: 'IDs de grupo o estudiante inválidos' });
-  }
+   if (!mongoose.Types.ObjectId.isValid(groupId)) {
+       return next(new AppError('ID de grupo inválido', 400));
+   }
+   if (!mongoose.Types.ObjectId.isValid(studentId)) {
+       return next(new AppError('ID de estudiante inválido', 400));
+   }
 
   try {
-      // --- Verificación de Propiedad: Verificar que el Docente es dueño del Grupo ---
-      // Refactor: Use isTeacherOfGroup
       const isOwner = await isTeacherOfGroup(docenteId, groupId);
       if (!isOwner) {
-           // Se usa 404 para no revelar si el grupo existe pero pertenece a otro
-          return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece' });
+          return next(new AppError('Grupo no encontrado o no te pertenece', 404));
       }
-      // --- Fin Verificación de Propiedad ---
 
-
-      // --- Encontrar y Eliminar la Membresía Aprobada ---
-      // Buscamos la membresía específica para este grupo y estudiante,
-      // asegurándonos de que su estado_solicitud sea 'Aprobado'.
-      // Usamos findOneAndDelete para encontrar y eliminar en una sola operación.
       const membership = await Membership.findOneAndDelete({
-           grupo_id: groupId, // La membresía es de este grupo
-           usuario_id: studentId, // La membresía es de este estudiante
-           estado_solicitud: 'Aprobado' // Solo eliminamos membresías que estén 'Aprobado'
+           grupo_id: groupId,
+           usuario_id: studentId,
+           estado_solicitud: 'Aprobado'
       });
 
-      // Si no se encontró una membresía aprobada para este estudiante en este grupo
       if (!membership) {
-           // Esto puede significar que el estudiante no está en el grupo, o está pero no ha sido aprobado.
-           // Se usa 404 para no revelar el estado exacto.
-           return res.status(404).json({ message: 'Estudiante no encontrado en este grupo como miembro aprobado.' });
+           return next(new AppError('Estudiante no encontrado en este grupo como miembro aprobado.', 404));
       }
 
-      // --- Considerar Impacto en Progreso y Entregas ---
-      // Nota: Al eliminar la membresía, el estudiante ya no está vinculado al grupo.
-      // Los documentos de Submission y Progress relacionados con este grupo/ruta por este estudiante
-      // seguirán existiendo en la base de datos, pero ahora están vinculados a un usuario
-      // cuya membresía para ese grupo ha sido eliminada.
-      // Para esta implementación básica, NO eliminamos ni modificamos submissions/progress.
-      // Un sistema más avanzado podría archivar el progreso/entregas, notificar, o preguntar al docente cómo proceder.
       console.log(`Membresía aprobada de estudiante ${studentId} eliminada del grupo ${groupId}. Submissions/Progress relacionados no fueron eliminados.`);
-      // --- Fin Consideración de Impacto ---
-
-
-      // Respuesta de éxito
       res.status(200).json({ message: 'Estudiante eliminado exitosamente del grupo.' });
-
   } catch (error) {
        console.error('Error al eliminar estudiante del grupo:', error);
        next(error);
@@ -807,200 +714,166 @@ const removeStudentFromGroup = async (req, res) => {
 // Acceso: Privado/Docente (dueño del grupo)
 const getGroupById = async (req, res, next) => {
   try {
-    const groupId = req.params.groupId; // Obtiene el ID del grupo de los parámetros de la URL
-    const docenteId = req.user._id; // Obtiene el ID del docente logueado del objeto req.user
+    const groupId = req.params.groupId;
+    const docenteId = req.user._id;
 
-    // 1. Verificar que el usuario logueado es el dueño de este grupo
-    // Refactor: Use isTeacherOfGroup
+    if (!mongoose.Types.ObjectId.isValid(groupId)) { // Validación de ObjectId para groupId
+        return next(new AppError('El ID del grupo no tiene un formato válido.', 400));
+    }
+
     const isOwner = await isTeacherOfGroup(docenteId, groupId);
     if (!isOwner) {
-      // No revelar si el grupo existe pero no pertenece, o no existe en absoluto.
-      return res.status(403).json({ message: 'No tienes permiso para acceder a este grupo o el grupo no existe.' });
+      return next(new AppError('No tienes permiso para acceder a este grupo o el grupo no existe.', 403));
     }
 
-    // 2. Si es el dueño, buscar el grupo por su ID para devolverlo
-    const group = await Group.findOne({ _id: groupId, docente_id: docenteId }); // Eliminamos 'activo: true' de esta búsqueda inicial
-    // Esta segunda búsqueda es necesaria porque isTeacherOfGroup solo devuelve boolean.
-    // Debería existir si isOwner es true, pero es una buena práctica verificar.
+    const group = await Group.findOne({ _id: groupId, docente_id: docenteId });
     if (!group) {
-        // Esto podría indicar un problema de consistencia de datos si isOwner fue true.
         console.error(`Error de consistencia: Grupo ${groupId} no encontrado después de confirmar propiedad para docente ${docenteId}.`);
-        return res.status(404).json({ message: `Grupo no encontrado con ID ${groupId}.` });
+        return next(new AppError(`Grupo no encontrado con ID ${groupId}.`, 404));
     }
-
-    // Nueva verificación para el estado 'activo'
     if (group.activo !== true) {
-        return res.status(400).json({ message: "Tu grupo no está activo, seguramente está archivado y no puedes ver los detalles." });
+        return next(new AppError("Tu grupo no está activo, seguramente está archivado y no puedes ver los detalles.", 400));
     }
-
-    // 3. Si todo es correcto, responder con el objeto del grupo
     res.status(200).json(group);
-
   } catch (error) {
     console.error('Error al obtener grupo por ID:', error);
     next(error);
   }
 };
 
-
 // @desc    Obtener todas las membresías (estudiantes y estado) de un grupo específico
 // @route   GET /api/groups/:groupId/memberships
 // Acceso: Privado/Docente (dueño del grupo)
 const getGroupMemberships = async (req, res, next) => {
-    try {
-        const groupId = req.params.groupId; // Obtiene el ID del grupo de los parámetros de la URL
-        const docenteId = req.user._id; // Obtiene el ID del docente logueado
+    const { page = 1, limit = 10 } = req.query;
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
 
-        // 1. Primero, verificar que el usuario logueado es el dueño del grupo
-        // Es crucial hacer esta verificación ANTES de buscar las membresías para evitar exponer datos.
-        // Refactor: Use isTeacherOfGroup
+    if (pageNumber <= 0 || limitNumber <= 0) {
+        return next(new AppError('Los parámetros page y limit deben ser números positivos.', 400));
+    }
+    if (!mongoose.Types.ObjectId.isValid(req.params.groupId)) {
+        return next(new AppError('El ID del grupo no tiene un formato válido.', 400));
+    }
+
+    const skip = (pageNumber - 1) * limitNumber;
+    const groupId = req.params.groupId;
+    const docenteId = req.user._id;
+
+    try {
         const isOwner = await isTeacherOfGroup(docenteId, groupId);
         if (!isOwner) {
-            // No revelar si el grupo existe pero no pertenece, o no existe en absoluto.
-            return res.status(403).json({ message: 'No tienes permiso para ver las membresías de este grupo o el grupo no existe.' });
+            return next(new AppError('No tienes permiso para ver las membresías de este grupo o el grupo no existe.', 403));
         }
 
-        // 2. Si el docente es el dueño, buscar todas las membresías para este grupo
-        // No filtramos por estado aquí; queremos TODAS las membresías asociadas a este grupo.
-        // 3. Poblar la información del usuario (estudiante) asociado a cada membresía.
-        // Seleccionamos los campos nombre, apellidos y email para mostrar en el frontend.
-        const memberships = await Membership.find({ grupo_id: groupId })
-            .populate('usuario_id', 'nombre apellidos email'); // <-- Pobla el campo 'usuario_id'
+        const filter = { grupo_id: groupId };
+        const totalItems = await Membership.countDocuments(filter);
+        const memberships = await Membership.find(filter)
+            .populate('usuario_id', 'nombre apellidos email')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNumber)
+            .lean();
 
+        const totalPages = Math.ceil(totalItems / limitNumber);
 
-        // 4. Responder con la lista de documentos de membresía.
-        // Cada documento de membresía en este array incluirá:
-        // - _id (de la membresía)
-        // - usuario_id (el objeto del estudiante poblado, con _id, nombre, apellidos, email)
-        // - grupo_id (ObjectId del grupo)
-        // - estado_solicitud (el estado de la membresía)
-        // - etc (otros campos de la membresía)
-        res.status(200).json(memberships); // Envía el array de documentos de membresía con usuario poblado
-
+        res.status(200).json({
+            data: memberships,
+            pagination: {
+                totalItems,
+                currentPage: pageNumber,
+                itemsPerPage: limitNumber,
+                totalPages,
+                hasNextPage: pageNumber < totalPages,
+                hasPrevPage: pageNumber > 1,
+                nextPage: pageNumber < totalPages ? pageNumber + 1 : null,
+                prevPage: pageNumber > 1 ? pageNumber - 1 : null,
+            }
+        });
     } catch (error) {
         console.error('Error al obtener membresías del grupo:', error);
         next(error);
     }
 };
 
-
 // @desc    Eliminar una membresía de estudiante de un grupo por ID de membresía
 // @route   DELETE /api/groups/:groupId/memberships/:membershipId
 // @access  Privado/Docente
-const removeMembershipById = async (req, res) => {
+const removeMembershipById = async (req, res, next) => {
   const { groupId, membershipId } = req.params;
   const docenteId = req.user._id;
 
-  // Validación básica de los IDs
   if (!mongoose.Types.ObjectId.isValid(groupId)) {
-    return res.status(400).json({ message: 'ID de grupo inválido.' });
+    return next(new AppError('ID de grupo inválido.', 400));
   }
   if (!mongoose.Types.ObjectId.isValid(membershipId)) {
-    return res.status(400).json({ message: 'ID de membresía inválido.' });
+    return next(new AppError('ID de membresía inválido.', 400));
   }
 
   try {
-    // 1. Verificar que el docente es dueño del grupo
     const isOwner = await isTeacherOfGroup(docenteId, groupId);
     if (!isOwner) {
-      // Usar 403 para indicar prohibido si el grupo existe pero no le pertenece,
-      // o 404 si queremos ocultar la existencia del grupo. Para consistencia con otros endpoints, 403 es apropiado si el grupo existe.
-      // Sin embargo, isTeacherOfGroup no diferencia entre "no encontrado" y "no pertenece".
-      // Si isTeacherOfGroup devuelve false porque el grupo no existe, un 404 sería más preciso.
-      // Asumamos que isTeacherOfGroup implica que el grupo existe si devuelve true.
-      // Si el grupo no existe, Group.findById(groupId) dentro de isTeacherOfGroup fallaría o devolvería null.
-      // Para simplificar, si no es dueño, puede ser que el grupo no exista o no le pertenezca.
-      return res.status(403).json({ message: 'No tienes permiso para modificar este grupo o el grupo no existe.' });
+      return next(new AppError('No tienes permiso para modificar este grupo o el grupo no existe.', 403));
     }
 
-    // 2. Encontrar la membresía por su ID
     const membership = await Membership.findById(membershipId);
     if (!membership) {
-      return res.status(404).json({ message: 'Membresía no encontrada.' });
+      return next(new AppError('Membresía no encontrada.', 404));
     }
-
-    // 3. Verificar que la membresía pertenece al grupo especificado
     if (membership.grupo_id.toString() !== groupId) {
-      // Esto indica una inconsistencia o un intento de usar una membresía de otro grupo.
-      return res.status(400).json({ message: 'La membresía no pertenece al grupo especificado.' });
+      return next(new AppError('La membresía no pertenece al grupo especificado.', 400));
     }
     
-    // (Opcional) Verificar el estado de la membresía.
-    // La tarea del frontend es remover estudiantes (generalmente 'Aprobado' o 'Pendiente').
-    // Si se quisiera restringir a solo 'Aprobado', se añadiría:
-    // if (membership.estado_solicitud !== 'Aprobado') {
-    //   return res.status(400).json({ message: 'Solo se pueden remover membresías aprobadas. Esta membresía está ' + membership.estado_solicitud });
-    // }
-    // Para el caso de uso actual, cualquier estado de membresía puede ser eliminado por el docente.
-
-    // 4. Eliminar la membresía
     await Membership.findByIdAndDelete(membershipId);
 
-    // Notificar al estudiante (opcional, pero buena práctica)
     try {
         if (membership.usuario_id && membership.grupo_id) {
-            const group = await Group.findById(membership.grupo_id); // Fetch group name
+            const group = await Group.findById(membership.grupo_id);
             const groupName = group ? group.nombre : 'un grupo';
             const studentId = membership.usuario_id;
             
             await NotificationService.createNotification({
                 recipient: studentId,
-                sender: docenteId, // Teacher who performed the action
-                type: 'MEMBERSHIP_REMOVED', // A new type for this action
+                sender: docenteId,
+                type: 'MEMBERSHIP_REMOVED',
                 message: `Has sido removido del grupo '${groupName}' por el docente.`,
-                // link: '/student/groups/my-groups' // Link to student's group page or dashboard
             });
         }
     } catch (notificationError) {
         console.error('Error al enviar notificación de remoción de membresía:', notificationError);
-        // No detener la operación principal por error de notificación
     }
-
-
     res.status(200).json({ message: 'Membresía eliminada exitosamente del grupo.' });
-
   } catch (error) {
     console.error('Error al eliminar membresía del grupo:', error);
-    // Manejar otros errores, como problemas de conexión a la BD
     next(error);
   }
 };
 
-
 // @desc    Restaurar un grupo archivado (marcarlo como activo)
 // @route   PUT /api/groups/:groupId/restore
 // @access  Privado/Docente
-const restoreGroup = async (req, res) => {
+const restoreGroup = async (req, res, next) => {
   const { groupId } = req.params;
   const docenteId = req.user._id;
 
-  // Validación básica del ID del grupo
   if (!mongoose.Types.ObjectId.isValid(groupId)) {
-    return res.status(400).json({ message: 'ID de grupo inválido' });
+    return next(new AppError('ID de grupo inválido', 400));
   }
 
   try {
-    // Buscar el grupo por ID y verificar que pertenece al docente autenticado
-    // No filtramos por activo: true aquí, ya que queremos encontrarlo incluso si está archivado.
     const group = await Group.findOne({ _id: groupId, docente_id: docenteId });
-
     if (!group) {
-      // Si no encuentra el grupo con ese ID Y que pertenezca a este docente
-      return res.status(404).json({ message: 'Grupo no encontrado o no te pertenece.' });
+      return next(new AppError('Grupo no encontrado o no te pertenece.', 404));
     }
-
-    // Si el grupo ya está activo, simplemente devolverlo o un mensaje específico
     if (group.activo) {
       return res.status(200).json({ message: 'El grupo ya está activo.', group });
     }
 
-    // Restaurar el grupo
     group.activo = true;
-    group.archivedAt = null; // Clear archive date
+    group.archivedAt = null;
     await group.save();
 
     res.status(200).json({ message: 'Grupo restaurado exitosamente.', group });
-
   } catch (error) {
     console.error('Error restaurando grupo:', error);
     next(error);

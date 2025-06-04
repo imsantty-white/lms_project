@@ -215,59 +215,82 @@ const createActivity = async (req, res, next) => {
 // @desc    Obtener el banco de contenido (Recursos y Actividades) de un docente
 // @route   GET /api/content/my-bank
 // @access  Private/Docente
-const getDocenteContentBank = async (req, res) => {
-    // Obtenemos el ID del docente autenticado directamente desde el token (req.user)
+const getDocenteContentBank = async (req, res, next) => {
+    const { page = 1, limit = 10, contentType = 'resources' } = req.query;
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
+
+    if (pageNumber <= 0 || limitNumber <= 0) {
+        return next(new AppError('Los parámetros page y limit deben ser números positivos.', 400));
+    }
+    if (contentType !== 'resources' && contentType !== 'activities') {
+        return next(new AppError('Tipo de contenido no válido. Debe ser "resources" o "activities".', 400));
+    }
+
+    const skip = (pageNumber - 1) * limitNumber;
     const docenteId = req.user._id;
 
+    let data = [];
+    let totalItems = 0;
+
     try {
-        // 1. Buscamos todos los recursos creados por este docente
-        let resources = await Resource.find({ docente_id: docenteId }).lean();
+        if (contentType === 'resources') {
+            totalItems = await Resource.countDocuments({ docente_id: docenteId });
+            let paginatedResources = await Resource.find({ docente_id: docenteId })
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limitNumber)
+                .lean();
 
-        // 2. Buscamos todas las actividades creadas por este docente
-        let activities = await Activity.find({ docente_id: docenteId }).lean();
-
-        // 3. Obtener todos los IDs de recursos y actividades asignados en ContentAssignments
-        // Usamos $or para buscar assignments que coincidan con resource_id o activity_id
-        const assignedContentItems = await ContentAssignment.find(
-            {
-                $or: [
-                    { resource_id: { $in: resources.map(r => r._id) } },
-                    { activity_id: { $in: activities.map(a => a._id) } }
-                ],
-                docente_id: docenteId // Asegurarnos que pertenecen a este docente
-            },
-            { _id: 0, resource_id: 1, activity_id: 1 } // Solo necesitamos estos campos
-        ).lean();
-
-        // 4. Crear un Set para una búsqueda eficiente de IDs asignados
-        const assignedResourceIds = new Set();
-        const assignedActivityIds = new Set();
-
-        assignedContentItems.forEach(item => {
-            if (item.resource_id) {
-                assignedResourceIds.add(item.resource_id.toString());
+            if (paginatedResources.length > 0) {
+                const resourceIdsOnPage = paginatedResources.map(r => r._id);
+                const assignedContentItems = await ContentAssignment.find(
+                    { resource_id: { $in: resourceIdsOnPage }, docente_id: docenteId },
+                    'resource_id'
+                ).lean();
+                const assignedResourceIdsOnPage = new Set(assignedContentItems.map(item => item.resource_id.toString()));
+                data = paginatedResources.map(resource => ({
+                    ...resource,
+                    isAssigned: assignedResourceIdsOnPage.has(resource._id.toString())
+                }));
             }
-            if (item.activity_id) {
-                assignedActivityIds.add(item.activity_id.toString());
+        } else if (contentType === 'activities') {
+            totalItems = await Activity.countDocuments({ docente_id: docenteId });
+            let paginatedActivities = await Activity.find({ docente_id: docenteId })
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limitNumber)
+                .lean();
+
+            if (paginatedActivities.length > 0) {
+                const activityIdsOnPage = paginatedActivities.map(a => a._id);
+                const assignedContentItems = await ContentAssignment.find(
+                    { activity_id: { $in: activityIdsOnPage }, docente_id: docenteId },
+                    'activity_id'
+                ).lean();
+                const assignedActivityIdsOnPage = new Set(assignedContentItems.map(item => item.activity_id.toString()));
+                data = paginatedActivities.map(activity => ({
+                    ...activity,
+                    isAssigned: assignedActivityIdsOnPage.has(activity._id.toString())
+                }));
             }
-        });
+        }
 
-        // 5. Marcar recursos como asignados
-        resources = resources.map(resource => ({
-            ...resource,
-            isAssigned: assignedResourceIds.has(resource._id.toString())
-        }));
+        const totalPages = Math.ceil(totalItems / limitNumber);
 
-        // 6. Marcar actividades como asignadas
-        activities = activities.map(activity => ({
-            ...activity,
-            isAssigned: assignedActivityIds.has(activity._id.toString())
-        }));
-
-        // Combinamos y respondemos con ambas listas
         res.status(200).json({
-            resources, // Array de recursos
-            activities  // Array de actividades
+            contentType: contentType,
+            data: data,
+            pagination: {
+                totalItems: totalItems,
+                currentPage: pageNumber,
+                itemsPerPage: limitNumber,
+                totalPages: totalPages,
+                hasNextPage: pageNumber < totalPages,
+                hasPrevPage: pageNumber > 1,
+                nextPage: pageNumber < totalPages ? pageNumber + 1 : null,
+                prevPage: pageNumber > 1 ? pageNumber - 1 : null,
+            }
         });
 
     } catch (error) {

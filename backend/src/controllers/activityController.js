@@ -475,139 +475,107 @@ const submitStudentActivityAttempt = async (req, res, next) => {
 // @route   GET /api/activities/assignments/:assignmentId/submissions
 // @access  Privado/Docente, Admin
 const getAssignmentSubmissions = async (req, res, next) => {
+    const { page = 1, limit = 10 } = req.query; // Valores por defecto
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
+
     if (!mongoose.Types.ObjectId.isValid(req.params.assignmentId)) {
         return next(new AppError('El ID de la asignación no tiene un formato válido.', 400));
     }
     try {
-        const userId = req.user._id; // ID del usuario autenticado
+        const userId = req.user._id;
         const userType = req.user.tipo_usuario;
         const { assignmentId } = req.params;
 
-        // Verificar si el usuario es Docente o Administrador
         if (userType !== 'Docente' && userType !== 'Administrador') {
             return res.status(403).json({ message: 'Acceso denegado. Solo Docentes o Administradores pueden ver las entregas.' });
         }
 
-        // Opcional (pero recomendado por seguridad): Verificar que el Docente está relacionado con la asignación/grupo
-        // (Mantenemos esta lógica si es Docente)
-         if (userType === 'Docente') {
-            // Refactor: Use isTeacherOfContentAssignment
-            // Note: This helper assumes `docente_id` is directly on ContentAssignment or can be populated.
-            // The current ContentAssignmentModel has `docente_id` directly.
+        if (userType === 'Docente') {
             const isTeacher = await isTeacherOfContentAssignment(userId, assignmentId);
             if (!isTeacher) {
                 return res.status(403).json({ message: 'Acceso denegado. No eres el docente de esta asignación.' });
             }
-            // Si es Administrador, no necesita esta verificación específica del docente
         }
 
-
-        // *** USAR AGREGACIÓN para encontrar la última entrega por cada estudiante ***
-        const latestSubmissions = await Submission.aggregate([
+        const facetPipeline = [
+            { $match: { assignment_id: new mongoose.Types.ObjectId(assignmentId) } },
+            { $sort: { student_id: 1, fecha_envio: -1 } },
             {
-                $match: { // 1. Filtrar por el ID de la asignación
-                    assignment_id: new mongoose.Types.ObjectId(assignmentId) // Asegúrate de convertir a ObjectId
+                $group: {
+                    _id: "$student_id",
+                    latestSubmissionDoc: { $first: "$$ROOT" }
                 }
             },
+            // En este punto, tenemos un documento por estudiante con su última entrega
             {
-                $sort: { // 2. Ordenar por estudiante y luego por fecha de envío (descendente)
-                    student_id: 1, // Ordenar por estudiante
-                    fecha_envio: -1 // El más reciente primero para cada estudiante
-                    // O podrías usar attempt_number: -1 si confías en que el número de intento siempre es incremental
-                }
-            },
-            {
-                $group: { // 3. Agrupar por estudiante y tomar el PRIMER documento (que es el último intento por el sort anterior)
-                    _id: "$student_id", // Agrupar por el ID del estudiante
-                    latestSubmissionId: { $first: "$_id" }, // Capturar el ID del documento del último intento
-                    // Capturar otros campos si necesitas usarlos directamente en el $project o $lookup posterior
-                    // Por ahora, solo necesitamos el ID del documento
-                }
-            },
-            {
-                 // 4. Re-obtener el documento completo del último intento usando el ID capturado
-                 // Esto es necesario porque $group nos dio solo el ID del último intento, no el documento completo
-                $lookup: {
-                    from: "submissions", // Nombre de la colección de entregas
-                    localField: "latestSubmissionId", // Campo en los resultados de $group (_id del último intento)
-                    foreignField: "_id", // Campo en la colección submissions (_id del documento)
-                    as: "latestSubmission" // Nombre del array donde se pondrá el documento (será un array de 1 elemento)
-                }
-            },
-            {
-                $unwind: "$latestSubmission" // Desestructurar el array latestSubmission (sabemos que solo tiene 1 elemento)
-            },
-             {
-                // 5. Reemplazar el documento raíz con el documento del último intento
-                $replaceRoot: { newRoot: "$latestSubmission" }
-             },
-            {
-                 // 6. Poblar los campos necesarios (student_id y assignment_id.activity_id)
-                 // Esto simula el populate() después de la agregación
-                $lookup: {
-                    from: "users", // Nombre de la colección de usuarios
-                    localField: "student_id",
-                    foreignField: "_id",
-                    as: "student_id"
-                }
-            },
-            {
-                 $unwind: "$student_id" // Desestructurar el estudiante populado
-            },
-             {
-                $lookup: {
-                    from: "contentassignments", // Nombre de la colección de asignaciones de contenido
-                    localField: "assignment_id",
-                    foreignField: "_id",
-                    as: "assignment_id"
-                }
-            },
-             {
-                $unwind: "$assignment_id" // Desestructurar la asignación populada
-            },
-             {
-                $lookup: {
-                    from: "activities", // Nombre de la colección de actividades
-                    localField: "assignment_id.activity_id",
-                    foreignField: "_id",
-                    as: "assignment_id.activity_id" // Poblar la actividad dentro de la asignación
-                }
-            },
-            {
-                $unwind: "$assignment_id.activity_id" // Desestructurar la actividad populada
-            },
-            // Proyectar para seleccionar y renombrar campos necesarios
-            {
-                $project: {
-                    _id: 1, // ID de la Submission
-                    student_id: { _id: "$student_id._id", nombre: "$student_id.nombre", apellidos: "$student_id.apellidos", email: "$student_id.email" },
-                    assignment_id: { // Campos de la asignación y su actividad
-                        _id: "$assignment_id._id",
-                        puntos_maximos: "$assignment_id.puntos_maximos",
-                        activity_id: {
-                            _id: "$assignment_id.activity_id._id",
-                            type: "$assignment_id.activity_id.type",
-                            title: "$assignment_id.activity_id.title",
-                            // Incluir preguntas solo si son realmente necesarias para la vista de entregas del docente
-                            // A menudo, solo el tipo y título son suficientes aquí, y las preguntas se ven al calificar/ver detalle.
-                            quiz_questions: "$assignment_id.activity_id.quiz_questions", 
-                            cuestionario_questions: "$assignment_id.activity_id.cuestionario_questions"
+                $facet: {
+                    metadata: [{ $count: "totalItems" }],
+                    data: [
+                        { $skip: (pageNumber - 1) * limitNumber },
+                        { $limit: limitNumber },
+                        { $replaceRoot: { newRoot: "$latestSubmissionDoc" } }, // Volver al documento de la entrega
+                        // Lookups y Projections para poblar los datos necesarios
+                        { $lookup: { from: "users", localField: "student_id", foreignField: "_id", as: "student_id_populated" } },
+                        { $unwind: { path: "$student_id_populated", preserveNullAndEmptyArrays: true } }, // preserve para no perder entregas si el usuario fue eliminado
+                        { $lookup: { from: "contentassignments", localField: "assignment_id", foreignField: "_id", as: "assignment_id_populated" } },
+                        { $unwind: { path: "$assignment_id_populated", preserveNullAndEmptyArrays: true } }, // preserve por si la asignación fue eliminada
+                        { $lookup: { from: "activities", localField: "assignment_id_populated.activity_id", foreignField: "_id", as: "activity_details" } },
+                        { $unwind: { path: "$activity_details", preserveNullAndEmptyArrays: true } }, // preserve por si la actividad base fue eliminada
+                        {
+                            $project: {
+                                _id: 1,
+                                student_id: {
+                                    _id: "$student_id_populated._id",
+                                    nombre: "$student_id_populated.nombre",
+                                    apellidos: "$student_id_populated.apellidos",
+                                    email: "$student_id_populated.email"
+                                },
+                                assignment_id: { // Devuelve el objeto assignment_id original, ya que los detalles de la actividad están en activity_details
+                                    _id: "$assignment_id_populated._id",
+                                    puntos_maximos: "$assignment_id_populated.puntos_maximos",
+                                    // activity_id ahora se refiere al ID, los detalles están en activity_details
+                                    activity_id: "$assignment_id_populated.activity_id"
+                                },
+                                activity_details: { // Incluir los detalles de la actividad aquí
+                                     _id: "$activity_details._id",
+                                     type: "$activity_details.type",
+                                     title: "$activity_details.title",
+                                     quiz_questions: "$activity_details.quiz_questions",
+                                     cuestionario_questions: "$activity_details.cuestionario_questions"
+                                },
+                                fecha_envio: 1,
+                                estado_envio: 1,
+                                is_late: 1,
+                                attempt_number: 1,
+                                calificacion: 1,
+                                respuesta: 1
+                            }
                         }
-                    },
-                    fecha_envio: 1,
-                    estado_envio: 1,
-                    is_late: 1,
-                    attempt_number: 1,
-                    calificacion: 1,
-                    respuesta: 1 // Incluir las respuestas del estudiante
+                    ]
                 }
             }
-        ]);
-        // *** FIN AGREGACIÓN ***
+        ];
 
+        const result = await Submission.aggregate(facetPipeline);
 
-        // Enviar la lista de las últimas entregas (una por estudiante)
-        res.status(200).json(latestSubmissions);
+        const latestSubmissions = result[0].data;
+        const totalItems = result[0].metadata.length > 0 ? result[0].metadata[0].totalItems : 0;
+        const totalPages = Math.ceil(totalItems / limitNumber);
+
+        res.status(200).json({
+            data: latestSubmissions,
+            pagination: {
+                totalItems: totalItems,
+                currentPage: pageNumber,
+                itemsPerPage: limitNumber,
+                totalPages: totalPages,
+                hasNextPage: pageNumber < totalPages,
+                hasPrevPage: pageNumber > 1,
+                nextPage: pageNumber < totalPages ? pageNumber + 1 : null,
+                prevPage: pageNumber > 1 ? pageNumber - 1 : null
+            }
+        });
 
     } catch (error) {
         console.error('Error fetching latest assignment submissions per student:', error);
@@ -620,176 +588,156 @@ const getAssignmentSubmissions = async (req, res, next) => {
 // @route   GET /api/activities/teacher/assignments
 // @access  Privado/Docente, Admin
 const getTeacherAssignments = async (req, res, next) => {
+    const { page = 1, limit = 10 } = req.query; // Valores por defecto
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
+    const skip = (pageNumber - 1) * limitNumber;
+
     try {
         const userId = req.user._id; // ID del usuario autenticado
         const userType = req.user.tipo_usuario;
 
-        // Verificar si el usuario es Docente o Administrador
         if (userType !== 'Docente' && userType !== 'Administrador') {
             return res.status(403).json({ message: 'Acceso denegado. Solo Docentes o Administradores pueden ver esta lista de asignaciones.' });
         }
 
         let assignments = [];
+        let totalAssignments = 0;
+        let baseQueryConditions = {};
 
         if (userType === 'Docente') {
-            // 1. Encontrar los grupos donde este usuario es el docente
             const groups = await Group.find({ docente_id: userId });
             const groupIds = groups.map(group => group._id);
-
             if (groupIds.length === 0) {
-                return res.status(200).json([]); // Docente no enseña en ningún grupo, devuelve lista vacía
+                return res.status(200).json({ data: [], pagination: { totalItems: 0, currentPage: 1, itemsPerPage: limitNumber, totalPages: 0, hasNextPage: false, hasPrevPage: false, nextPage: null, prevPage: null } });
             }
-
-            // 2. Encontrar rutas de aprendizaje dentro de esos grupos
             const learningPaths = await LearningPath.find({ group_id: { $in: groupIds } });
             const learningPathIds = learningPaths.map(lp => lp._id);
-
-             if (learningPathIds.length === 0) {
-                return res.status(200).json([]); // No hay rutas en sus grupos, devuelve lista vacía
+            if (learningPathIds.length === 0) {
+                return res.status(200).json({ data: [], pagination: { totalItems: 0, currentPage: 1, itemsPerPage: limitNumber, totalPages: 0, hasNextPage: false, hasPrevPage: false, nextPage: null, prevPage: null } });
             }
-
-            // 3. Encontrar módulos dentro de esas rutas
             const modules = await Module.find({ learning_path_id: { $in: learningPathIds } });
-             const moduleIds = modules.map(module => module._id);
-
-             if (moduleIds.length === 0) {
-                return res.status(200).json([]); // No hay módulos en sus rutas, devuelve lista vacía
+            const moduleIds = modules.map(module => module._id);
+            if (moduleIds.length === 0) {
+                return res.status(200).json({ data: [], pagination: { totalItems: 0, currentPage: 1, itemsPerPage: limitNumber, totalPages: 0, hasNextPage: false, hasPrevPage: false, nextPage: null, prevPage: null } });
             }
-
-            // 4. Encontrar temas dentro de esos módulos
-             const themes = await Theme.find({ module_id: { $in: moduleIds } });
-              const themeIds = themes.map(theme => theme._id);
-
-              if (themeIds.length === 0) {
-                return res.status(200).json([]); // No hay temas en sus módulos, devuelve lista vacía
+            const themes = await Theme.find({ module_id: { $in: moduleIds } });
+            const themeIds = themes.map(theme => theme._id);
+            if (themeIds.length === 0) {
+                return res.status(200).json({ data: [], pagination: { totalItems: 0, currentPage: 1, itemsPerPage: limitNumber, totalPages: 0, hasNextPage: false, hasPrevPage: false, nextPage: null, prevPage: null } });
             }
-
-
-            // 5. Encontrar asignaciones de contenido dentro de esos temas
-            // Queremos solo las asignaciones de tipo 'Activity'
-            assignments = await ContentAssignment.find({
-                theme_id: { $in: themeIds },
-                type: 'Activity' // Asegurarnos de que solo sean asignaciones de actividades interactivas
-            })
-            .populate({ path: 'activity_id', select: 'title type' }) // Poblar solo el título y tipo de la actividad base
-            // Podemos poblar un poco de la jerarquía para mostrar a dónde pertenece la asignación
-            .populate({
-                path: 'theme_id',
-                select: 'nombre', // Solo el título del tema
-                populate: {
-                    path: 'module_id',
-                    select: 'nombre', // Solo el título del módulo
-                     populate: {
-                         path: 'learning_path_id',
-                         select: 'nombre', // Solo el nombre de la ruta
-                          populate: {
-                              path: 'group_id',
-                               select: 'nombre' // Solo el nombre del grupo
-                          }
-                     }
-                }
-            })
-            .sort({ fecha_inicio: 1 }); // Opcional: Ordenar por fecha de inicio
-
-
-        } else if (userType === 'Administrador') {
-            // Un administrador podría ver todas las asignaciones de actividades (o filtrarlas de alguna manera)
-            // Por simplicidad, el admin puede ver todas las asignaciones de tipo 'Activity'
-             assignments = await ContentAssignment.find({ type: 'Activity' })
-                .populate({ path: 'activity_id', select: 'title type' })
-                .populate({
-                    path: 'theme_id',
-                    select: 'nombre',
-                    populate: {
-                        path: 'module_id',
-                        select: 'nombre',
-                        populate: {
-                            path: 'learning_path_id',
-                            select: 'nombre',
-                             populate: {
-                                 path: 'group_id',
-                                 select: 'nombre'
-                             }
-                         }
-                    }
-                })
-                .sort({ fecha_inicio: 1 });
+            baseQueryConditions = { theme_id: { $in: themeIds }, type: 'Activity' };
+        } else { // Administrador
+            baseQueryConditions = { type: 'Activity' };
         }
 
-        // *** REEMPLAZAR LÓGICA DE CONTEO BASADA EN INTENTOS POR LÓGICA BASADA EN ESTUDIANTES Y ÚLTIMO INTENTO ***
+        totalAssignments = await ContentAssignment.countDocuments(baseQueryConditions);
 
-        const assignmentsWithStudentCounts = await Promise.all(assignments.map(async (assignment) => {
-
-            // 1. Contar el número de estudiantes que han enviado al menos un intento
-            const studentsWithSubmissions = await Submission.aggregate([
-                {
-                    $match: { // Filtrar por la asignación actual
-                        assignment_id: new mongoose.Types.ObjectId(assignment._id)
+        assignments = await ContentAssignment.find(baseQueryConditions)
+            .populate({ path: 'activity_id', select: 'title type' })
+            .populate({
+                path: 'theme_id',
+                select: 'nombre',
+                populate: {
+                    path: 'module_id',
+                    select: 'nombre',
+                    populate: {
+                        path: 'learning_path_id',
+                        select: 'nombre',
+                        populate: { path: 'group_id', select: 'nombre' }
                     }
-                },
-                {
-                    $group: { // Agrupar por student_id para obtener estudiantes únicos
-                        _id: "$student_id"
-                    }
-                },
-                {
-                    $count: "totalStudentsSubmitted" // Contar los grupos (estudiantes únicos)
                 }
-            ]);
+            })
+            .sort({ fecha_inicio: 1 })
+            .skip(skip)
+            .limit(limitNumber)
+            .lean();
 
-            const totalStudentsSubmitted = studentsWithSubmissions.length > 0 ? studentsWithSubmissions[0].totalStudentsSubmitted : 0;
+        const plainAssignments = assignments; // Ya son plain objects por .lean()
 
+        if (plainAssignments.length === 0) {
+            return res.status(200).json({
+                data: [],
+                pagination: {
+                    totalItems: totalAssignments,
+                    currentPage: pageNumber,
+                    itemsPerPage: limitNumber,
+                    totalPages: Math.ceil(totalAssignments / limitNumber),
+                    hasNextPage: pageNumber < Math.ceil(totalAssignments / limitNumber),
+                    hasPrevPage: pageNumber > 1,
+                    nextPage: pageNumber < Math.ceil(totalAssignments / limitNumber) ? pageNumber + 1 : null,
+                    prevPage: pageNumber > 1 ? pageNumber - 1 : null
+                }
+            });
+        }
 
-            // 2. Contar el número de estudiantes cuya ÚLTIMA entrega está pendiente de calificación
-            let pendingGradingCount = 0;
-            // Solo tiene sentido contar pendientes de calificación manual para Cuestionario y Trabajo
-            if (assignment.activity_id?.type === 'Cuestionario' || assignment.activity_id?.type === 'Trabajo') {
+        const relevantAssignmentIds = plainAssignments.map(a => new mongoose.Types.ObjectId(a._id));
 
-                 const studentsWithLatestPendingSubmission = await Submission.aggregate([
-                    {
-                        $match: { // Filtrar por la asignación actual
-                            assignment_id: new mongoose.Types.ObjectId(assignment._id)
+        const submissionStats = await Submission.aggregate([
+            {
+                $match: {
+                    assignment_id: { $in: relevantAssignmentIds }
+                }
+            },
+            {
+                $sort: {
+                    student_id: 1,
+                    fecha_envio: -1 // Más reciente primero para cada estudiante
+                }
+            },
+            {
+                $group: {
+                    _id: { assignment_id: "$assignment_id", student_id: "$student_id" },
+                    lastSubmissionStatus: { $first: "$estado_envio" }
+                }
+            },
+            {
+                $group: {
+                    _id: "$_id.assignment_id", // Agrupar por assignment_id
+                    totalStudentsSubmitted: { $sum: 1 }, // Cada grupo aquí es un estudiante único por asignación
+                    pendingGradingSubmissions: {
+                        $sum: {
+                            $cond: [{ $eq: ["$lastSubmissionStatus", "Enviado"] }, 1, 0]
                         }
-                    },
-                    {
-                        $sort: { // Ordenar por estudiante y fecha/intento descendente para encontrar el último
-                            student_id: 1,
-                            fecha_envio: -1
-                        }
-                    },
-                    {
-                        $group: { // Agrupar por estudiante y tomar el ÚLTIMO intento
-                            _id: "$student_id",
-                            latestSubmission: { $first: "$$ROOT" } // Capturar el documento completo del último intento
-                        }
-                    },
-                    {
-                         $replaceRoot: { newRoot: "$latestSubmission" } // Reemplazar el documento raíz con el último intento
-                    },
-                    {
-                        $match: { // Filtrar por el estado de la ÚLTIMA entrega
-                             estado_envio: 'Enviado' // Pendiente de calificación manual
-                        }
-                    },
-                    {
-                        $count: "studentsPendingGrading" // Contar los estudiantes que cumplen la condición
                     }
-                 ]);
+                }
+            }
+        ]);
 
-                pendingGradingCount = studentsWithLatestPendingSubmission.length > 0 ? studentsWithLatestPendingSubmission[0].studentsPendingGrading : 0;
+        // Mapear estadísticas a las asignaciones
+        const statsMap = new Map(submissionStats.map(stat => [stat._id.toString(), stat]));
+
+        const assignmentsWithEnhancedCounts = plainAssignments.map(assignment => {
+            const stats = statsMap.get(assignment._id.toString());
+            let pendingGradingCount = stats ? stats.pendingGradingSubmissions : 0;
+
+            // Ajustar pendingGradingCount si el tipo de actividad no es Cuestionario ni Trabajo
+            if (assignment.activity_id?.type !== 'Cuestionario' && assignment.activity_id?.type !== 'Trabajo') {
+                pendingGradingCount = 0;
             }
 
-
             return {
-                ...assignment.toObject(), // Mantener los datos originales de la asignación
-                total_students_submitted: totalStudentsSubmitted, // Nuevo campo para el conteo de estudiantes
-                pending_grading_count: pendingGradingCount // Conteo de estudiantes con última entrega pendiente
+                ...assignment,
+                total_students_submitted: stats ? stats.totalStudentsSubmitted : 0,
+                pending_grading_count: pendingGradingCount
             };
-        }));
-
+        });
 
         // Enviar la lista de asignaciones con los nuevos conteos basados en estudiantes
-        res.status(200).json(assignmentsWithStudentCounts);
+        const totalPages = Math.ceil(totalAssignments / limitNumber);
+        res.status(200).json({
+            data: assignmentsWithEnhancedCounts,
+            pagination: {
+                totalItems: totalAssignments,
+                currentPage: pageNumber,
+                itemsPerPage: limitNumber,
+                totalPages: totalPages,
+                hasNextPage: pageNumber < totalPages,
+                hasPrevPage: pageNumber > 1,
+                nextPage: pageNumber < totalPages ? pageNumber + 1 : null,
+                prevPage: pageNumber > 1 ? pageNumber - 1 : null
+            }
+        });
 
     } catch (error) {
         console.error('Error fetching teacher assignments with counts:', error);
