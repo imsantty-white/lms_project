@@ -61,22 +61,6 @@ const submissionSchema = new mongoose.Schema({
         type: Boolean,
         default: false // Por defecto, no es tardía al momento de crear el documento inicial
     },
-    // NUEVOS CAMPOS AÑADIDOS AQUÍ
-    fecha_inicio_intento: {
-        type: Date,
-        required: false
-    },
-    estado_intento: {
-        type: String,
-        enum: ['no_iniciado', 'en_progreso', 'completado_usuario', 'completado_tiempo', 'auto_guardado_cierre'],
-        default: 'no_iniciado',
-        index: true
-    },
-    tiempo_agotado: {
-        type: Boolean,
-        default: false
-    },
-    // FIN DE NUEVOS CAMPOS
     attempt_number: { // Número de intento de la entrega (si se permiten varios)
         type: Number,
         required: [true, 'El número de intento es obligatorio'],
@@ -92,7 +76,7 @@ const submissionSchema = new mongoose.Schema({
         trim: true
     },
     respuesta: { // La respuesta/trabajo del estudiante. La estructura varía según el tipo de actividad.
-        
+
         link_entrega: { type: String },    // Para actividades de tipo 'Trabajo' (un link a un archivo, repositorio, etc.)
         quiz_answers: [quizAnswerSchema], // Array de respuestas para actividades de tipo 'Quiz'
         cuestionario_answers: [cuestionarioAnswerSchema] // <-- Nuevo: Array de respuestas para 'Cuestionario'
@@ -114,4 +98,3 @@ const submissionSchema = new mongoose.Schema({
 
 const Submission = mongoose.model('Submission', submissionSchema);
 module.exports = Submission;
-```
