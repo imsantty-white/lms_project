@@ -1,8 +1,8 @@
 // src/middleware/authMiddleware.js
 const jwt = require('jsonwebtoken');
 const User = require('../models/UserModel');
-const SubscriptionService = require('../services/SubscriptionService'); // <--- ADD THIS LINE
-
+const SubscriptionService = require('../services/SubscriptionService');
+const AppError = require('../utils/appError'); // Import AppError
 
 const protect = async (req, res, next) => {
   let token;
@@ -10,112 +10,121 @@ const protect = async (req, res, next) => {
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
       token = req.headers.authorization.split(' ')[1];
-
-      // Verifica el token y obtiene el payload
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Busca el usuario y verifica que esté activo y aprobado
-      // Fetch user, excluding password hash
-      // It's important to select planId here if we want to avoid another DB call in SubscriptionService sometimes,
-      // but SubscriptionService is designed to fetch the user anyway for a full check.
-      req.user = await User.findById(decoded._id).select('-contrasena_hash');
+      // Populate planId when fetching the user
+      req.user = await User.findById(decoded._id).select('-contrasena_hash').populate('planId');
 
       if (!req.user) {
         console.error('Authentication failed: User not found for token ID.');
-        return res.status(401).json({ message: 'No autorizado, usuario del token no encontrado' });
+        // Use AppError for consistency
+        return next(new AppError('No autorizado, usuario del token no encontrado', 401));
       }
 
       if (!req.user.activo) {
-        return res.status(403).json({ message: 'Tu cuenta ha sido desactivada. Contacta al administrador.' });
+        return next(new AppError('Tu cuenta ha sido desactivada. Contacta al administrador.', 403));
       }
       if (req.user.tipo_usuario === 'Docente' && !req.user.aprobado) {
-        return res.status(403).json({ message: 'Tu cuenta de docente aún no ha sido aprobada.' });
+        return next(new AppError('Tu cuenta de docente aún no ha sido aprobada.', 403));
       }
 
-      // --- BEGIN SUBSCRIPTION CHECK FOR DOCENTES ---
       if (req.user.tipo_usuario === 'Docente') {
-        const subscription = await SubscriptionService.checkSubscriptionStatus(req.user._id);
-        if (!subscription.isActive) {
-          // Log the reason for subscription check failure for admin review if necessary
-          console.warn(`Subscription check failed for Docente ${req.user.email} (${req.user._id}): ${subscription.message}`);
-          // Return a generic message or the specific one from the service
-          return res.status(403).json({ message: subscription.message || 'Tu suscripción no está activa o ha expirado. Por favor, verifica tu plan.' });
-        }
-        // Optionally, attach plan details to req.user if not already there and needed by subsequent controllers/services
-        // req.user.plan = subscription.plan; // Note: user.planId is already on req.user if populated
-      }
-      // --- END SUBSCRIPTION CHECK FOR DOCENTES ---
+        // Pass the preloaded req.user to checkSubscriptionStatus
+        const subscription = await SubscriptionService.checkSubscriptionStatus(req.user._id, req.user);
 
+        if (!subscription.isActive) {
+          console.warn(`Subscription check failed for Docente ${req.user.email} (${req.user._id}): ${subscription.message}`);
+          return next(new AppError(subscription.message || 'Tu suscripción no está activa o ha expirado. Por favor, verifica tu plan.', 403));
+        }
+
+        // Ensure req.user.planId has the plan object from the service if it's more up-to-date or correctly loaded
+        // user.planId is already populated, this ensures it's the one validated by the service.
+        if (subscription.plan) {
+             req.user.planId = subscription.plan;
+        }
+        // Update subscriptionEndDate if the service might have changed it (e.g., reverted to a free plan)
+        if (subscription.user && subscription.user.subscriptionEndDate !== undefined) {
+            req.user.subscriptionEndDate = subscription.user.subscriptionEndDate;
+            // Also update the local req.user's active status if the service changed it (e.g. plan expired and reverted to free)
+            // This is important if other parts of the request lifecycle depend on req.user.activo directly after this middleware
+            req.user.activo = subscription.user.activo;
+        }
+        // If the service could modify other user fields relevant to auth, update req.user fully:
+        // if (subscription.user) {
+        //   req.user = subscription.user; // This would overwrite req.user.planId if user object from service also has it.
+        // }
+      }
       next();
 
     } catch (error) {
       console.error('Error en el middleware de autenticación:', error.message);
-      // Handle specific JWT errors
       if (error.name === 'JsonWebTokenError') {
-        return res.status(401).json({ message: 'No autorizado, token inválido.' });
+        return next(new AppError('No autorizado, token inválido.', 401));
       }
       if (error.name === 'TokenExpiredError') {
-        return res.status(401).json({ message: 'No autorizado, el token ha expirado.' });
+        return next(new AppError('No autorizado, el token ha expirado.', 401));
       }
-      // Generic fallback for other errors during token processing or user fetching
-      return res.status(401).json({ message: 'No autorizado, problema con el token.' });
+      return next(new AppError('No autorizado, problema con el token.', 401));
     }
   } else {
-    return res.status(401).json({ message: 'No autorizado, no se proporcionó token.' });
+    return next(new AppError('No autorizado, no se proporcionó token.', 401));
   }
 };
 
-
-// Middleware para autorizar acceso basado en roles
 const authorize = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
       console.error('Authorization failed: req.user is not set before authorize middleware.');
-      return res.status(500).json({ message: 'Error de autenticación interno antes de verificar roles.' });
+      // This case should ideally be caught by 'protect' middleware first.
+      return next(new AppError('Error de autenticación interno antes de verificar roles.', 500));
     }
     if (!roles.includes(req.user.tipo_usuario)) {
       console.error(`Authorization failed: User role ${req.user.tipo_usuario} not allowed.`);
-      return res.status(403).json({ message: `Usuario con rol ${req.user.tipo_usuario} no autorizado para acceder a esta ruta` });
-    } else {
-      next();
+      return next(new AppError(`Usuario con rol ${req.user.tipo_usuario} no autorizado para acceder a esta ruta`, 403));
     }
+    next();
   };
 };
 
-// Middleware de autenticación opcional:
-// Intenta autenticar al usuario si se proporciona un token,
-// pero no falla si el token no está presente o no es válido.
-// Simplemente establece req.user si la autenticación es exitosa.
 const protectOptional = async (req, res, next) => {
   let token;
-
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
       token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       
-      // Busca el usuario y verifica que esté activo y aprobado
-      const user = await User.findById(decoded._id).select('-contrasena_hash');
+      // Populate planId for optional user as well, in case it's a teacher
+      const user = await User.findById(decoded._id).select('-contrasena_hash').populate('planId');
 
-      if (user && user.activo && user.aprobado) {
-        req.user = user; // Establece req.user solo si el usuario es válido y está activo/aprobado
-      } else {
-        // Si el usuario no se encuentra, no está activo, o no está aprobado, no se establece req.user.
-        // No se envía error, simplemente se procede sin usuario autenticado.
-        // Puedes añadir un log aquí si es necesario para depuración.
-        // console.log('ProtectOptional: User found but not active/approved, or token invalid.');
+      if (user && user.activo) { // Only check for 'activo', 'aprobado' might be too strict for optional
+        // For teachers, optionally check subscription status but don't block if inactive/expired.
+        // This part is tricky: if a teacher's subscription is inactive, should they be treated as "not logged in"
+        // for optional routes, or "logged in but with limited access"?
+        // For simplicity here, if token is valid and user active, we set req.user.
+        // Specific route handlers can then check subscription if they need to differentiate.
+        if (user.tipo_usuario === 'Docente' && !user.aprobado) {
+            // Do not set req.user if teacher is not approved
+        } else {
+            req.user = user;
+             // Optionally, attach non-blocking subscription info if user is Docente
+            if (user.tipo_usuario === 'Docente') {
+                const subscription = await SubscriptionService.checkSubscriptionStatus(user._id, user);
+                req.user.subscriptionStatus = subscription; // Attach full status for controller to decide
+                if (subscription.user && subscription.user.subscriptionEndDate !== undefined) {
+                    req.user.subscriptionEndDate = subscription.user.subscriptionEndDate;
+                }
+                 if (subscription.plan) {
+                    req.user.planId = subscription.plan;
+                }
+            }
+        }
       }
-
     } catch (error) {
-      // Si hay un error en la verificación del token (ej. inválido, expirado),
-      // no se establece req.user y no se envía error.
-      // console.error('ProtectOptional: Error verifying token:', error.message);
+      // Errors (invalid token, expired) are ignored, req.user remains undefined.
+      // console.error('ProtectOptional: Error verifying token or fetching user:', error.message);
     }
   }
-  // Si no hay token o si hubo un error/usuario no válido, simplemente llama a next()
-  // req.user no estará definido o será null.
   next();
 };
-
 
 module.exports = { protect, authorize, protectOptional };

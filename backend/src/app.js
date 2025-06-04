@@ -1,7 +1,9 @@
 // backend/src/app.js
 const express = require('express');
+const helmet = require('helmet'); // Importar helmet
 const globalErrorHandler = require('./middleware/errorHandler'); // Importar el manejador de errores global
 const app = express(); // Crea una instancia de la aplicación Express
+app.use(helmet()); // Usar helmet para cabeceras de seguridad
 require('dotenv').config();
 
 // --- IMPORTAR Y CONFIGURAR CORS ---
@@ -76,6 +78,7 @@ const notificationRoutes = require('./routes/notificationRoutes'); // Import not
 const profileRoutes = require('./routes/profileRoutes');
 const contactRoutes = require('./routes/contactRoutes'); // Importar contact routes
 const announcementRoutes = require('./routes/announcementRoutes');
+const fileUploadRoutes = require('./routes/fileUploadRoutes'); // Importar rutas de carga de archivos
 
 app.use('/api/auth', authRoutes); // Monta las rutas de autenticación bajo el prefijo /api/auth
 
@@ -121,6 +124,9 @@ app.use('/api/contact', contactRoutes); // Montar contact routes
 // Por lo tanto, la ruta para crear un anuncio será POST /api/announcements/admin
 // Y la ruta para el panel de usuarios será GET /api/announcements/panel
 app.use('/api/announcements', announcementRoutes);
+
+// Montar rutas de carga de archivos
+app.use('/api/files', fileUploadRoutes);
 
 
 // Ruta de prueba simple

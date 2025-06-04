@@ -7,52 +7,50 @@ const SubscriptionService = {
     /**
      * Checks if a user's subscription is currently active.
      * @param {string|mongoose.Types.ObjectId} userId - The ID of the user.
+     * @param {Object|null} preloadedUser - Optional preloaded user object with planId populated.
      * @returns {Promise<Object>} An object indicating subscription status:
      *                            { isActive: boolean, message: string, plan: Object|null, user: Object|null }
      */
-    checkSubscriptionStatus: async (userId) => {
+    checkSubscriptionStatus: async (userId, preloadedUser = null) => {
         if (!mongoose.Types.ObjectId.isValid(userId)) {
             return { isActive: false, message: 'ID de usuario inválido.', plan: null, user: null };
         }
 
         try {
-            const user = await User.findById(userId).populate('planId'); // Populate the plan details
+            let user = preloadedUser;
+
+            // Verify if preloadedUser is the correct user and has planId populated as an object
+            if (!user || user._id.toString() !== userId.toString() || typeof user.planId !== 'object' || user.planId === null) {
+                // If no valid preloadedUser, fetch from DB
+                user = await User.findById(userId).populate('planId');
+            }
 
             if (!user) {
                 return { isActive: false, message: 'Usuario no encontrado.', plan: null, user: null };
             }
 
             if (user.tipo_usuario !== 'Docente') {
-                // Non-teachers don't have plans in this context, or their access is managed differently
                 return { isActive: true, message: 'No se requiere plan para este tipo de usuario.', plan: null, user };
             }
 
             if (!user.planId) {
-                // This case might happen if a teacher was created before plan system, or an error occurred.
-                // Consider assigning a default free plan here if appropriate.
                 return { isActive: false, message: 'El docente no tiene un plan asignado.', plan: null, user };
             }
 
-            // The plan is populated directly in user.planId object
-            const plan = user.planId;
+            const plan = user.planId; // planId is already populated here
 
             if (!plan.isActive) {
                 return { isActive: false, message: `El plan "${plan.name}" asignado al docente no está activo. Contacte al administrador.`, plan, user };
             }
 
-            // Check subscription end date
-            // If subscriptionEndDate is null, it might mean indefinite (e.g., for a default free plan)
             if (plan.duration !== 'indefinite' && user.subscriptionEndDate) {
                 if (new Date(user.subscriptionEndDate) < new Date()) {
                     return { isActive: false, message: `La suscripción al plan "${plan.name}" ha expirado el ${new Date(user.subscriptionEndDate).toLocaleDateString()}.`, plan, user };
                 }
             } else if (plan.duration !== 'indefinite' && !user.subscriptionEndDate) {
-                // A plan with a fixed duration should have an end date.
                 return { isActive: false, message: `La suscripción al plan "${plan.name}" no tiene fecha de finalización definida.`, plan, user };
             }
 
-
-            // If all checks pass
             return { isActive: true, message: 'La suscripción está activa.', plan, user };
 
         } catch (error) {
@@ -68,15 +66,13 @@ const SubscriptionService = {
     deactivateExpiredSubscriptions: async () => {
         console.log('Ejecutando tarea de desactivación de suscripciones expiradas...');
         const today = new Date();
-        today.setHours(0, 0, 0, 0); // Compare with the beginning of today
+        today.setHours(0, 0, 0, 0);
 
         try {
-            // Find teachers whose subscriptionEndDate is in the past
-            // and whose plan is not indefinite (as indefinite plans shouldn't expire this way)
             const expiredUsers = await User.find({
                 tipo_usuario: 'Docente',
                 subscriptionEndDate: { $lt: today },
-                planId: { $ne: null } // Ensure they have a plan that could expire
+                planId: { $ne: null }
             }).populate('planId');
 
             if (expiredUsers.length === 0) {
@@ -87,17 +83,12 @@ const SubscriptionService = {
             const defaultFreePlan = await Plan.findOne({ isDefaultFree: true, isActive: true });
             if (!defaultFreePlan) {
                 console.error('Error Crítico: No se encontró un plan gratuito predeterminado activo para asignar a usuarios con suscripciones expiradas.');
-                // Consider sending an admin notification here
                 return { success: false, message: 'No se encontró el plan gratuito predeterminado.', deactivatedCount: 0 };
             }
 
             let deactivatedCount = 0;
             for (const user of expiredUsers) {
-                // Avoid changing plan if current plan is already the default free plan and it's indefinite
-                // This check is important if subscriptionEndDate was set for a "Free" plan that was a trial
                 if (user.planId && user.planId._id.equals(defaultFreePlan._id) && defaultFreePlan.duration === 'indefinite') {
-                    // If they are already on the indefinite free plan, but somehow had an old expiry date,
-                    // we can just nullify the expiry date.
                     if (user.subscriptionEndDate !== null) {
                         user.subscriptionEndDate = null;
                         await user.save();
@@ -106,22 +97,17 @@ const SubscriptionService = {
                     continue;
                 }
 
-                // If the current plan is not the default free plan, or it is but it's not indefinite
                 if (!user.planId || !user.planId._id.equals(defaultFreePlan._id) || user.planId.duration !== 'indefinite') {
                     console.log(`Suscripción expirada para el usuario ${user.email} (Plan: ${user.planId ? user.planId.name : 'N/A'}). Revirtiendo al plan "${defaultFreePlan.name}".`);
 
-                    // Update user's plan to the default free plan
                     user.planId = defaultFreePlan._id;
-                    user.subscriptionEndDate = defaultFreePlan.duration === 'indefinite' ? null : new Date(today.setDate(today.getDate() + 30)); // Example: 30 days for a temporary free plan if not indefinite
+                    user.subscriptionEndDate = defaultFreePlan.duration === 'indefinite' ? null : new Date(new Date().setDate(new Date().getDate() + 30)); // Example: 30 days for a temporary free plan if not indefinite
 
-                    // Reset usage limits (optional, depends on policy)
+                    // Consider resetting usage, depends on policy. For now, not resetting.
                     // user.usage = { groupsCreated: 0, resourcesGenerated: 0, activitiesGenerated: 0 };
 
                     await user.save();
                     deactivatedCount++;
-
-                    // TODO: Optionally, send a notification to the user about the plan change.
-                    // await NotificationService.createNotification({ ... });
                 }
             }
 

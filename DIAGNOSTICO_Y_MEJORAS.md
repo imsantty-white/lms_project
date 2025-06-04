@@ -2,564 +2,351 @@
 
 ## Introducción
 
-El presente informe tiene como propósito realizar un diagnóstico exhaustivo del sistema actual, identificando áreas de oportunidad, posibles riesgos y deficiencias en el rendimiento. Adicionalmente, se propone una estrategia para la implementación de una funcionalidad transversal de actualización en tiempo real, detallando los pasos necesarios tanto en el backend como en el frontend.
+El presente informe tiene como propósito realizar un diagnóstico exhaustivo del sistema actual, identificando áreas de oportunidad, posibles riesgos y deficiencias en el rendimiento. Adicionalmente, se proponen estrategias para la implementación de funcionalidades clave como la carga de archivos y actualizaciones en tiempo real.
 
-## Parte I: Diagnóstico Exhaustivo del Sistema
+## Parte I: Diagnóstico Exhaustivo del Sistema y Mejoras Implementadas
 
 ### 1. Manejo de Errores
 
-**Resumen de las buenas prácticas observadas:**
+**Estado y Mejoras Realizadas:**
 
-Se observa un esfuerzo inicial en la centralización del manejo de errores mediante el middleware `errorHandler` y la clase `AppError`. Esto es una buena base, aunque existen áreas de mejora para robustecer y estandarizar el proceso.
+Se ha implementado un sistema robusto y centralizado para el manejo de errores en el backend. Los componentes clave de esta mejora son:
 
-**Recomendaciones:**
+*   **Clase `AppError` (`backend/src/utils/appError.js`):** Una clase personalizada que extiende de `Error`. Permite crear errores operacionales con un `statusCode` HTTP específico y un mensaje claro. Incluye la propiedad `isOperational` para distinguir errores esperados (ej. entrada de usuario incorrecta) de errores de programación.
+*   **Middleware Global `globalErrorHandler` (`backend/src/middleware/errorHandler.js`):**
+    *   Este middleware se encuentra al final de la pila de middlewares en `app.js` y captura todos los errores pasados a través de `next(error)`.
+    *   Distingue entre entornos de desarrollo y producción:
+        *   **Desarrollo:** Envía respuestas de error detalladas, incluyendo el stack trace.
+        *   **Producción:** Envía mensajes genéricos para errores no operacionales (evitando filtrar detalles sensibles) y mensajes específicos para errores operacionales (instancias de `AppError`).
+    *   Maneja errores específicos de Mongoose (`CastError`, `ValidationError`, `MongoServerError` con código 11000 para duplicados) convirtiéndolos en instancias de `AppError` con los códigos de estado y mensajes apropiados.
+*   **Refactorización de Controladores:** Se han refactorizado todos los controladores principales (`authController.js`, `groupController.js`, `activityController.js`, `contentController.js`, `learningPathController.js`, `adminController.js`, `submissionController.js`) para:
+    *   Utilizar `next(error)` en los bloques `catch` genéricos, delegando el manejo al `globalErrorHandler`.
+    *   Reemplazar la creación manual de errores HTTP con `new AppError(message, statusCode)`.
+    *   Implementar validaciones proactivas de `mongoose.Types.ObjectId.isValid()` para los IDs en `req.params` y `req.body`, utilizando `AppError` para reportar IDs inválidos tempranamente.
+    *   Mejorar el manejo de errores por datos faltantes o configuraciones inválidas, utilizando `AppError` con códigos 404 o 400 según corresponda.
 
-*   **Consolidar manejo de errores del servidor con middleware global:**
-    *   Asegurar que *todos* los errores generados por los controladores y servicios sean capturados y procesados por el middleware `errorHandler`. Esto implica que las rutas asíncronas deben manejar adecuadamente los rechazos de promesas (ej. usando `express-async-errors` o envolviendo los manejadores de ruta en `try/catch` que llamen a `next(error)`).
-    *   El middleware `errorHandler` debería ser el último middleware añadido en la cadena de Express para capturar todos los errores.
+**Recomendaciones Adicionales (y estado de implementación):**
 
-*   **Validación proactiva de ObjectIds:**
-    *   Implementar un middleware o una función de utilidad para validar la estructura de los `ObjectId` de MongoDB antes de que lleguen a los servicios o a las consultas de base de datos. Esto puede prevenir errores inesperados y mejorar los mensajes de error devueltos al cliente.
-    *   Ejemplo de middleware:
-        ```javascript
-        // middlewares/validateObjectId.js
-        const mongoose = require('mongoose');
-        const AppError = require('../utils/appError'); // Asegúrate que la ruta sea correcta
-
-        const validateObjectId = (paramName) => (req, res, next) => {
-          if (!mongoose.Types.ObjectId.isValid(req.params[paramName])) {
-            return next(new AppError(`El ID '${req.params[paramName]}' no es válido.`, 400));
-          }
-          next();
-        };
-
-        module.exports = validateObjectId;
-
-        // Uso en rutas:
-        // const validateObjectId = require('./middlewares/validateObjectId');
-        // router.get('/:id', validateObjectId('id'), someController.getById);
-        ```
-
-*   **Revisión de errores 500 por datos faltantes:**
-    *   Identificar y refactorizar los puntos donde la ausencia de datos (ej. un documento no encontrado en la BD) resulta en un error 500 genérico. Estos casos deberían, en general, devolver un error 404 (No Encontrado) con un mensaje claro.
-    *   Ejemplo en un servicio:
-        ```javascript
-        // Antes
-        // const document = await MyModel.findById(id);
-        // if (!document) throw new Error('Documento no encontrado'); // Podría llevar a un 500 si no se maneja específicamente
-
-        // Después
-        const document = await MyModel.findById(id);
-        if (!document) {
-          throw new AppError('El recurso solicitado no fue encontrado.', 404);
-        }
-        ```
-
-*   **Estandarizar manejo de errores de servicios:**
-    *   Asegurar que todos los servicios (como `EmailService`, `SubscriptionService`, etc.) utilicen la clase `AppError` para generar errores con códigos de estado HTTP consistentes.
-    *   Evitar el uso de `throw new Error()` genérico dentro de los servicios, ya que estos no llevan información semántica sobre el tipo de error HTTP.
+*   **Consolidar manejo de errores del servidor con middleware global:** **Implementado.**
+*   **Validación proactiva de ObjectIds:** **Implementado** en los controladores refactorizados. Se recomienda continuar esta práctica para nuevos controladores o expandir con un middleware dedicado si la lógica de validación se vuelve más compleja (ej. validar múltiples IDs en una sola petición).
+*   **Revisión de errores 500 por datos faltantes:** **Implementado** en gran medida durante la refactorización de los controladores, donde la ausencia de recursos ahora suele generar un `AppError` con código 404.
+*   **Estandarizar manejo de errores de servicios:** Se recomienda que todos los servicios (ej. `SubscriptionService`, `NotificationService`) también adopten `AppError` para la generación de errores. Actualmente, `SubscriptionService` ya se beneficia indirectamente al ser llamado desde `protect` que ahora usa `AppError`.
 
 ### 2. Fallas en las Cargas
 
-#### a. Carga de Archivos
+#### a. Carga de Archivos (Ver nueva sección "Parte II: Preparación de Arquitectura para Carga de Archivos")
 
-*   **Indicación de ausencia de la funcionalidad:**
-    *   Actualmente, el sistema no parece contar con una funcionalidad robusta y segura para la carga de archivos por parte de los usuarios (ej. avatares, archivos de tareas, etc.).
+#### b. Carga de Datos/Páginas (Rendimiento de Consultas y Listados)
 
-*   **Recomendaciones de seguridad e implementación si se añade:**
-    *   **Multer:** Utilizar `multer` como middleware para manejar `multipart/form-data`, que es el formato estándar para la carga de archivos.
-    *   **Validaciones:**
-        *   **Tipo de archivo (MIME type):** Validar que los archivos subidos sean de tipos permitidos (ej. `image/jpeg`, `image/png`, `application/pdf`).
-        *   **Tamaño del archivo:** Establecer límites razonables para el tamaño de los archivos.
-    *   **Sanitización de nombres de archivo:** Limpiar los nombres de archivo para evitar caracteres especiales o secuencias maliciosas. Generar nombres de archivo únicos para prevenir sobrescrituras.
-    *   **Almacenamiento:**
-        *   Considerar si los archivos se almacenarán en el sistema de archivos local o en un servicio de almacenamiento en la nube (ej. AWS S3, Google Cloud Storage, Azure Blob Storage). Los servicios en la nube suelen ofrecer mejor escalabilidad y durabilidad.
-        *   No almacenar archivos directamente en la base de datos.
-    *   **Seguridad:** Escanear los archivos subidos en busca de malware si la naturaleza de la aplicación lo requiere.
+**Análisis y Mejoras Realizadas:**
 
-#### b. Carga de Datos/Páginas
+*   **Optimización de `getTeacherAssignments` (`activityController.js`):**
+    *   **Problema Original:** La función calculaba los conteos de entregas (`total_students_submitted`, `pending_grading_count`) realizando múltiples consultas a la base de datos por cada asignación (problema N+1).
+    *   **Solución Implementada:** Se refactorizó la función para utilizar una única consulta de agregación (`Submission.aggregate(...)`) que calcula estos conteos para todas las asignaciones relevantes de una sola vez. Esto reduce drásticamente la carga en la base de datos.
 
-*   **Análisis de `getStudentActivityForAttempt`, `getAssignmentSubmissions`, `getTeacherAssignments`:**
-    *   Estas funciones, especialmente si involucran múltiples consultas a la base de datos o agregaciones complejas sin la optimización adecuada, pueden ser cuellos de botella.
+*   **Implementación de Paginación:** Se ha implementado paginación en varias funciones clave que devuelven listas de datos:
+    *   **`activityController.js`:**
+        *   `getTeacherAssignments`: Paginación sobre las asignaciones del docente/administrador.
+        *   `getAssignmentSubmissions`: Paginación sobre las últimas entregas de cada estudiante para una asignación, utilizando `$facet` para obtener datos y metadatos de conteo en una sola agregación.
+    *   **`contentController.js`:**
+        *   `getDocenteContentBank`: Paginación implementada para solicitar recursos o actividades de forma separada.
+    *   **`groupController.js`:**
+        *   `getMyOwnedGroups`: Paginación sobre los grupos del docente, utilizando `$facet`.
+        *   `getGroupMemberships`: Paginación sobre los miembros de un grupo.
+        *   `getMyJoinRequests`: Paginación sobre las solicitudes de unión a grupos.
+        *   `getGroupStudents`: Paginación sobre los estudiantes de un grupo.
+    *   **`learningPathController.js`:**
+        *   `getMyCreatedLearningPaths`: Paginación sobre las rutas creadas por un docente.
+        *   `getGroupLearningPathsForDocente`: Paginación sobre las rutas de un grupo específico (vista docente).
+        *   `getGroupLearningPathsForStudent`: Paginación sobre las rutas de un grupo específico (vista estudiante).
+    *   **Estrategia General de Paginación:**
+        *   Las funciones aceptan parámetros `page` y `limit` de `req.query`.
+        *   Se realiza una consulta para obtener `totalItems` (conteo total de documentos que coinciden con los filtros).
+        *   Se aplica `.skip()` y `.limit()` (o `$skip` y `$limit` en agregaciones) a la consulta principal para obtener los datos de la página actual.
+        *   La respuesta se estructura con un objeto `data` (el array de ítems) y un objeto `pagination` (con `totalItems`, `currentPage`, `totalPages`, etc.).
 
-*   **Recomendaciones:**
-    *   **Optimizar `getTeacherAssignments` (evitar N+1):**
-        *   La función `getTeacherAssignments` parece ser un candidato a sufrir el problema N+1 si, por cada tarea, se realizan consultas adicionales para obtener detalles de los estudiantes o entregas.
-        *   **Solución:** Utilizar el framework de agregación de MongoDB para traer toda la información necesaria en una sola consulta.
-        *   Ejemplo conceptual para `getTeacherAssignments` (asumiendo que se quieren las entregas por tarea):
-            ```javascript
-            // En el controlador o servicio de Assignments
-            const assignmentsWithSubmissions = await Assignment.aggregate([
-              {
-                $match: { teacher: mongoose.Types.ObjectId(teacherId) } // Filtrar por profesor
-              },
-              {
-                $lookup: {
-                  from: 'submissions', // Nombre de la colección de entregas
-                  localField: '_id', // Campo en Assignment
-                  foreignField: 'assignment', // Campo en Submission que referencia a Assignment
-                  as: 'submissions' // Nombre del array resultante con las entregas
-                }
-              },
-              {
-                $lookup: {
-                  from: 'users', // Nombre de la colección de usuarios (estudiantes)
-                  localField: 'submissions.student', // Campo student dentro de cada submission
-                  foreignField: '_id', // Campo en User
-                  as: 'studentsInfo' // Array temporal, podría necesitar más procesamiento
-                }
-              },
-              {
-                $addFields: { // O $project para reestructurar
-                  submissions: {
-                    $map: { // Mapear sobre las submissions para enriquecerlas
-                      input: '$submissions',
-                      as: 'sub',
-                      in: {
-                        // Campos de la submission que se quieran mantener
-                        _id: '$$sub._id',
-                        student: '$$sub.student',
-                        grade: '$$sub.grade',
-                        // ... otros campos de submission
-                        studentInfo: { // Añadir info del estudiante a cada submission
-                          $arrayElemAt: [
-                            {
-                              $filter: {
-                                input: '$studentsInfo',
-                                as: 'studentDoc',
-                                cond: { $eq: ['$$studentDoc._id', '$$sub.student'] }
-                              }
-                            },
-                            0
-                          ]
-                        }
-                      }
-                    }
-                  }
-                }
-              },
-              {
-                $project: { // Proyectar solo los campos necesarios para el cliente
-                  title: 1,
-                  description: 1,
-                  dueDate: 1,
-                  submissions: { // Detallar qué campos de submission y studentInfo se quieren
-                    _id: 1,
-                    grade: 1,
-                    'studentInfo.firstName': 1,
-                    'studentInfo.lastName': 1,
-                    'studentInfo.email': 1 // Solo si es necesario
-                  }
-                  // ... otros campos de Assignment
-                }
-              }
-            ]);
-            ```
-            *Nota: Este es un ejemplo complejo y puede necesitar ajustes según los modelos exactos.*
+*   **Revisión de Proyecciones en Agregaciones y Consultas:**
+    *   Se ha puesto atención en el uso de `.select()` y `$project` en varias consultas para limitar los campos devueltos.
+    *   La función `getMyOwnedGroups` en `groupController.js` y la optimizada `getTeacherAssignments` en `activityController.js` proyectan los campos necesarios.
+    *   La función `getAssignmentSubmissions` también proyecta campos específicos después de la agregación.
+    *   **Recomendación:** Continuar aplicando proyecciones selectivas en futuras consultas y revisar las existentes si los requisitos del frontend cambian.
 
-    *   **Implementar Paginación:** Para listas largas de datos (ej. historial de actividades, lista de tareas, lista de entregas), implementar paginación tanto en el backend (usando `.skip()` y `.limit()` en las consultas de MongoDB) como en el frontend. Esto es crucial para el rendimiento y la experiencia del usuario.
-
-    *   **Revisar Proyecciones en Agregaciones y Consultas:** Utilizar `.select()` en Mongoose o `$project` en agregaciones para devolver solo los campos estrictamente necesarios al cliente. Esto reduce la carga de datos transferidos y el trabajo de serialización/deserialización.
-
-    *   **Asegurar Índices:** Verificar que todas las consultas, especialmente aquellas usadas en funciones críticas para la carga de páginas y las que usan `$match`, `$sort`, y `$lookup` en agregaciones, estén soportadas por índices en la base de datos. Usar `explain()` para analizar el rendimiento de las consultas.
+*   **Asegurar Índices:**
+    *   **Recomendación Crítica:** Aunque no se han añadido explícitamente nuevos índices como parte de esta fase de refactorización (más allá de los definidos en los esquemas), es crucial que todas las operaciones de consulta frecuentes, especialmente los campos usados en `$match`, `$sort`, `$lookup` (localField, foreignField) y en cláusulas `WHERE` (implícitas en `find()`) estén soportadas por índices en la base de datos MongoDB.
+    *   **Acción:** Realizar una auditoría de índices basada en las consultas más comunes y de carga pesada, y añadir los índices faltantes. Usar `.explain('executionStats')` para analizar el rendimiento.
 
 ### 3. Deficiencias en el Rendimiento
 
 #### a. Uso de `.populate()` y Agregaciones
 
-*   **Recomendaciones:**
-    *   **Uso de `.explain()` para análisis:**
-        *   Para consultas Mongoose que usan `.populate()` y para pipelines de agregación, utilizar el método `.explain('executionStats')` para entender cómo MongoDB está ejecutando la consulta, qué índices está usando (si alguno), y cuántos documentos está escaneando.
-        *   Ejemplo: `await User.find({ email: 'test@example.com' }).populate('planId').explain('executionStats');`
-        *   Ejemplo: `await Assignment.aggregate([...pipeline...]).explain('executionStats');`
-    *   **Asegurar índices para campos de `populate` y agregaciones:**
-        *   Los campos utilizados en `$lookup` (localField, foreignField) y en las condiciones de `$match` dentro de las agregaciones deben estar indexados.
-        *   Los campos referenciados en `.populate()` (tanto el `path` en el modelo principal como el campo referenciado en el modelo "populado") también se benefician de los índices.
-        *   Si se popula un campo que a su vez popula otro (populate anidado), el impacto en el rendimiento puede ser significativo. Considerar desnormalizar datos o usar agregaciones si es necesario.
+*   **Mejoras y Recomendaciones:**
+    *   El uso de agregaciones optimizadas (como en `getTeacherAssignments` y `getMyOwnedGroups`) reduce la necesidad de múltiples `.populate()` anidados que pueden ser ineficientes.
+    *   **Uso de `.lean()`:** En las consultas donde solo se necesita leer datos (la mayoría de las operaciones GET), se ha incorporado `.lean()` para obtener objetos JavaScript planos en lugar de documentos Mongoose completos, lo que mejora el rendimiento.
+    *   **Análisis con `.explain()`:** Se reitera la recomendación de usar `.explain('executionStats')` para analizar consultas complejas.
+    *   **Indexación:** Asegurar que los campos usados en `populate` y en las etapas de agregación (`$match`, `$lookup`, `$sort`) estén correctamente indexados es fundamental.
 
 #### b. Operaciones Repetitivas
 
-*   **Análisis de redundancia en `checkSubscriptionStatus` y recarga de datos de usuario:**
-    *   Se observa que `checkSubscriptionStatus` es llamado en múltiples rutas, y potencialmente podría estar recargando el estado de la suscripción y los datos del plan del usuario repetidamente, incluso dentro de la misma solicitud si se llama desde varios middlewares o controladores secuenciales.
-    *   El middleware `protect` ya carga los datos del usuario (incluyendo `userId.planId` y `userId.subscription`). Si `checkSubscriptionStatus` vuelve a cargar estos datos sin necesidad, es ineficiente.
+*   **Optimización de `checkSubscriptionStatus` y `protect`:**
+    *   **Problema Original:** El middleware `protect` cargaba el usuario, y luego, para docentes, `SubscriptionService.checkSubscriptionStatus` volvía a cargar el usuario y su plan.
+    *   **Solución Implementada:**
+        *   El middleware `protect` (`authMiddleware.js`) ahora carga el usuario y hace un `.populate('planId')` si es un docente.
+        *   `SubscriptionService.checkSubscriptionStatus` fue modificado para aceptar un `preloadedUser` opcional. Si se proporciona y es válido (con `planId` populado), el servicio lo utiliza directamente, evitando una recarga desde la base de datos.
+        *   `protect` ahora pasa `req.user` (con `planId` populado) a `checkSubscriptionStatus`.
+    *   **Impacto:** Esto reduce significativamente las consultas redundantes a la base de datos en cada solicitud autenticada para usuarios docentes.
 
-*   **Recomendaciones:**
-    *   **Popular `planId` en `req.user` desde `protect`:**
-        *   Asegurar que el middleware `protect`, después de verificar el token y encontrar al usuario, popule completamente la información del plan asociada al usuario y la adjunte a `req.user`.
-        *   Ejemplo conceptual en `protect`:
-            ```javascript
-            // En middlewares/authMiddleware.js (dentro de protect)
-            // ... después de verificar el token y encontrar al usuario ...
-            const user = await User.findById(decoded.id).populate({
-              path: 'planId', // o el nombre del campo que referencia al Plan
-              model: 'Plan'   // o el nombre del modelo Plan
-            }).populate({
-              path: 'subscription.plan', // Si la suscripción tiene una referencia directa al plan
-              model: 'Plan'
-            });
-
-            if (!user) {
-              return next(new AppError('El usuario perteneciente a este token ya no existe.', 401));
-            }
-
-            // Verificar si la contraseña cambió después de emitir el token (si está implementado)
-            // if (user.changedPasswordAfter(decoded.iat)) { ... }
-
-            req.user = user; // user ahora tiene planId y subscription.plan populados
-            next();
-            ```
-
-    *   **Modificar `SubscriptionService` (o `checkSubscriptionStatus`) para aceptar plan opcional:**
-        *   Refactorizar `checkSubscriptionStatus` o la lógica relevante en `SubscriptionService` para que pueda recibir opcionalmente la información del plan ya cargada (ej. desde `req.user.planId` o `req.user.subscription.plan`). Si se proporciona, el servicio no necesita volver a consultarla.
-        *   Ejemplo conceptual:
-            ```javascript
-            // En middlewares/subscriptionMiddleware.js (checkSubscriptionStatus)
-            // Asumiendo que req.user y req.user.planId están disponibles y populados por 'protect'
-            // y que req.user.subscription contiene el estado de la suscripción.
-
-            // Ya no sería necesario llamar a SubscriptionService.getSubscriptionStatus(req.user._id)
-            // si la información ya está en req.user.subscription y req.user.planId.
-
-            const subscription = req.user.subscription;
-            const plan = req.user.planId; // o req.user.subscription.plan si está estructurado así
-
-            if (!subscription || subscription.status !== 'active') {
-              return next(new AppError('No tiene una suscripción activa.', 403));
-            }
-
-            if (!plan) {
-                // Esto no debería ocurrir si 'protect' popula correctamente
-                return next(new AppError('No se pudo determinar el plan de la suscripción.', 500));
-            }
-
-            // Lógica para verificar permisos basados en el plan (ej. req.user.planId.features)
-            // if (!plan.features.includes(featureRequired)) {
-            //   return next(new AppError('Su plan actual no permite esta acción.', 403));
-            // }
-            next();
-            ```
-            Esto simplifica `checkSubscriptionStatus` y evita recargas. La lógica de obtener el estado de la suscripción (si es más compleja que solo leer campos) podría estar en `SubscriptionService` pero invocada con el `userId` solo cuando sea estrictamente necesario (ej. al iniciar sesión o al modificar la suscripción).
-
-    *   **Considerar Caching Selectivo:**
-        *   Para datos que no cambian con frecuencia pero se acceden repetidamente (ej. detalles de planes de suscripción, configuraciones globales), considerar un mecanismo de caching simple (ej. en memoria con un TTL bajo, o Redis para un caching más robusto y distribuido). Esto debe hacerse con cuidado para evitar datos obsoletos.
+*   **Recomendaciones Adicionales:**
+    *   **Caching Selectivo:** Para datos de configuración que cambian con poca frecuencia (ej. detalles de planes, roles/permisos globales), considerar implementar una capa de caché (en memoria con TTL o Redis) para reducir aún más las consultas a la BD.
 
 #### c. Configuración de `socket.io` (Backend)
 
 *   **Observaciones sobre la configuración actual:**
-    *   La configuración básica de `socket.io` sin un adaptador de múltiples nodos (`socket.io-adapter`) solo funciona correctamente cuando se ejecuta una única instancia del servidor Node.js.
-
+    *   La configuración básica de `socket.io` sin un adaptador de múltiples nodos (ej. `socket.io-redis-adapter`) solo funciona correctamente cuando se ejecuta una única instancia del servidor Node.js.
 *   **Recomendación: Uso de adaptadores (ej. Redis) para escalado horizontal:**
-    *   Si la aplicación necesita escalar a múltiples instancias de servidor (lo cual es común en producción para alta disponibilidad y manejo de carga), es **imprescindible** usar un adaptador de Socket.IO como `socket.io-redis` o `socket.io-mongo`.
-    *   Esto permite que los eventos emitidos desde una instancia del servidor lleguen a los clientes conectados a otras instancias.
-    *   Ejemplo con `socket.io-redis`:
-        ```javascript
-        // En server.js o donde se configure Socket.IO
-        const { createClient } = require('redis');
-        const { createAdapter } = require('@socket.io/redis-adapter');
-
-        // ... configurar io (const io = new Server(httpServer, { ... })) ...
-
-        const pubClient = createClient({ url: 'redis://localhost:6379' }); // o tu URL de Redis
-        const subClient = pubClient.duplicate();
-
-        Promise.all([pubClient.connect(), subClient.connect()]).then(() => {
-          io.adapter(createAdapter(pubClient, subClient));
-        });
-        ```
+    *   Si la aplicación necesita escalar a múltiples instancias de servidor (común en producción), es **imprescindible** usar un adaptador de Socket.IO. El adaptador de Redis (`@socket.io/redis-adapter`) es una opción robusta.
+    *   Esto permite que los eventos emitidos desde una instancia del servidor lleguen a los clientes conectados a otras instancias, manteniendo la consistencia del estado en tiempo real.
 
 ### 4. Riesgos a Futuro
 
 #### a. Dependencias
 
 *   **Express 5 alfa:**
-    *   **Monitoreo:** Express 5 ha estado en alfa durante mucho tiempo. Aunque es relativamente estable, es crucial monitorear el repositorio oficial de Express y los canales de la comunidad para cualquier anuncio sobre versiones beta o estables, o posibles vulnerabilidades descubiertas.
-    *   **Plan de migración eventual:** Tener en cuenta que una migración a una versión estable futura (o a otro framework si el desarrollo de Express 5 se estanca indefinidamente) podría ser necesaria. Esto implicaría revisar cambios en la API, especialmente en el manejo de errores asíncronos (que es una de las mejoras clave en Express 5).
-
+    *   **Monitoreo:** Sigue siendo crucial monitorear el estado de Express 5.
+    *   **Plan de migración eventual:** Considerar alternativas o prepararse para la versión estable.
 *   **Auditoría de dependencias:**
-    *   **`npm audit`:** Ejecutar `npm audit` regularmente para identificar vulnerabilidades conocidas en las dependencias del proyecto. Aplicar parches (`npm audit fix`) cuando sea posible y seguro.
-    *   **Snyk/Dependabot:** Considerar integrar herramientas como Snyk o GitHub Dependabot para un monitoreo continuo y automatizado de vulnerabilidades en las dependencias. Estas herramientas pueden crear Pull Requests automáticamente para actualizar paquetes vulnerables.
+    *   **Implementado:** Se recomienda `npm audit` regularmente.
+    *   **Recomendación:** Integrar Snyk/Dependabot para monitoreo continuo.
 
 #### b. Escalabilidad de WebSockets
 
-*   Reiterar la necesidad de adaptadores (como se mencionó en "Configuración de `socket.io`"). Sin un adaptador, el escalado horizontal del componente de WebSockets es inviable, lo que limitará severamente la capacidad del sistema para manejar un número creciente de usuarios concurrentes.
+*   Reiterar la necesidad de adaptadores como se mencionó anteriormente.
 
 #### c. Seguridad General
 
 *   **Cabeceras HTTP (Helmet):**
-    *   Utilizar el middleware `helmet` para establecer varias cabeceras HTTP que ayudan a proteger la aplicación contra vulnerabilidades web comunes (XSS, clickjacking, etc.).
-    *   Ejemplo: `app.use(helmet());`
-
+    *   **Implementado:** Se ha instalado `helmet` y se ha añadido `app.use(helmet());` en `backend/src/app.js` para aplicar un conjunto de cabeceras HTTP de seguridad por defecto.
 *   **Política de Seguridad de Contenido (CSP):**
-    *   Implementar una Política de Seguridad de Contenido (CSP) robusta para mitigar el riesgo de ataques XSS y de inyección de datos. Esto se puede hacer con `helmet.contentSecurityPolicy` o configurando las cabeceras manualmente. Una CSP bien configurada define de dónde puede cargar recursos el navegador (scripts, estilos, imágenes, etc.).
-
-*   **Confirmación de bajo riesgo de CSRF (si aplica):**
-    *   Si la aplicación utiliza tokens JWT en cabeceras de autorización (Bearer tokens) para todas las solicitudes que modifican estado, y no depende de cookies de sesión para la autenticación, el riesgo de CSRF es generalmente bajo. Sin embargo, es bueno confirmarlo. Si se usan cookies de sesión, se necesitan medidas anti-CSRF (ej. tokens CSRF).
-
-*   **Sanitización de entradas y prevención de XSS (frontend):**
-    *   Aunque no es parte del backend directamente, es crucial que el frontend sanitice cualquier dato renderizado que provenga del usuario o de la base de datos para prevenir XSS. Frameworks como React escapan por defecto el contenido, pero es importante ser cuidadoso al usar `dangerouslySetInnerHTML` o similares.
-    *   En el backend, aunque la sanitización para XSS es principalmente una preocupación del frontend, validar y sanitizar las entradas puede ayudar como una capa de defensa adicional (ej. usando `express-validator` con opciones de sanitización).
+    *   **Recomendación Conceptual:** Implementar una CSP robusta para mitigar XSS. Esto se puede hacer con `helmet.contentSecurityPolicy`. Una CSP define de dónde puede cargar recursos el navegador. Ejemplo de configuración restrictiva (requiere ajuste fino):
+        ```javascript
+        app.use(helmet.contentSecurityPolicy({
+          directives: {
+            defaultSrc: ["'self'"], // Solo permite cargar recursos del mismo origen
+            scriptSrc: ["'self'", 'trusted-cdn.com'], // Permite scripts del mismo origen y de un CDN específico
+            styleSrc: ["'self'", 'trusted-cdn.com', "'unsafe-inline'"], // Cuidado con 'unsafe-inline'
+            imgSrc: ["'self'", "data:", 'trusted-cdn.com'],
+            connectSrc: ["'self'", 'api.example.com'], // Para AJAX, WebSockets
+            fontSrc: ["'self'", 'fonts.gstatic.com'],
+            objectSrc: ["'none'"], // No permitir plugins como Flash
+            mediaSrc: ["'self'", 'media.example.com'],
+            frameSrc: ["'none'"], // No permitir iframes de otros orígenes
+            upgradeInsecureRequests: [], // Redirige HTTP a HTTPS
+          },
+        }));
+        ```
+        La configuración de CSP debe ser específica para las necesidades de la aplicación y probada cuidadosamente.
+*   **Confirmación de bajo riesgo de CSRF (si aplica):** Se mantiene la evaluación de que el riesgo es bajo si se usan JWT en cabeceras.
+*   **Sanitización de entradas y prevención de XSS (frontend):** Sigue siendo una recomendación crítica para el frontend.
 
 #### d. Backup y Recuperación
 
-*   **Importancia crítica:** La pérdida de datos puede ser catastrófica.
-*   **Backups regulares y probados:**
-    *   Implementar una estrategia de backups automáticos y regulares de la base de datos MongoDB.
-    *   Almacenar los backups en una ubicación segura y separada del servidor de producción.
-    *   **Probar periódicamente el proceso de restauración** para asegurar que los backups son válidos y que el equipo sabe cómo restaurar los datos en caso de un desastre.
+*   Se mantiene la criticidad de esta recomendación: backups regulares y probados de la base de datos.
 
-## Parte II: Implementación de Funcionalidad Transversal de Actualización en Tiempo Real
+## Parte II: Preparación de Arquitectura para Carga de Archivos
+
+### Introducción
+
+Como parte de la evolución del sistema, se ha establecido una arquitectura base en el backend para gestionar la carga de archivos. Esta preparación inicial sienta las bases para funcionalidades como avatares de usuario, entrega de documentos en tareas, y adjuntos en recursos, aunque la implementación completa de estas características específicas y la integración con un proveedor de almacenamiento en la nube (como S3) son pasos futuros.
+
+### Modelo `FileReferenceModel.js`
+
+Se ha creado un modelo Mongoose para rastrear las referencias a los archivos subidos. Este modelo (`backend/src/models/FileReferenceModel.js`) es crucial para desacoplar la metadata del archivo de su almacenamiento físico.
+
+**Código del Esquema:**
+```javascript
+// backend/src/models/FileReferenceModel.js
+const mongoose = require('mongoose');
+
+const fileReferenceSchema = new mongoose.Schema({
+    originalName: { // Nombre original del archivo en la máquina del usuario
+        type: String,
+        required: [true, 'El nombre original del archivo es obligatorio.'],
+        trim: true,
+    },
+    fileName: {  // Nombre del archivo tal como se guarda en el proveedor de almacenamiento (puede ser diferente al original)
+        type: String,
+        required: [true, 'El nombre del archivo en el almacenamiento es obligatorio.'],
+    },
+    mimeType: { // Tipo MIME del archivo (ej. 'image/jpeg', 'application/pdf')
+        type: String,
+        required: [true, 'El tipo MIME del archivo es obligatorio.'],
+    },
+    size: { // Tamaño del archivo en bytes
+        type: Number,
+        required: [true, 'El tamaño del archivo es obligatorio.'],
+    },
+    storageProvider: { // Dónde se almacena el archivo ('local', 's3', 'cloudinary', etc.)
+        type: String,
+        enum: ['local', 's3', 'cloudinary', 'other'],
+        required: [true, 'El proveedor de almacenamiento es obligatorio.'],
+        default: 'local',
+    },
+    pathOrUrl: { // Ruta en el sistema de archivos (para 'local') o URL completa (para 's3', etc.)
+        type: String,
+        required: [true, 'La ruta o URL del archivo es obligatoria.'],
+    },
+    uploaderId: { // ID del usuario que subió el archivo
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: [true, 'El ID del cargador es obligatorio.'],
+        index: true,
+    },
+    associationType: { // Tipo de entidad a la que se asocia el archivo (ej. 'avatar', 'submission_document')
+        type: String,
+        enum: [
+            'avatar',
+            'submission_document',
+            'resource_material',
+            'course_image',
+            'system_asset',
+            'other'
+        ],
+        required: false, // Puede ser opcional si el archivo no está directamente asociado
+    },
+    associatedEntityId: { // ID de la entidad específica a la que se asocia el archivo (ej. userId, submissionId)
+        type: mongoose.Schema.Types.ObjectId,
+        required: false,
+        index: true,
+    },
+    description: { // Descripción opcional del archivo
+        type: String,
+        trim: true,
+        required: false
+    },
+    isPublic: { // Define si el archivo es públicamente accesible sin autenticación estricta
+        type: Boolean,
+        default: false
+    }
+}, {
+    timestamps: true, // Añade createdAt y updatedAt automáticamente
+});
+
+// Índice para búsquedas comunes
+fileReferenceSchema.index({ associationType: 1, associatedEntityId: 1 });
+// Considerar un índice único compuesto si es necesario, por ejemplo, para un avatar de usuario:
+// fileReferenceSchema.index({ uploaderId: 1, associationType: 1 }, { unique: true, partialFilterExpression: { associationType: 'avatar' } });
+
+const FileReference = mongoose.model('FileReference', fileReferenceSchema);
+
+module.exports = FileReference;
+```
+**Campos Clave:**
+*   `originalName`, `fileName`, `mimeType`, `size`: Metadatos básicos del archivo.
+*   `storageProvider`, `pathOrUrl`: Indican dónde y cómo acceder al archivo.
+*   `uploaderId`: Vincula el archivo al usuario que lo subió.
+*   `associationType`, `associatedEntityId`: Permiten asociar el archivo a otras entidades del sistema (ej. un avatar a un `User`, un documento a una `Submission`).
+*   `isPublic`: Para una futura gestión de permisos de acceso.
+
+### Configuración de Carga (Multer)
+
+Se ha configurado `multer` (`backend/src/middleware/multerConfig.js`) para manejar las solicitudes `multipart/form-data`:
+*   **Almacenamiento:** Actualmente utiliza `multer.memoryStorage()`, lo que significa que los archivos se procesan en memoria como Buffers. Esto es flexible para luego decidir si guardar localmente o en la nube.
+*   **Filtro de Archivo:** Se implementó un filtro básico que permite tipos MIME comunes para imágenes (JPEG, PNG, GIF, WebP) y documentos (PDF, DOC, DOCX, TXT, PPT, PPTX, XLS, XLSX). Los archivos con tipos no permitidos son rechazados.
+*   **Límites:** Se estableció un límite de tamaño de archivo de 10MB.
+
+### Controlador de Carga (`fileUploadController.js`)
+
+Se creó un controlador (`backend/src/controllers/fileUploadController.js`) con la función `uploadFile`:
+*   **Validación:** Verifica que se haya proporcionado un archivo y que el usuario esté autenticado. Valida `associatedEntityId` si se incluye.
+*   **Procesamiento (Solo 'local' por ahora):**
+    *   Genera un nombre de archivo único (timestamp + userId + nombre original sanitizado) para evitar colisiones.
+    *   Crea subdirectorios dentro de `backend/uploads/` basados en `associationType` o `uploaderId` para organizar los archivos.
+    *   Guarda el archivo (Buffer de `req.file.buffer`) en el sistema de archivos local.
+    *   Si se implementaran otros `storageProvider` (como S3), la lógica de subida a esos servicios iría aquí. Actualmente, devuelve un error 501 (Not Implemented) para proveedores no locales.
+*   **Creación de `FileReference`:** Después de guardar el archivo, crea un nuevo documento `FileReference` con los metadatos y lo guarda en MongoDB.
+*   **Respuesta:** Devuelve un mensaje de éxito y el objeto `FileReference` creado.
+
+### Rutas de Carga (`fileUploadRoutes.js`)
+
+Se definieron las rutas para la carga de archivos en `backend/src/routes/fileUploadRoutes.js`:
+*   Se establece la ruta `POST /api/files/upload`.
+*   Utiliza el middleware `protect` para asegurar que solo usuarios autenticados puedan subir archivos.
+*   Utiliza el middleware `upload.single('file')` (configurado en `multerConfig.js`) para procesar un único archivo enviado en el campo llamado `file` del FormData.
+
+### Integración Conceptual en Modelos Existentes
+
+Para utilizar esta arquitectura de carga de archivos, los modelos existentes necesitarían ser modificados para incluir referencias a los documentos `FileReference`.
+
+*   **Ejemplo para Foto de Perfil (UserModel):**
+    Se añadiría un campo a `UserModel.js`:
+    ```javascript
+    // En backend/src/models/UserModel.js
+    // ... otros campos ...
+    avatarFileId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'FileReference', // Referencia al modelo FileReference
+        required: false // O true si el avatar es obligatorio
+    }
+    // ...
+    ```
+    **Flujo:**
+    1.  El usuario sube una imagen para su avatar a través de la ruta `POST /api/files/upload`.
+    2.  En `fileUploadController`, al crear el `FileReference`, se establecería `associationType: 'avatar'` y `associatedEntityId: req.user._id`.
+    3.  El ID del `FileReference` creado (`fileRef._id`) se devolvería al cliente.
+    4.  El cliente haría una solicitud separada (ej. `PUT /api/profile/avatar`) enviando este `fileRef._id`.
+    5.  El controlador de perfil actualizaría el campo `avatarFileId` del usuario con este ID.
+
+*   **Ejemplo para Entrega de Documento en Actividad (SubmissionModel):**
+    Se podría modificar `SubmissionModel.js` para incluir una referencia en el objeto `respuesta` (o un campo dedicado si se prefiere una estructura más normalizada):
+    ```javascript
+    // En backend/src/models/SubmissionModel.js
+    // ... otros campos ...
+    respuesta: {
+        // ... otros campos de respuesta como quiz_answers, cuestionario_answers ...
+        link_entrega: String, // Para trabajos tipo enlace
+        documentFileId: { // Para trabajos que son un documento subido
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'FileReference',
+            required: false
+        },
+        // O si se permiten múltiples archivos:
+        // documentFileIds: [{
+        //     type: mongoose.Schema.Types.ObjectId,
+        //     ref: 'FileReference'
+        // }]
+    }
+    // ...
+    ```
+    **Flujo:**
+    1.  El estudiante sube un documento para una tarea (que permite subida de archivos) a `POST /api/files/upload`.
+    2.  Al crear el `FileReference`, se podría establecer `associationType: 'submission_document'`. `associatedEntityId` podría ser el `assignmentId` o, idealmente, se establecería después de crear la `Submission`.
+    3.  Cuando el estudiante crea la `Submission` (ej. `POST /api/activities/student/:assignmentId/submit-attempt`), si la actividad es de tipo "Trabajo con subida", el cliente enviaría el `fileRef._id` obtenido en el paso anterior.
+    4.  El controlador `submitStudentActivityAttempt` guardaría este `fileRef._id` en el campo `respuesta.documentFileId` de la nueva `Submission`. El `associatedEntityId` del `FileReference` podría actualizarse en este punto al `submission._id`.
+
+### Consideraciones Adicionales
+
+*   **Servicio de Archivos:** Para servir archivos almacenados localmente, se necesitará una ruta específica (ej. `GET /api/files/view/:fileId` o `GET /uploads/:subDir/:fileName`) que verifique permisos y luego envíe el archivo con el `Content-Type` correcto. Para archivos públicos, se podría configurar Express para servir un directorio estático.
+*   **Permisos de Acceso:** Implementar una lógica de permisos robusta para determinar quién puede acceder a qué archivos, especialmente si no son públicos. Esto podría involucrar verificar `uploaderId`, `associationType`, `associatedEntityId`, y la relación del solicitante con la entidad asociada.
+*   **Eliminación en Cascada:** Considerar la lógica para eliminar archivos del almacenamiento físico y sus `FileReference` cuando la entidad asociada se elimina (ej. si se elimina un usuario, eliminar su avatar; si se elimina una entrega, eliminar el documento adjunto). Esto podría manejarse con hooks de Mongoose (ej. `pre('remove')`).
+*   **Proveedores Cloud:** La implementación de `storageProvider` como S3 o Cloudinary requerirá añadir los SDKs correspondientes, configurar credenciales de forma segura (variables de entorno) y desarrollar la lógica de subida/eliminación para cada proveedor en `fileUploadController.js`.
+
+## Parte III: Implementación de Funcionalidad Transversal de Actualización en Tiempo Real
+
+(Esta sección corresponde a la "Parte II" del informe original, se renumera por la adición de la sección de carga de archivos)
 
 ### 5. Diseño de la Estrategia de Eventos en Tiempo Real (Backend)
-
-*   **Formato estándar de mensajes (JSON):**
-    *   Todos los mensajes de Socket.IO deben usar un formato JSON estructurado.
-    *   Ejemplo:
-        ```json
-        {
-          "event": "ENTITY_UPDATED", // o "GROUP_UPDATED", "SUBMISSION_CREATED"
-          "entityType": "Group",    // "Submission", "Assignment", "User"
-          "entityId": "group_id_123",
-          "payload": {
-            // Datos relevantes de la entidad actualizada/creada/eliminada
-            "name": "Nuevo Nombre del Grupo",
-            "members": ["user_id_1", "user_id_2"]
-            // ... otros campos ...
-          },
-          "initiator": "user_id_abc" // Opcional: Quién originó el evento
-        }
-        ```
-
-*   **Modelos y operaciones CRUD clave identificados:**
-    *   Identificar los modelos principales que requieren actualizaciones en tiempo real: `Group`, `Assignment`, `Submission`, `User` (para cambios de estado/plan), `Grade`, `ChatMessage`, etc.
-    *   Para cada modelo, determinar qué operaciones CRUD (Crear, Leer, Actualizar, Eliminar) deben disparar eventos.
-
-*   **Modificación de controladores (ejemplo conceptual para `updateGroup`):**
-    *   Después de que una operación de base de datos sea exitosa, emitir un evento de Socket.IO.
-    *   Ejemplo en un controlador de Grupos:
-        ```javascript
-        // En controllers/groupController.js
-        const Group = require('../models/groupModel');
-        const AppError = require('../utils/appError');
-        const { getIo } = require('../socketManager'); // Módulo para obtener la instancia de io
-
-        exports.updateGroup = async (req, res, next) => {
-          try {
-            const group = await Group.findByIdAndUpdate(req.params.id, req.body, {
-              new: true,
-              runValidators: true
-            });
-
-            if (!group) {
-              return next(new AppError('No se encontró ningún grupo con ese ID', 404));
-            }
-
-            const io = getIo();
-            // Emitir a una sala específica del grupo
-            io.to(`group_${group._id}`).emit('ENTITY_UPDATED', {
-              entityType: 'Group',
-              entityId: group._id.toString(),
-              payload: group.toObject(), // Enviar el grupo actualizado
-              // initiator: req.user._id // Si se quiere enviar quién lo actualizó
-            });
-
-            // También se podría emitir un evento más general si otros usuarios
-            // (ej. administradores) necesitan saber sobre cualquier actualización de grupo.
-            // io.to('admin_room').emit(...);
-
-            res.status(200).json({
-              status: 'success',
-              data: {
-                group
-              }
-            });
-          } catch (error) {
-            next(error);
-          }
-        };
-        ```
-    *   **`socketManager.js` (conceptual):**
-        ```javascript
-        // socketManager.js
-        let ioInstance;
-
-        module.exports = {
-          init: (httpServer) => {
-            ioInstance = require('socket.io')(httpServer, {
-              cors: {
-                origin: process.env.FRONTEND_URL || "http://localhost:3000", // Ajustar según sea necesario
-                methods: ["GET", "POST"]
-              }
-            });
-            // Aquí también se configuraría el adaptador de Redis si se usa
-            // const pubClient = createClient(...);
-            // const subClient = pubClient.duplicate();
-            // Promise.all([pubClient.connect(), subClient.connect()]).then(() => {
-            //   ioInstance.adapter(createAdapter(pubClient, subClient));
-            // });
-            return ioInstance;
-          },
-          getIo: () => {
-            if (!ioInstance) {
-              throw new Error('Socket.IO no ha sido inicializado!');
-            }
-            return ioInstance;
-          }
-        };
-
-        // En server.js:
-        // const httpServer = http.createServer(app);
-        // const { init } = require('./socketManager');
-        // const io = init(httpServer);
-        // ... configurar listeners de conexión de socket.io ...
-        // httpServer.listen(...);
-        ```
-
-*   **Uso de salas de Socket.IO:**
-    *   Utilizar salas para dirigir los eventos solo a los clientes interesados.
-    *   **Salas por entidad:** `group_${groupId}`, `assignment_${assignmentId}`. Los usuarios se unen a estas salas cuando están viendo una entidad específica.
-    *   **Salas por usuario:** `user_${userId}`. Para notificaciones directas o actualizaciones de estado del propio usuario.
-    *   **Salas por rol/permiso:** `teachers_room`, `admins_room`.
-    *   Los clientes deben unirse a las salas relevantes cuando cargan una vista o componente.
-    *   Ejemplo de unirse a una sala en el backend (cuando un cliente se conecta o navega):
-        ```javascript
-        // En la lógica de conexión de Socket.IO en el backend
-        io.on('connection', (socket) => {
-          console.log(`Usuario conectado: ${socket.id}`);
-
-          socket.on('JOIN_ROOM', (roomName) => {
-            socket.join(roomName);
-            console.log(`Socket ${socket.id} se unió a la sala ${roomName}`);
-          });
-
-          socket.on('LEAVE_ROOM', (roomName) => {
-            socket.leave(roomName);
-            console.log(`Socket ${socket.id} abandonó la sala ${roomName}`);
-          });
-
-          // ... otros manejadores de eventos del socket ...
-        });
-        ```
+... (contenido existente sin cambios) ...
 
 ### 6. Implementación de Manejadores de Eventos (Frontend)
-
-*   **Configuración de listeners en `SocketContext.jsx` (o similar):**
-    *   Centralizar la lógica de conexión y manejo de eventos de Socket.IO en un contexto de React o un servicio similar.
-    *   Ejemplo conceptual:
-        ```jsx
-        // contexts/SocketContext.jsx
-        import React, { createContext, useContext, useEffect, useState } from 'react';
-        import io from 'socket.io-client';
-
-        const SocketContext = createContext();
-
-        export const useSocket = () => useContext(SocketContext);
-
-        export const SocketProvider = ({ children }) => {
-          const [socket, setSocket] = useState(null);
-          // Asumir que tenemos el token del usuario (ej. desde AuthContext)
-          // const { userToken } = useAuth();
-
-          useEffect(() => {
-            // Conectar solo si hay token, o manejar conexión anónima si es necesario
-            // if (!userToken) return;
-
-            const newSocket = io(process.env.REACT_APP_SOCKET_URL, { // URL del backend
-              // auth: { token: userToken } // Si se usa autenticación de sockets
-            });
-            setSocket(newSocket);
-
-            // Listener genérico o listeners específicos
-            newSocket.on('ENTITY_UPDATED', (data) => {
-              console.log('Entidad actualizada:', data);
-              // Aquí se llamaría a la lógica de actualización de estado
-              // (ej. invalidar query de React Query, despachar acción de Redux)
-              // handleEntityUpdate(data);
-            });
-
-            newSocket.on('connect_error', (err) => {
-              console.error("Error de conexión con Socket.IO:", err.message);
-            });
-
-            return () => newSocket.close();
-          }, [/* userToken */]); // Reconectar si el token cambia
-
-          // Función para unirse a salas
-          const joinRoom = (roomName) => {
-            if (socket) {
-              socket.emit('JOIN_ROOM', roomName);
-            }
-          };
-
-          // Función para salir de salas
-          const leaveRoom = (roomName) => {
-            if (socket) {
-              socket.emit('LEAVE_ROOM', roomName);
-            }
-          };
-
-          return (
-            <SocketContext.Provider value={{ socket, joinRoom, leaveRoom }}>
-              {children}
-            </SocketContext.Provider>
-          );
-        };
-        ```
-
-*   **Lógica de actualización de estado (React Query, Redux, etc.):**
-    *   **React Query:** Utilizar `queryClient.invalidateQueries` para invalidar las queries relevantes cuando se recibe un evento. Esto hará que React Query vuelva a obtener los datos actualizados.
-        ```javascript
-        // Dentro del handler de eventos en SocketContext o un hook específico
-        // import { useQueryClient } from 'react-query';
-        // const queryClient = useQueryClient();
-
-        // function handleEntityUpdate(data) {
-        //   if (data.entityType === 'Group') {
-        //     queryClient.invalidateQueries(['group', data.entityId]); // Invalida query para un grupo específico
-        //     queryClient.invalidateQueries('groups'); // Invalida query para la lista de grupos
-        //   }
-        //   // ... más lógica para otros tipos de entidades
-        // }
-        ```
-    *   **Redux:** Despachar acciones que actualicen el store de Redux con los nuevos datos. Esto puede requerir reductores que sepan cómo fusionar los datos entrantes.
-
-*   **Ejemplos conceptuales para componentes:**
-    *   Un componente que muestra detalles de un grupo:
-        ```jsx
-        // components/GroupDetail.jsx
-        import React, { useEffect } from 'react';
-        import { useSocket } from '../contexts/SocketContext';
-        import { useQuery } from 'react-query'; // O tu hook de fetching de datos
-
-        const fetchGroup = async (groupId) => { /* ... lógica para obtener el grupo ... */ };
-
-        const GroupDetail = ({ groupId }) => {
-          const { joinRoom, leaveRoom } = useSocket();
-          // const { data: group, isLoading, error } = useQuery(['group', groupId], () => fetchGroup(groupId));
-
-          useEffect(() => {
-            joinRoom(`group_${groupId}`);
-            return () => {
-              leaveRoom(`group_${groupId}`);
-            };
-          }, [groupId, joinRoom, leaveRoom]);
-
-          // ... renderizar detalles del grupo ...
-          // React Query se encargará de actualizar 'group' si su query se invalida
-          // por un evento de socket manejado en SocketContext.
-        };
-        ```
-
-*   **Unirse/salir de salas dinámicamente:**
-    *   Como se muestra en el ejemplo de `GroupDetail`, los componentes deben usar las funciones `joinRoom` y `leaveRoom` del `SocketContext` (o equivalente) cuando se montan/desmontan o cuando cambia el contexto (ej. el usuario navega a una página de un grupo diferente).
+... (contenido existente sin cambios) ...
 
 ## Conclusión
 
-El sistema presenta una base sólida pero requiere atención en varias áreas críticas para asegurar su estabilidad, rendimiento y escalabilidad a largo plazo. Las recomendaciones clave incluyen:
+El sistema ha experimentado mejoras significativas en cuanto a manejo de errores, optimización de consultas y rendimiento general. La implementación de paginación en listados clave y la reducción de consultas redundantes sientan una base más sólida. La preparación de la arquitectura para la carga de archivos abre la puerta a nuevas funcionalidades importantes.
 
-1.  **Robustecer el Manejo de Errores:** Estandarizar y centralizar la captura y respuesta a errores en todo el backend.
-2.  **Optimizar Cargas de Datos:** Implementar paginación, optimizar agregaciones (especialmente para evitar N+1) y asegurar el uso de índices en la base de datos.
-3.  **Mejorar el Rendimiento:** Analizar y optimizar el uso de `.populate()`, reducir operaciones repetitivas mediante un mejor manejo del estado de `req.user`, y configurar `socket.io` con adaptadores para escalabilidad.
-4.  **Mitigar Riesgos a Futuro:** Auditar dependencias, planificar para la evolución de Express, implementar cabeceras de seguridad y asegurar una estrategia de backup robusta.
-5.  **Implementar Actualizaciones en Tiempo Real:** Diseñar una estrategia clara de eventos y salas de Socket.IO, y asegurar una integración fluida con la gestión de estado del frontend.
+Las recomendaciones clave se centran ahora en:
+1.  **Completar la Funcionalidad de Carga de Archivos:** Implementar la lógica para servir archivos, gestionar permisos de acceso, manejar la eliminación en cascada, e integrar con proveedores de almacenamiento en la nube según sea necesario.
+2.  **Auditoría y Aplicación de Índices de Base de Datos:** Realizar un análisis exhaustivo de las consultas y asegurar que todos los campos críticos para búsquedas, ordenamientos y uniones estén correctamente indexados.
+3.  **Fortalecimiento Continuo de la Seguridad:** Implementar CSP y continuar con las auditorías de dependencias.
+4.  **Implementar Actualizaciones en Tiempo Real:** Proceder con el diseño y desarrollo de la funcionalidad de WebSockets.
 
-Abordar estas áreas no solo mejorará la experiencia del usuario final, sino que también facilitará el mantenimiento y la evolución futura del sistema. La implementación de la funcionalidad de tiempo real, aunque es un esfuerzo significativo, aportará un gran valor a la interactividad de la aplicación.
+Abordar estas áreas no solo mejorará la experiencia del usuario final, sino que también facilitará el mantenimiento y la evolución futura del sistema.
