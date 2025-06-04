@@ -28,7 +28,7 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import ArchiveIcon from '@mui/icons-material/Archive';
 import RestoreIcon from '@mui/icons-material/Restore';
 import PeopleIcon from '@mui/icons-material/People';
-import CodeIcon from '@mui/icons-material/Code';
+import PinRoundedIcon from '@mui/icons-material/PinRounded';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import InfoIcon from '@mui/icons-material/Info'; // For usage display
@@ -119,9 +119,9 @@ const TeacherGroupCard = ({ group, index, isArchived, onArchive, onRestore, isPr
                 {group.nombre}
               </Typography>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-                <CodeIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <PinRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                 <Typography variant="body2" color="text.secondary">
-                  <strong>Código de Acceso:</strong> {group.codigo_acceso}
+                  <strong>Código:</strong> {group.codigo_acceso}
                 </Typography>
               </Stack>
               {group.descripcion && (
@@ -130,7 +130,7 @@ const TeacherGroupCard = ({ group, index, isArchived, onArchive, onRestore, isPr
                 </Typography>
               )}
               <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-                <Chip icon={<PeopleIcon sx={{ fontSize: 16 }} />} label={`${group.approvedStudentCount || 0} estudiantes`} size="small" color={isArchived ? 'default' : 'primary'} variant="filled" />
+                <Chip icon={<PeopleIcon sx={{ fontSize: 16 }} />} label={`${group.approvedStudentCount || 0} estudiantes`} size="small" color={isArchived ? 'default' : 'secondary'} variant="filled" />
                 {isArchived && (<Chip icon={<ArchiveIcon sx={{ fontSize: 16 }} />} label="Archivado" size="small" color="default" variant="outlined" />)}
               </Stack>
             </Box>
@@ -146,7 +146,7 @@ const TeacherGroupCard = ({ group, index, isArchived, onArchive, onRestore, isPr
                 
                 {!isArchived ? (
                   <Tooltip title="Archivar grupo">
-                    <IconButton onClick={(e) => handleActionClick(e, onArchive)} disabled={isProcessing} sx={{ bgcolor: (theme) => alpha(theme.palette.warning.main, 0.1), '&:hover': { bgcolor: (theme) => alpha(theme.palette.warning.main, 0.2) } }}>
+                    <IconButton onClick={(e) => handleActionClick(e, onArchive)} disabled={isProcessing} sx={{ bgcolor: (theme) => alpha(theme.palette.info.main, 0.1), '&:hover': { bgcolor: (theme) => alpha(theme.palette.info.main, 0.2) } }}>
                       <ArchiveIcon color="info" />
                     </IconButton>
                   </Tooltip>
@@ -472,7 +472,7 @@ function TeacherGroupsPage() {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
-          <Card sx={{ mb: 4, background: 'linear-gradient(135deg, #5d4aab 0%, #7c6fd1 100%)' }}>
+          <Card sx={{ mb: 4, background: 'linear-gradient(135deg,rgb(28, 77, 56) 0%,rgb(8, 53, 49) 100%)' }}>
             <CardContent sx={{ py: 3 }}>
               <Stack direction="row" spacing={4} justifyContent="center" alignItems="center">
                 <Box sx={{ textAlign: 'center' }}><Typography variant="h4" sx={{ color: 'white', fontWeight: 700 }}>{stats.active}</Typography><Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>Grupos Activos</Typography></Box>

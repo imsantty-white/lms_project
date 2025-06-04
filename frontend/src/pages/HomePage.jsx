@@ -341,7 +341,7 @@ function HomePage() {
               </Typography>
               {/* Aquí podrías añadir una ilustración o un video corto */}
               <Box sx={{ maxWidth: 500, mx: 'auto', my: 4, p: 2, background: alpha(theme.palette.primary.main, 0.05), borderRadius: 3 }}>
-                 <LightbulbIcon sx={{ fontSize: 80, color: theme.palette.text.primary, opacity: 0.6 }} />
+                 <LightbulbIcon sx={{ fontSize: 80, color: theme.palette.primary.main, opacity: 0.6 }} />
                  <Typography variant="caption" display="block" sx={{mt: 1, color: theme.palette.text.hint}}>
                     Visual representativo de la innovación
                  </Typography>

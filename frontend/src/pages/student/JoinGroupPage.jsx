@@ -238,7 +238,7 @@ function JoinGroupPage() {
                     borderRadius: 2, 
                     bgcolor: theme.palette.background.default // Fondo acorde al modo
                   }}>
-                    <Typography variant="h6" gutterBottom color="primary">
+                    <Typography variant="h6" gutterBottom color="text.primary" sx={{ textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)' }}>
                       Código de Acceso:
                     </Typography>
                     <TextField
@@ -276,7 +276,7 @@ function JoinGroupPage() {
                   sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}
                 >
                   <HelpOutlineIcon color="action" />
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
                     ¿No tienes un código? Solicita a tu profesor que te comparta el código del grupo.
                   </Typography>
                 </MotionBox>

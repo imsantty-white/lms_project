@@ -72,8 +72,8 @@ const ContentCard = React.memo(({
           display: 'flex',
           alignItems: 'center',
           // Default header styles, can be overridden by headerStyleProps
-          bgcolor: itemTypeLabel === 'Recurso' ? theme.palette.primary.light : theme.palette.secondary.light,
-          color: itemTypeLabel === 'Recurso' ? theme.palette.primary.contrastText : theme.palette.secondary.contrastText,
+          //bgcolor: itemTypeLabel === 'Recurso' ? theme.palette.primary.main : theme.palette.primary.main,
+          //color: itemTypeLabel === 'Recurso' ? theme.palette.primary.text : theme.palette.secondary.text,
           borderTopLeftRadius: 'inherit', // Inherit from Card's borderRadius
           borderTopRightRadius: 'inherit',
           ...headerStyleProps,

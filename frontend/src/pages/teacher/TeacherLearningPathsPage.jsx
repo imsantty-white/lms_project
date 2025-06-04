@@ -148,11 +148,11 @@ const LearningPathCard = ({ path, index, onEdit, onDelete, onNavigate }) => {
                               }}
                               size="small"
                               sx={(theme) => ({
-                                bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) },
+                                bgcolor: alpha(theme.palette.text.primary, 0.1),
+                                '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.2) },
                               })}
                             >
-                              <EditIcon fontSize="small" color="primary" />
+                              <EditIcon fontSize="small" color="text.primary" />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Eliminar">

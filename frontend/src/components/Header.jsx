@@ -226,7 +226,7 @@ const Header = React.memo(({ onToggleSidebar, sidebarOpen, mode, onToggleMode })
                     //to={isAuthenticated ? "/profile" : "/"} 
                     sx={{
                         textDecoration: 'none',
-                        color: isHomePage ? 'text.primary' : (theme.palette.mode === 'dark' ? 'primary.light' : 'primary.main'),
+                        color: isHomePage ? 'text.primary' : (theme.palette.mode === 'dark' ? 'primary.main' : 'primary.light'),
                         fontWeight: 700,
                         letterSpacing: 1,
                         fontSize: { xs: 18, sm: 20 },

@@ -310,226 +310,224 @@ function StudentViewLearningPathPage() {
                 </Typography>
 
                 {/* Lista de Módulos */}
-                <Paper spacing={2} sx={{ 
-                                        mb: 2, 
-                                        boxShadow: theme.shadows[3], // Use theme's shadow definition
-                                        borderRadius: theme.shape.borderRadius * 2, // Consistent rounded corners (e.g., 16px if borderRadius is 8px)
-                                        overflow: 'hidden' // Important for child border radius to look right
-                                        }}
-                                        >
-                    {learningPathStructure.modules.length === 0 ? (
-                        <Typography variant="body2" color="text.secondary">Esta ruta no tiene módulos definidos.</Typography>
-                    ) : (
-                        learningPathStructure.modules.map((module) => {
-                            if (!module || !module._id) {
-                                console.warn("Módulo inválido o sin _id encontrado, omitiendo:", module);
-                                return null;
-                            }
-                            return (
-                                <Accordion
-                                    key={module._id}
-                                    defaultExpanded
-                                    sx={{
-                                        //boxShadow: 3,
-                                        borderRadius: theme.shape.borderRadius * 2,
-                                        '&:not(:last-child)': { mb: 2 },
-                                        borderColor: theme.palette.divider,
-                                        overflow: 'hidden'
-                                    }}
-                                    // Disable default MUI transitions to let Framer Motion handle it
-        TransitionProps={{ timeout: 0, unmountOnExit: true }} 
-        elevation={0} // Remove Accordion's own shadow as Paper handles it
-                                >
-                                    <AccordionSummary
-                                        expandIcon={<ExpandMoreIcon />}
-                                        aria-controls={`panel${module._id}-content`}
-                                        id={`panel${module._id}-header`}
+                    <Box sx={{ mb: 2 }}>
+                        {learningPathStructure.modules.length === 0 ? (
+                            <Typography variant="body2" color="text.secondary">Esta ruta no tiene módulos definidos.</Typography>
+                        ) : (
+                            learningPathStructure.modules.map((module) => {
+                                if (!module || !module._id) {
+                                    console.warn("Módulo inválido o sin _id encontrado, omitiendo:", module);
+                                    return null;
+                                }
+                                return (
+                                    <Accordion
+                                        key={module._id}
+                                        defaultExpanded
                                         sx={{
-                                            backgroundColor: theme.palette.primary.main,
-                                            color: theme.palette.primary.contrastText,
-                                            '& .MuiAccordionSummary-content': {
-                                                alignItems: 'center'
-                                            },
-                                            p: 0.5,
-                                            boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.4)',
+                                            boxShadow: theme.shadows[3], // Sombra individual para cada módulo
+                                            borderRadius: theme.shape.borderRadius * 2,
+                                            mb: 3, // Mayor espacio entre módulos
+                                            borderColor: theme.palette.divider,
+                                            overflow: 'hidden'
                                         }}
+                                        // Disable default MUI transitions to let Framer Motion handle it
+                                        TransitionProps={{ timeout: 0, unmountOnExit: true }} 
+                                        elevation={0} // Remove Accordion's own shadow as we're adding custom shadow
                                     >
-                                        <ListItemIcon sx={{ minWidth: 40, color: 'inherit', ml: 1 }}>
-                                            <LayersIcon />
-                                        </ListItemIcon>
-                                        <Typography variant="h5" sx={{ flexShrink: 0 }}>
-                                            Módulo {module.orden}: {module.nombre}
-                                        </Typography>
-                                    </AccordionSummary>
-                                    <AccordionDetails sx={{ p: 2, backgroundColor: theme.palette.background.paper }}>
-                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                            {module.descripcion || 'Sin descripción en el módulo.'}
-                                        </Typography>
+                                        <AccordionSummary
+                                            expandIcon={<ExpandMoreIcon />}
+                                            aria-controls={`panel${module._id}-content`}
+                                            id={`panel${module._id}-header`}
+                                            sx={{
+                                                backgroundColor: theme.palette.primary.main,
+                                                color: theme.palette.primary.contrastText,
+                                                '& .MuiAccordionSummary-content': {
+                                                    alignItems: 'center'
+                                                },
+                                                '& .MuiAccordionSummary-expandIconWrapper': {
+                                                    marginRight: 4, // Agrega espacio después del icono
+                                                    marginLeft: 0
+                                                },
+                                                p: 0.1,
+                                                boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.4)',
+                                            }}
+                                        >
+                                            <ListItemIcon sx={{ minWidth: 40, color: 'inherit', ml: 1 }}>
+                                                <LayersIcon />
+                                            </ListItemIcon>
+                                            <Typography variant="h6" sx={{ flexShrink: 0 }}>
+                                                Módulo {module.orden}: {module.nombre}
+                                            </Typography>
+                                        </AccordionSummary>
+                                        <AccordionDetails sx={{ p: 2, backgroundColor: theme.palette.background.paper }}>
+                                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                                {module.descripcion || 'Sin descripción en el módulo.'}
+                                            </Typography>
 
-                                        {/* Lista de Temas dentro del Módulo */}
-                                        <Stack spacing={1} sx={{ mt: 2 }}>
-                                            {module.themes && module.themes.length > 0 ? (
-                                                module.themes.map((themeItem) => {
-                                                    if (!themeItem || !themeItem._id) {
-                                                        console.warn("Tema inválido o sin _id encontrado dentro del módulo", module.nombre, "omitiento:", themeItem);
-                                                        return null;
-                                                    }
+                                            {/* Lista de Temas dentro del Módulo */}
+                                            <Stack spacing={1} sx={{ mt: 2 }}>
+                                                {module.themes && module.themes.length > 0 ? (
+                                                    module.themes.map((themeItem) => {
+                                                        if (!themeItem || !themeItem._id) {
+                                                            console.warn("Tema inválido o sin _id encontrado dentro del módulo", module.nombre, "omitiento:", themeItem);
+                                                            return null;
+                                                        }
 
-                                                    // Contar asignaciones con estado 'Open'
-                                                    const openAssignmentsCount = themeItem.assignments
-                                                        ? themeItem.assignments.filter(
-                                                            (assignment) => assignment.status === 'Open'
-                                                        ).length
-                                                        : 0;
+                                                        // Contar asignaciones con estado 'Open'
+                                                        const openAssignmentsCount = themeItem.assignments
+                                                            ? themeItem.assignments.filter(
+                                                                (assignment) => assignment.status === 'Open'
+                                                            ).length
+                                                            : 0;
 
-                                                    return (
-                                                        <Accordion
-                                                            key={themeItem._id}
-                                                            elevation={0}
-                                                            sx={{
-                                                                boxShadow: 2,
-                                                                //border: '2px dotted',
-                                                                borderRadius: theme.shape.borderRadius,
-                                                                '&:before': { display: 'none' },
-                                                                backgroundColor: theme.palette.action.hover,
-                                                                '&:not(:last-child)': { mb: 1 },
-                                                                overflow: 'hidden'
-                                                            }}
-                                                        >
-                                                            <AccordionSummary
-                                                                expandIcon={<ExpandMoreIcon />}
-                                                                aria-controls={`panel${themeItem._id}-content`}
-                                                                id={`panel${themeItem._id}-header`}
+                                                        return (
+                                                            <Accordion
+                                                                key={themeItem._id}
+                                                                elevation={0}
                                                                 sx={{
+                                                                    boxShadow: 2,
+                                                                    //border: '2px dotted',
+                                                                    borderRadius: theme.shape.borderRadius,
+                                                                    '&:before': { display: 'none' },
                                                                     backgroundColor: theme.palette.action.hover,
-                                                                    minHeight: 48,
-                                                                    '& .MuiAccordionSummary-content': {
-                                                                        alignItems: 'center',
-                                                                        my: 0,
-                                                                        justifyContent: 'space-between',
-                                                                    },
-                                                                    px: 2
+                                                                    '&:not(:last-child)': { mb: 1 },
+                                                                    overflow: 'hidden'
                                                                 }}
                                                             >
-                                                                <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
-                                                                    <ListItemIcon sx={{ minWidth: 40 }}>
-                                                                        <ClassIcon sx={{ color: theme.palette.text.secondary }} />
-                                                                    </ListItemIcon>
-                                                                    <ListItemText
-                                                                        primary={<Typography variant="h6" component="span">{themeItem.orden}: {themeItem.nombre}</Typography>}
-                                                                        secondary={themeItem.descripcion || 'Sin descripción.'}
-                                                                        primaryTypographyProps={{ sx: { fontSize: '1rem', fontWeight: 'medium', color: theme.palette.text.primary } }}
-                                                                        secondaryTypographyProps={{ sx: { fontSize: '0.85rem', color: theme.palette.text.secondary } }}
-                                                                        sx={{ mr: 1 }}
-                                                                    />
-                                                                </Box>
-                                                                {openAssignmentsCount > 0 && (
-                                                                    <Chip
-                                                                        label={`${openAssignmentsCount} disponibles`}
-                                                                        size="small"
-                                                                        color="text.primary"
-                                                                        variant="outlined"
-                                                                        sx={{ mr: 3, flexShrink: 0, fontStyle: 'italic', }}
-                                                                        
-                                                                    />
-                                                                )}
-                                                            </AccordionSummary>
-                                                            <AccordionDetails sx={{ px: 2, py: 1.5, backgroundColor: theme.palette.background.paper }}>
-                                                                <List dense disablePadding sx={{ width: '100%' }}>
-                                                                    {themeItem.assignments && themeItem.assignments.length > 0 ? (
-                                                                        themeItem.assignments.map((assignment, index) => {
-                                                                            if (!assignment || !assignment._id) {
-                                                                                console.warn("Asignación inválida o sin _id encontrada dentro del tema", themeItem.nombre, "omitiento:", assignment);
-                                                                                return null;
-                                                                            }
-
-                                                                            const contentItem = assignment.resource_id || assignment.activity_id;
-
-                                                                            return (
-                                                                                <React.Fragment key={assignment._id}>
-                                                                                <ListItem
-                                                                                    key={assignment._id}
-                                                                                    disablePadding
-                                                                                    secondaryAction={
-                                                                                        assignment.status && (
-                                                                                            <Chip
-                                                                                                label={`${translateAssignmentStatus(assignment.status)}`}
-                                                                                                size="small"
-                                                                                                variant="filled"
-                                                                                                color={assignment.status === 'Open' ? 'success' : assignment.status === 'Closed' ? 'error' : 'default'}
-                                                                                            />
-                                                                                        )
-                                                                                    }
-                                                                                >
-                                                                                    <ListItemButton
-                                                                                        onClick={() => handleContentInteraction(assignment)}
-                                                                                        sx={{ py: 1, px: 0 }}
-                                                                                        disabled={assignment.status !== 'Open'}
-                                                                                    >
-                                                                                        <ListItemIcon sx={{ minWidth: 40 }}>{getContentIcon(assignment)}</ListItemIcon>
-                                                                                        <ListItemText
-                                                                                            primary={
-                                                                                                <Typography variant="subtitle1" component="span" sx={{ fontSize: '0.95rem', fontWeight: 'bold', color: theme.palette.text.primary }}>
-                                                                                                    {contentItem?.title || 'Contenido no encontrado'}
-                                                                                                </Typography>
-                                                                                            }
-                                                                                            secondary={
-                                                                                                <Box component="span">
-                                                                                                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                                                                                                        Tipo: {contentItem?.type || 'N/A'}
-                                                                                                    </Typography>
-                                                                                                    {assignment.fecha_inicio && (
-                                                                                                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                                                                                                            Inicio: {format(new Date(assignment.fecha_inicio), 'dd/MM/yyyy HH:mm')}
-                                                                                                        </Typography>
-                                                                                                    )}
-                                                                                                    {assignment.fecha_fin && (
-                                                                                                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                                                                                                            Fin: {format(new Date(assignment.fecha_fin), 'dd/MM/yyyy HH:mm')}
-                                                                                                        </Typography>
-                                                                                                    )}
-                                                                                                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
-                                                                                                        {assignment.puntos_maximos !== undefined && (
-                                                                                                            <Chip label={`Calificación Máxima: ${assignment.puntos_maximos}`} size="small" variant="outlined" />
-                                                                                                        )}
-                                                                                                        {assignment.intentos_permitidos !== undefined && (
-                                                                                                            <Chip label={`Intentos: ${assignment.intentos_permitidos}`} size="small" variant="outlined" />
-                                                                                                        )}
-                                                                                                        {assignment.tiempo_limite !== undefined && (
-                                                                                                            <Chip label={`Tiempo: ${assignment.tiempo_limite} min`} size="small" variant="outlined" />
-                                                                                                        )}
-                                                                                                    </Stack>
-                                                                                                </Box>
-                                                                                            }
-                                                                                        />
-                                                                                    </ListItemButton>
-                                                                                </ListItem>
-                                                                                {index < themeItem.assignments.length - 1 && (
-                                                                                        <Divider sx={{ my: 0.5, borderBottomWidth: '2px', borderStyle: 'dashed', borderColor:'text.secondary' }} />
-                                                                                    )}
-                                                                                </React.Fragment>
-                                                                            );
-                                                                        })
-                                                                    ) : (
-                                                                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', pl: 2, py: 1 }}>
-                                                                            Este tema no tiene contenido asignado.
-                                                                        </Typography>
+                                                                <AccordionSummary
+                                                                    expandIcon={<ExpandMoreIcon />}
+                                                                    aria-controls={`panel${themeItem._id}-content`}
+                                                                    id={`panel${themeItem._id}-header`}
+                                                                    sx={{
+                                                                        backgroundColor: theme.palette.action.hover,
+                                                                        minHeight: 48,
+                                                                        '& .MuiAccordionSummary-content': {
+                                                                            alignItems: 'center',
+                                                                            my: 0,
+                                                                            justifyContent: 'space-between',
+                                                                        },
+                                                                        px: 2
+                                                                    }}
+                                                                >
+                                                                    <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+                                                                        <ListItemIcon sx={{ minWidth: 40 }}>
+                                                                            <ClassIcon sx={{ color: theme.palette.text.secondary }} />
+                                                                        </ListItemIcon>
+                                                                        <ListItemText
+                                                                            primary={<Typography variant="body1" component="span">{themeItem.orden}: {themeItem.nombre}</Typography>}
+                                                                            secondary={themeItem.descripcion || 'Sin descripción.'}
+                                                                            primaryTypographyProps={{ sx: { fontSize: '1rem', fontWeight: 'medium', color: theme.palette.text.primary } }}
+                                                                            secondaryTypographyProps={{ sx: { fontSize: '0.85rem', color: theme.palette.text.secondary } }}
+                                                                            sx={{ mr: 1 }}
+                                                                        />
+                                                                    </Box>
+                                                                    {openAssignmentsCount > 0 && (
+                                                                        <Chip
+                                                                            label={`${openAssignmentsCount} disponibles`}
+                                                                            size="small"
+                                                                            color="text.primary"
+                                                                            variant="outlined"
+                                                                            sx={{ mr: 3, flexShrink: 0, fontStyle: 'italic', }}
+                                                                            
+                                                                        />
                                                                     )}
-                                                                </List>
-                                                            </AccordionDetails>
-                                                        </Accordion>
-                                                    );
-                                                })
-                                            ) : (
-                                                <Typography variant="body2" color="text.secondary" sx={{ pl: 2, py: 1 }}>Este módulo no tiene temas definidos.</Typography>
-                                            )}
-                                        </Stack>
-                                    </AccordionDetails>
-                                </Accordion>
-                            );
-                        })
-                    )}
-                </Paper>
+                                                                </AccordionSummary>
+                                                                <AccordionDetails sx={{ px: 2, py: 1.5, backgroundColor: theme.palette.background.paper }}>
+                                                                    <List dense disablePadding sx={{ width: '100%' }}>
+                                                                        {themeItem.assignments && themeItem.assignments.length > 0 ? (
+                                                                            themeItem.assignments.map((assignment, index) => {
+                                                                                if (!assignment || !assignment._id) {
+                                                                                    console.warn("Asignación inválida o sin _id encontrada dentro del tema", themeItem.nombre, "omitiento:", assignment);
+                                                                                    return null;
+                                                                                }
+
+                                                                                const contentItem = assignment.resource_id || assignment.activity_id;
+
+                                                                                return (
+                                                                                    <React.Fragment key={assignment._id}>
+                                                                                    <ListItem
+                                                                                        key={assignment._id}
+                                                                                        disablePadding
+                                                                                        secondaryAction={
+                                                                                            assignment.status && (
+                                                                                                <Chip
+                                                                                                    label={`${translateAssignmentStatus(assignment.status)}`}
+                                                                                                    size="small"
+                                                                                                    variant="filled"
+                                                                                                    color={assignment.status === 'Open' ? 'success' : assignment.status === 'Closed' ? 'error' : 'default'}
+                                                                                                />
+                                                                                            )
+                                                                                        }
+                                                                                    >
+                                                                                        <ListItemButton
+                                                                                            onClick={() => handleContentInteraction(assignment)}
+                                                                                            sx={{ py: 1, px: 0 }}
+                                                                                            disabled={assignment.status !== 'Open'}
+                                                                                        >
+                                                                                            <ListItemIcon sx={{ minWidth: 40 }}>{getContentIcon(assignment)}</ListItemIcon>
+                                                                                            <ListItemText
+                                                                                                primary={
+                                                                                                    <Typography variant="subtitle1" component="span" sx={{ fontSize: '0.95rem', fontWeight: 'bold', color: theme.palette.text.primary }}>
+                                                                                                        {contentItem?.title || 'Contenido no encontrado'}
+                                                                                                    </Typography>
+                                                                                                }
+                                                                                                secondary={
+                                                                                                    <Box component="span">
+                                                                                                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                                                                                                            Tipo: {contentItem?.type || 'N/A'}
+                                                                                                        </Typography>
+                                                                                                        {assignment.fecha_inicio && (
+                                                                                                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                                                                                                Inicio: {format(new Date(assignment.fecha_inicio), 'dd/MM/yyyy HH:mm')}
+                                                                                                            </Typography>
+                                                                                                        )}
+                                                                                                        {assignment.fecha_fin && (
+                                                                                                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                                                                                                Fin: {format(new Date(assignment.fecha_fin), 'dd/MM/yyyy HH:mm')}
+                                                                                                            </Typography>
+                                                                                                        )}
+                                                                                                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                                                                                                            {assignment.puntos_maximos !== undefined && (
+                                                                                                                <Chip label={`Calificación Máxima: ${assignment.puntos_maximos}`} size="small" variant="outlined" />
+                                                                                                            )}
+                                                                                                            {assignment.intentos_permitidos !== undefined && (
+                                                                                                                <Chip label={`Intentos: ${assignment.intentos_permitidos}`} size="small" variant="outlined" />
+                                                                                                            )}
+                                                                                                            {assignment.tiempo_limite !== undefined && (
+                                                                                                                <Chip label={`Tiempo: ${assignment.tiempo_limite} min`} size="small" variant="outlined" />
+                                                                                                            )}
+                                                                                                        </Stack>
+                                                                                                    </Box>
+                                                                                                }
+                                                                                            />
+                                                                                        </ListItemButton>
+                                                                                    </ListItem>
+                                                                                    {index < themeItem.assignments.length - 1 && (
+                                                                                            <Divider sx={{ my: 0.5, borderBottomWidth: '2px', borderStyle: 'dashed', borderColor:'text.secondary' }} />
+                                                                                        )}
+                                                                                    </React.Fragment>
+                                                                                );
+                                                                            })
+                                                                        ) : (
+                                                                            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', pl: 2, py: 1 }}>
+                                                                                Este tema no tiene contenido asignado.
+                                                                            </Typography>
+                                                                        )}
+                                                                    </List>
+                                                                </AccordionDetails>
+                                                            </Accordion>
+                                                        );
+                                                    })
+                                                ) : (
+                                                    <Typography variant="body2" color="text.secondary" sx={{ pl: 2, py: 1 }}>Este módulo no tiene temas definidos.</Typography>
+                                                )}
+                                            </Stack>
+                                        </AccordionDetails>
+                                    </Accordion>
+                                );
+                            })
+                        )}
+                    </Box>
 
                 {/* Diálogo de Confirmación para Enlaces (existente) */}
                 <Dialog

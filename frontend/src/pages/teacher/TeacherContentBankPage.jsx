@@ -27,7 +27,7 @@ import {
     useTheme,
     useMediaQuery
 } from '@mui/material';
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import AddCircleOutlinedIcon from '@mui/icons-material/AddCircleOutlined';
 import FilePresentIcon from '@mui/icons-material/FilePresent';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import AssignmentIcon from '@mui/icons-material/Assignment';
@@ -55,16 +55,16 @@ import ConfirmationModal from '../../components/ConfirmationModal';
 
 // Icon mapping (kept the same)
 const resourceIconMap = {
-    'Contenido': <DescriptionIcon color="primary" />,
-    'Enlace': <LinkIcon color="secondary" />,
-    'Video-Enlace': <VideocamIcon color="error" />,
+    'Contenido': <DescriptionIcon color="text.primary" />,
+    'Enlace': <LinkIcon color="text.primary" />,
+    'Video-Enlace': <VideocamIcon color="text.primary" />,
     'default': <MenuBookIcon color="primary" />
 };
 
 const activityIconMap = {
-    'Cuestionario': <AssignmentIcon color="primary" />,
-    'Quiz': <QuizIcon color="secondary" />,
-    'Trabajo': <AssignmentIcon color="info" />,
+    'Cuestionario': <AssignmentIcon color="text.primary" />,
+    'Quiz': <QuizIcon color="text.primary" />,
+    'Trabajo': <AssignmentIcon color="text.primary" />,
     'default': <FilePresentIcon color="primary" />
 };
 
@@ -532,6 +532,7 @@ function TeacherContentBankPage() {
                             onEdit={() => handleOpenEditResourceModal(item._id)}
                             onDelete={() => handleOpenDeleteDialog(item._id, 'resource')}
                             isActionDisabled={isDeleting || isCreatingResource || isCreatingActivity}
+                            headerStyleProps={{ bgcolor: 'primary.main', color: 'white' }}
                         />
                     </Grid>
                 ))}
@@ -565,7 +566,7 @@ function TeacherContentBankPage() {
                             onEdit={() => handleOpenEditActivityModal(item._id)}
                             onDelete={() => handleOpenDeleteDialog(item._id, 'activity')}
                             isActionDisabled={isDeleting || isCreatingResource || isCreatingActivity}
-                            headerStyleProps={{ bgcolor: 'secondary.light', color: 'secondary.contrastText' }}
+                            headerStyleProps={{ bgcolor: 'secondary.main', color: 'white' }}
                         />
                     </Grid>
                 ))}
@@ -617,22 +618,29 @@ function TeacherContentBankPage() {
                                     value={activeTab}
                                     onChange={handleTabChange}
                                     textColor="primary"
-                                    indicatorColor="primary"
+                                    indicatorColor={activeTab === 1 ? 'secondary' : 'primary'} 
                                     sx={{ mb: isMobile ? 2 : 0 }}
-                                >
+                                    >
                                     <Tab
                                         icon={<MenuBookIcon />}
                                         iconPosition="start"
                                         label="Recursos"
-                                        sx={{ fontWeight: 'bold' }}
+                                        sx={{
+                                        fontWeight: 'bold',
+                                        color: activeTab === 0 ? 'secondary.main' : 'text.secondary', // Cambia color cuando está activo
+                                        }}
                                     />
                                     <Tab
                                         icon={<AssignmentIcon />}
                                         iconPosition="start"
                                         label="Actividades"
-                                        sx={{ fontWeight: 'bold' }}
+                                        sx={{
+                                        fontWeight: 'bold',
+                                        color: activeTab === 1 ? 'secondary.main' : 'text.secondary', // Color secundario cuando está activo
+                                        '&.Mui-selected': { color: 'secondary.main' }, // Aplica el color cuando la pestaña está seleccionada
+                                        }}
                                     />
-                                </Tabs>
+                                    </Tabs>
                                 {/* BOTONES DE CREACIÓN SIEMPRE VISIBLES AQUÍ */}
                                 <Stack direction="row" spacing={2}>
                                   {/* --- BEGIN Tooltip and Disable for Create Resource --- */}
@@ -640,10 +648,11 @@ function TeacherContentBankPage() {
                                     <span>
                                       <Button
                                         variant="contained"
-                                        startIcon={<AddCircleOutlineIcon />}
+                                        startIcon={<AddCircleOutlinedIcon />}
                                         color="primary"
                                         onClick={handleOpenCreateResourceModal}
                                         disabled={isDeleting || isCreatingResource || isCreatingActivity || (user?.userType === 'Docente' && !canCreateResource)}
+                                        sx={{ color: 'white' }} // Usando sx
                                       >
                                         Crear Recurso
                                       </Button>
@@ -656,13 +665,14 @@ function TeacherContentBankPage() {
                                     <span>
                                       <Button
                                         variant="contained"
-                                        startIcon={<AddCircleOutlineIcon />}
+                                        startIcon={<AddCircleOutlinedIcon />}
                                         color="secondary"
                                         onClick={handleOpenCreateActivityModal}
                                         disabled={isDeleting || isCreatingResource || isCreatingActivity || (user?.userType === 'Docente' && !canCreateActivity)}
-                                      >
+                                        sx={{ color: 'white' }} // Usando sx
+                                        >
                                         Crear Actividad
-                                      </Button>
+                                        </Button>
                                     </span>
                                   </Tooltip>
                                   {/* --- END Tooltip and Disable for Create Activity --- */}

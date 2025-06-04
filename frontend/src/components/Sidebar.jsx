@@ -214,7 +214,7 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
             size="small"
             sx={{
               backgroundColor: alpha(theme.palette.secondary.light, 0.15),
-              color: theme.palette.secondary.dark,
+              color: theme.palette.secondary.main,
               fontWeight: 600,
               fontSize: '0.6rem',
               height: 20,
@@ -349,10 +349,10 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
             justifyContent: 'space-between',
             alignItems: 'center',
             p: 1,
-            //borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+            borderBottom: `2px solid ${alpha(theme.palette.divider, 0.08)}`,
           }}
         >
-          <Typography variant="body1" sx={{ fontWeight: 700, color: theme.palette.primary.light, ml: 2 }}>
+          <Typography variant="body1" sx={{ fontWeight: 700, color: theme.palette.text.main, ml: 2 }}>
             Menú
           </Typography>
           <IconButton
@@ -383,8 +383,8 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
         {/* Footer with logout */}
         <Box sx={{
           p: 2,
-          borderTop: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
-          backgroundColor: alpha(theme.palette.background.default, 0.5),
+          borderTop: `2px solid ${alpha(theme.palette.divider, 0.08)}`,
+          backgroundColor: alpha(theme.palette.background.paper, 0.5),
         }}>
           <ListItem disablePadding>
             <ListItemButton
@@ -413,7 +413,7 @@ const Sidebar = React.memo(({ width = drawerWidth, open = true, onClose }) => {
               <ListItemText
                 primary="Cerrar Sesión"
                 primaryTypographyProps={{
-                  fontWeight: 500,
+                  fontWeight: 'bold',
                   fontSize: '0.85rem',
                   color: theme.palette.error.main,
                 }}

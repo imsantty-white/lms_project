@@ -9,15 +9,15 @@ import '@fontsource-variable/nunito';
 
 // Paletas de colores personalizadas
 const customPrimaryColor = {
-  main: '#5d4aab',
-  light: '#7c6fd1',
-  dark: '#3d2e6b',
+  main: '#960933',
+  light: '#b83d66',
+  dark: '#400416',
   contrastText: '#fff',
 };
 const customSecondaryColor = {
-  main: '#ffb300',
-  light: '#ffe066',
-  dark: '#c68400',
+  main: '#11964b',
+  light: '#46db87',
+  dark: '#0b4a26',
   contrastText: '#222',
 };
 
@@ -27,8 +27,8 @@ const lightPalette = {
   primary: customPrimaryColor,
   secondary: customSecondaryColor,
   background: {
-    default: '#f5f6fa',
-    paper: '#fff',
+    default: '#f7f1e9',
+    paper: '#f5ede1',
   },
   text: {
     primary: '#222',
@@ -42,8 +42,8 @@ const darkPalette = {
   primary: customPrimaryColor,
   secondary: customSecondaryColor,
   background: {
-    default: '#181a20',
-    paper: '#23263a',
+    default: '#1f2024',
+    paper: '#17181a',
   },
   text: {
     primary: '#fff',
