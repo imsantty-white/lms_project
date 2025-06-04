@@ -77,7 +77,7 @@ Se ha implementado un sistema robusto y centralizado para el manejo de errores e
     *   **Recomendación Crítica:** Un rendimiento óptimo de las consultas de listado, especialmente con paginación y filtros, depende fundamentalmente de una correcta estrategia de indexación en MongoDB.
     *   **Campos Clave a Indexar (Ejemplos):**
         *   Campos usados en `$match` y `find()`: `docente_id`, `group_id`, `learning_path_id`, `module_id`, `theme_id`, `assignment_id`, `student_id`, `tipo_usuario`, `aprobado`, `activo`, `estado_solicitud`, `estado_envio`, `associationType`, `uploaderId`.
-        *   Campos usados en `$sort`: `createdAt`, `fecha_inicio`, `fecha_fin`, `orden`.
+        *   Campos usados en `$sort`: `createdAt`, `fecha_creacion`, `fecha_inicio`, `fecha_fin`, `orden`.
         *   Campos usados en `$lookup` (tanto `localField` como `foreignField`).
         *   Campos con alta cardinalidad usados frecuentemente en filtros.
     *   **Acción Futura:** Realizar una auditoría exhaustiva de índices utilizando `explain('executionStats')` sobre las consultas más frecuentes y de carga pesada, y añadir o ajustar índices según sea necesario. Considerar índices compuestos para consultas que filtran y ordenan por múltiples campos.
@@ -136,10 +136,10 @@ Se ha implementado un sistema robusto y centralizado para el manejo de errores e
                 scriptSrc: ["'self'", 'https://trusted-cdn.com'], // Scripts del mismo origen y de un CDN confiable
                 styleSrc: ["'self'", 'https://fonts.googleapis.com', "'unsafe-inline'"], // Estilos propios, fuentes de Google. 'unsafe-inline' a veces es necesario pero menos seguro.
                 imgSrc: ["'self'", "data:", "https_tu_provider_s3.com"], // Imágenes propias, data URIs, y de tu bucket S3
-                connectSrc: ["'self'", 'wss://tu-dominio.com'], // Para WebSockets
+                connectSrc: ["'self'", 'wss://tu-dominio.com', 'https://api.otro-servicio.com'], // Para AJAX, WebSockets, APIs externas
                 fontSrc: ["'self'", 'https://fonts.gstatic.com'],
                 objectSrc: ["'none'"], // Deshabilitar plugins como Flash
-                mediaSrc: ["'self'"],
+                mediaSrc: ["'self'", 'media.example.com'],
                 frameSrc: ["'none'"], // Bloquear iframes de otros orígenes
                 upgradeInsecureRequests: [], // Redirige HTTP a HTTPS
               },
@@ -297,23 +297,22 @@ La arquitectura de `FileReference` está diseñada para ser flexible y permitir 
     **Flujo de Actualización de Avatar:**
     1.  El usuario, desde su perfil, selecciona una imagen para subir.
     2.  El frontend envía la imagen a la ruta `POST /api/files/upload`.
-    3.  Opcionalmente, el frontend puede enviar `associationType: 'avatar'` y `associatedEntityId: req.user._id` en el cuerpo del FormData, aunque `uploaderId` ya identifica al usuario. Si se envía `associationType: 'avatar'`, el archivo se guardaría en `backend/uploads/avatar/`.
-    4.  `fileUploadController.uploadFile` procesa la imagen, la guarda (ej. localmente) y crea un documento `FileReference`. El `uploaderId` se establece a `req.user._id`.
+    3.  Opcionalmente, el frontend puede enviar `associationType: 'avatar'` en el cuerpo del FormData.
+    4.  `fileUploadController.uploadFile` procesa la imagen, la guarda (ej. localmente) y crea un documento `FileReference`. El `uploaderId` se establece a `req.user._id`. Si se envió `associationType`, también se guarda.
     5.  El servidor responde con el `_id` del `FileReference` creado (ej. `newFileRef._id`).
     6.  El frontend recibe este `newFileRef._id` y realiza una segunda solicitud, por ejemplo, a una ruta `PUT /api/profile/me` (o una específica como `PUT /api/profile/avatar`). En el cuerpo de esta solicitud, envía el `newFileRef._id`.
-    7.  El controlador de perfil (`profileController.js`) actualiza el documento del usuario (`User.findByIdAndUpdate(req.user._id, { avatarFileId: receivedFileId })`).
+    7.  El controlador de perfil (`profileController.js`) actualiza el documento del usuario (`User.findByIdAndUpdate(req.user._id, { avatarFileId: receivedFileId })`). En este punto, también podría actualizar el `associatedEntityId` del `FileReference` a `req.user._id` si no se hizo durante la subida.
     8.  Para mostrar el avatar, el frontend usaría la `pathOrUrl` del `FileReference` (obtenida poblando `User.avatarFileId`).
 
 *   **Ejemplo para Entrega de Documento en Actividad (`SubmissionModel.js`):**
-    Para permitir que los estudiantes adjunten un archivo a una entrega de tipo "Trabajo", se modificaría `backend/src/models/SubmissionModel.js` (como ya se hizo):
+    Para permitir que los estudiantes adjunten un archivo a una entrega de tipo "Trabajo", se modificaría `backend/src/models/SubmissionModel.js` (como ya se hizo en un paso anterior):
     ```javascript
     // En backend/src/models/SubmissionModel.js
     // ... dentro de submissionSchema en el campo respuesta ...
     respuesta: {
         link_entrega: { type: String }, // Para trabajos tipo enlace
         // ... otros campos como quiz_answers, cuestionario_answers ...
-        // Se podría añadir un campo específico para el ID del archivo de la entrega:
-        documentFileId: {
+        documentFileId: { // Para trabajos que son un documento subido
             type: mongoose.Schema.Types.ObjectId,
             ref: 'FileReference',
             required: false
@@ -351,25 +350,116 @@ La arquitectura de `FileReference` está diseñada para ser flexible y permitir 
     *   Implementar la lógica de subida, obtención de URL y eliminación para cada proveedor en `fileUploadController.js` o en un servicio dedicado.
 *   **Actualización y Reemplazo de Archivos:** Definir cómo se manejará la actualización de un archivo asociado (ej. un usuario cambia su avatar). ¿Se reemplaza el archivo existente o se crea uno nuevo y se actualiza la referencia?
 
-## Parte III: Implementación de Funcionalidad Transversal de Actualización en Tiempo Real
+## Parte III: Propuesta de Funcionalidad Transversal de Actualización en Tiempo Real
 
-(Anteriormente Parte II)
+Esta sección describe el diseño conceptual para una futura implementación de actualizaciones en tiempo real utilizando WebSockets, que no fue parte del alcance de las mejoras actuales pero se considera un paso importante para la evolución del sistema.
 
-### 5. Diseño de la Estrategia de Eventos en Tiempo Real (Backend)
-*(El contenido de esta sección, tal como se proporcionó en la solicitud original, permanece aquí sin cambios, ya que no fue objeto de las implementaciones de esta fase).*
+### 1. Diseño de la Estrategia de Eventos en Tiempo Real (Backend)
 
-*   **Formato estándar de mensajes (JSON):** ...
-*   **Modelos y operaciones CRUD clave identificados:** ...
-*   **Modificación de controladores (ejemplo conceptual para `updateGroup`):** ...
-*   **Uso de salas de Socket.IO:** ...
+*   **Formato estándar de mensajes (JSON):**
+    *   Todos los mensajes de Socket.IO deben usar un formato JSON estructurado.
+    *   Ejemplo:
+        ```json
+        {
+          "event": "ENTITY_UPDATED", // o "GROUP_UPDATED", "SUBMISSION_CREATED"
+          "entityType": "Group",    // "Submission", "Assignment", "User"
+          "entityId": "group_id_123",
+          "payload": {
+            // Datos relevantes de la entidad actualizada/creada/eliminada
+            "name": "Nuevo Nombre del Grupo",
+            "members": ["user_id_1", "user_id_2"]
+            // ... otros campos ...
+          },
+          "initiator": "user_id_abc" // Opcional: Quién originó el evento
+        }
+        ```
 
-### 6. Implementación de Manejadores de Eventos (Frontend)
-*(El contenido de esta sección, tal como se proporcionó en la solicitud original, permanece aquí sin cambios).*
+*   **Modelos y operaciones CRUD clave identificados:**
+    *   Identificar los modelos principales que requieren actualizaciones en tiempo real: `Group` (cambios de miembros, nombre), `ContentAssignment` (nuevo contenido asignado, cambio de estado), `Submission` (nueva entrega, calificación actualizada), `Notification` (nueva notificación), `User` (cambios de estado/plan para administradores).
+    *   Para cada modelo, determinar qué operaciones CRUD (Crear, Leer, Actualizar, Eliminar) deben disparar eventos.
 
-*   **Configuración de listeners en `SocketContext.jsx`:** ...
-*   **Lógica de actualización de estado (React Query, Redux, etc.):** ...
-*   **Ejemplos conceptuales para componentes:** ...
-*   **Unirse/salir de salas dinámicamente:** ...
+*   **Modificación de controladores (ejemplo conceptual para `updateGroup`):**
+    *   Después de que una operación de base de datos sea exitosa, emitir un evento de Socket.IO.
+    *   Se necesitará un gestor de Sockets (`socketManager.js`) para inicializar y obtener la instancia de `io`.
+    *   Ejemplo en un controlador de Grupos:
+        ```javascript
+        // En controllers/groupController.js
+        // const { getIo } = require('../socketManager'); // Módulo para obtener la instancia de io
+
+        // exports.updateGroup = async (req, res, next) => {
+        //   try {
+        //     // ... lógica para actualizar el grupo ...
+        //     const io = getIo();
+        //     // Emitir a una sala específica del grupo
+        //     io.to(`group_${group._id}`).emit('ENTITY_UPDATED', {
+        //       entityType: 'Group',
+        //       entityId: group._id.toString(),
+        //       payload: group.toObject(),
+        //     });
+        //     // ... resto de la respuesta ...
+        //   } // ...
+        // };
+        ```
+
+*   **Uso de salas de Socket.IO:**
+    *   Utilizar salas para dirigir los eventos solo a los clientes interesados.
+    *   **Salas por entidad:** `group_${groupId}`, `assignment_${assignmentId}`. Los usuarios se unen a estas salas cuando están viendo o interactuando con una entidad específica.
+    *   **Salas por usuario:** `user_${userId}`. Para notificaciones directas o actualizaciones de estado del propio usuario.
+    *   **Salas por rol/permiso:** `teachers_room`, `admins_room` (para eventos de interés general para esos roles).
+    *   Los clientes deben unirse a las salas relevantes cuando cargan una vista o componente.
+
+### 2. Implementación de Manejadores de Eventos (Frontend)
+
+*   **Configuración de listeners en `SocketContext.jsx` (o similar):**
+    *   Centralizar la lógica de conexión y manejo de eventos de Socket.IO en un contexto de React o un servicio similar.
+    *   Ejemplo conceptual:
+        ```jsx
+        // contexts/SocketContext.jsx
+        // import React, { createContext, useContext, useEffect, useState } from 'react';
+        // import io from 'socket.io-client';
+
+        // const SocketContext = createContext();
+        // export const useSocket = () => useContext(SocketContext);
+
+        // export const SocketProvider = ({ children }) => {
+        //   const [socket, setSocket] = useState(null);
+        //   // const { userToken } = useAuth(); // Para autenticación de sockets
+
+        //   useEffect(() => {
+        //     const newSocket = io(process.env.REACT_APP_SOCKET_URL, {
+        //       // auth: { token: userToken }
+        //     });
+        //     setSocket(newSocket);
+
+        //     newSocket.on('ENTITY_UPDATED', (data) => {
+        //       console.log('Entidad actualizada:', data);
+        //       // Lógica para actualizar estado (React Query, Redux, etc.)
+        //     });
+
+        //     // ... otros listeners ...
+
+        //     return () => newSocket.close();
+        //   }, [/* userToken */]);
+
+        //   const joinRoom = (roomName) => socket?.emit('JOIN_ROOM', roomName);
+        //   const leaveRoom = (roomName) => socket?.emit('LEAVE_ROOM', roomName);
+
+        //   return (
+        //     <SocketContext.Provider value={{ socket, joinRoom, leaveRoom }}>
+        //       {children}
+        //     </SocketContext.Provider>
+        //   );
+        // };
+        ```
+
+*   **Lógica de actualización de estado (React Query, Redux, etc.):**
+    *   **React Query:** Utilizar `queryClient.invalidateQueries` o `queryClient.setQueryData` para actualizar las queries relevantes cuando se recibe un evento.
+    *   **Redux:** Despachar acciones que actualicen el store de Redux con los nuevos datos.
+
+*   **Ejemplos conceptuales para componentes:**
+    *   Un componente que muestra detalles de un grupo se uniría a la sala `group_${groupId}` al montarse y la abandonaría al desmontarse. Al recibir un evento `ENTITY_UPDATED` para ese grupo, React Query (o el sistema de estado) se encargaría de re-renderizar con los nuevos datos.
+
+*   **Unirse/salir de salas dinámicamente:** Los componentes deben invocar `joinRoom` y `leaveRoom` del contexto de Socket.IO según sea necesario.
 
 ## Conclusión y Próximos Pasos
 
@@ -377,7 +467,7 @@ El sistema ha experimentado mejoras significativas en cuanto a manejo de errores
 
 **Trabajo Realizado en Esta Fase:**
 *   **Manejo de Errores:** Implementación de `AppError` y `globalErrorHandler`, refactorización completa de controladores para un manejo de errores centralizado y consistente.
-*   **Optimización de Consultas:** Eliminación de problemas N+1 (ej. `getTeacherAssignments`), implementación extensiva de paginación en todos los listados principales, y optimización de proyecciones de datos.
+*   **Optimización de Consultas:** Eliminación de problemas N+1 (ej. `getTeacherAssignments`), implementación extensiva de paginación en todos los listados principales, y optimización de proyecciones de datos (`getAssignmentSubmissions`).
 *   **Rendimiento:** Reducción de consultas a la BD en el flujo de autenticación y verificación de suscripciones.
 *   **Seguridad:** Implementación de `helmet` para cabeceras de seguridad.
 *   **Carga de Archivos (Base):** Creación de `FileReferenceModel`, configuración de `multer`, y desarrollo de un controlador y ruta básicos para la subida de archivos con almacenamiento local.
