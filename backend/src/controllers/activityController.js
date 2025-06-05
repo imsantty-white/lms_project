@@ -93,20 +93,20 @@ const getStudentActivityForAttempt = async (req, res, next) => {
         let attempt_start_time = null;
 
         if (tiempo_limite && tiempo_limite > 0) {
-            let inProgressSubmission = await Submission.findOne({
+            let EnProgresoSubmission = await Submission.findOne({
                 assignment_id: assignmentId,
                 student_id: studentId,
-                estado_envio: 'InProgress'
+                estado_envio: 'EnProgreso'
             });
 
-            if (inProgressSubmission) {
-                submissionId = inProgressSubmission._id;
-                attempt_start_time = inProgressSubmission.attempt_start_time;
+            if (EnProgresoSubmission) {
+                submissionId = EnProgresoSubmission._id;
+                attempt_start_time = EnProgresoSubmission.attempt_start_time;
             } else {
                 const existingSubmissionsCount = await Submission.countDocuments({
                     assignment_id: assignmentId,
                     student_id: studentId,
-                    estado_envio: { $ne: 'InProgress' }
+                    estado_envio: { $ne: 'EnProgreso' }
                 });
                 const attempt_number = existingSubmissionsCount + 1;
 
@@ -143,7 +143,7 @@ const getStudentActivityForAttempt = async (req, res, next) => {
                     group_id: groupIdForSubmission,
                     docente_id: docenteIdForSubmission,
                     attempt_start_time: new Date(),
-                    estado_envio: 'InProgress',
+                    estado_envio: 'EnProgreso',
                     attempt_number: attempt_number,
                     is_late: false
                 });
@@ -156,13 +156,13 @@ const getStudentActivityForAttempt = async (req, res, next) => {
         const attemptsUsed = await Submission.countDocuments({
             assignment_id: assignmentId,
             student_id: studentId,
-            estado_envio: { $ne: 'InProgress' } // No contar 'InProgress' como un intento usado finalizado
+            estado_envio: { $ne: 'EnProgreso' } // No contar 'EnProgreso' como un intento usado finalizado
         });
 
         const lastSubmission = await Submission.findOne({
             assignment_id: assignmentId,
             student_id: studentId,
-            estado_envio: { $ne: 'InProgress' } // No considerar 'InProgress' como la última entrega finalizada
+            estado_envio: { $ne: 'EnProgreso' } // No considerar 'EnProgreso' como la última entrega finalizada
         })
         .sort({ fecha_envio: -1 })
         .limit(1);
@@ -297,7 +297,7 @@ const submitStudentActivityAttempt = async (req, res, next) => {
             if (existingSubmission.student_id.toString() !== studentId.toString() || existingSubmission.assignment_id.toString() !== assignmentId.toString()) {
                 return res.status(403).json({ message: 'No tienes permiso para modificar esta entrega.' });
             }
-            if (existingSubmission.estado_envio !== 'InProgress') {
+            if (existingSubmission.estado_envio !== 'EnProgreso') {
                 return res.status(400).json({ message: 'Este intento ya fue enviado o no se inició correctamente.' });
             }
 
@@ -419,7 +419,7 @@ const submitStudentActivityAttempt = async (req, res, next) => {
             const currentAttempts = await Submission.countDocuments({
                 assignment_id: assignmentId,
                 student_id: studentId,
-                estado_envio: { $ne: 'InProgress' }
+                estado_envio: { $ne: 'EnProgreso' } // No contar 'EnProgreso' como un intento finalizado
             });
 
             if (assignment.intentos_permitidos !== undefined && assignment.intentos_permitidos !== null && currentAttempts >= assignment.intentos_permitidos) {

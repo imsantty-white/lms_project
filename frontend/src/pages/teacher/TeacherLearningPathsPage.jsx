@@ -114,7 +114,7 @@ const LearningPathCard = ({ path, index, onEdit, onDelete, onNavigate }) => {
                                     color: 'text.primary',
                                     cursor: 'pointer', // Indica que el texto es clickeable
                                     '&:hover': {
-                                        color: 'primary.dark'
+                                        color: 'primary.light'
                                     }
                                 }}
                                 onClick={() => onNavigate(path._id)} // Navegar al hacer clic en el nombre
@@ -416,7 +416,9 @@ function TeacherLearningPathsPage() {
         
         setIsDeleting(true);
         try {
-            await axiosInstance.delete(`/api/learning-paths/${learningPathToDelete._id}`);
+            await axiosInstance.delete(`/api/learning-paths/${learningPathToDelete._id}`, {
+                data: { nombreConfirmacion: deleteConfirmationName }
+            });
             
             // Actualizar la lista
             setLearningPaths(prev => prev.filter(path => path._id !== learningPathToDelete._id));
