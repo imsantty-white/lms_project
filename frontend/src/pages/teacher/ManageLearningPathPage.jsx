@@ -788,19 +788,74 @@ function ManageLearningPathPage() {
     // ... cualquier otra limpieza de estado ...
 };
   const handleUpdateThemeFormSubmit = async (updatedData) => {
-    if (!updatedData?._id) { toast.error('No se pudo actualizar el tema. ID no proporcionado.'); handleCloseEditThemeModal(); return; } // Cerrar si no hay ID
-    setIsUpdatingTheme(true); try {
-      // *** Usar axiosInstance.put en lugar de axios.put ***
-      const response = await axiosInstance.put(`/api/learning-paths/themes/${updatedData._id}`, updatedData); // <-- Modificado
-      const updatedThemeData = response.data;
-      toast.success(`Tema "${updatedThemeData.nombre}" actualizado con éxito!`);
-      await fetchLearningPathStructure(); // Recargar la estructura
+    if (!updatedData?._id) {
+        toast.error('No se pudo actualizar el tema. ID no proporcionado.');
+        handleCloseEditThemeModal(); // Ensure modal closes
+        return;
+    }
+
+    setIsUpdatingTheme(true);
+    const previousLearningPathState = learningPath ? JSON.parse(JSON.stringify(learningPath)) : null; // Deep clone for rollback
+
+    // Optimistic update
+    setLearningPath(prevPath => {
+        if (!prevPath) return null;
+        return {
+            ...prevPath,
+            modules: prevPath.modules.map(module => ({
+                ...module,
+                themes: module.themes.map(theme => {
+                    if (theme._id === updatedData._id) {
+                        return {
+                            ...theme, // Spread existing theme to keep its assignments
+                            nombre: updatedData.nombre,
+                            descripcion: updatedData.descripcion,
+                            isOptimistic: true // Mark as optimistic
+                        };
+                    }
+                    return theme;
+                })
+            }))
+        };
+    });
+
+    try {
+      const { _id, ...dataToUpdate } = updatedData; // nombre, descripcion
+      const response = await axiosInstance.put(`/api/learning-paths/themes/${_id}`, dataToUpdate);
+      const updatedThemeFromServer = response.data; // Contains updated theme, likely without assignments
+
+      // Update with server data, then fetch full structure
+      setLearningPath(prevPath => {
+        if (!prevPath) return null;
+        return {
+            ...prevPath,
+            modules: prevPath.modules.map(module => ({
+                ...module,
+                themes: module.themes.map(theme => {
+                    if (theme._id === updatedThemeFromServer._id) {
+                        return {
+                            ...theme, // Preserve assignments from optimistic/previous state
+                            ...updatedThemeFromServer, // Apply server updates (name, desc, order)
+                            isOptimistic: false // Remove flag
+                        };
+                    }
+                    return theme;
+                })
+            }))
+        };
+      });
+
+      toast.success(`Tema "${updatedThemeFromServer.nombre}" actualizado con éxito!`);
+      await fetchLearningPathStructure(); // Recargar la estructura completa
       handleCloseEditThemeModal(); // Cerrar modal en éxito
     } catch (err) {
          console.error('Error updating theme:', err.response ? err.response.data : err.message);
          const errorMessage = err.response?.data?.message || `Error al intentar actualizar el tema "${updatedData.nombre}".`;
          toast.error(errorMessage);
-         // No cerramos el modal aquí en caso de error
+         // Rollback
+         if (previousLearningPathState) {
+            setLearningPath(previousLearningPathState);
+         }
      } finally {
          setIsUpdatingTheme(false);
      }

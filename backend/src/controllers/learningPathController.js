@@ -1331,43 +1331,55 @@ const deleteTheme = async (req, res, next) => { // Añadir 'next'
         await ContentAssignment.deleteMany({ theme_id: themeId });
         console.log(`Eliminadas asignaciones de contenido para el tema ${themeId}.`);
 
+        // Capture details before deletion
+        const learningPathIdForNotification = theme.module_id.learning_path_id._id.toString();
+        const moduleIdForReorder = theme.module_id._id;
+        const deletedThemeOrder = theme.orden;
+
         // 2. Eliminar el Tema en sí
         await Theme.deleteOne({ _id: themeId }); // O findByIdAndDelete(themeId)
-        console.log(`Tema ${themeId} eliminado.`);
+        console.log(`Tema ${themeId} (orden ${deletedThemeOrder}) eliminado del módulo ${moduleIdForReorder}.`);
         // --- Fin Eliminación en Cascada ---
 
-        // --- Emit socket event to students ---
-        // theme object is available from the ownership check
-        // theme.module_id.learning_path_id contains the learningPathId
-        try {
-            if (theme && theme.module_id && theme.module_id.learning_path_id) {
-                const learningPathId = theme.module_id.learning_path_id._id; // or .id
-                const studentUserIds = await getStudentUserIdsForLearningPath(learningPathId.toString(), { LearningPath, Membership, User });
+        // --- BEGIN REORDERING LOGIC ---
+        await Theme.updateMany(
+            {
+                module_id: moduleIdForReorder,
+                orden: { $gt: deletedThemeOrder }
+            },
+            { $inc: { orden: -1 } }
+        );
+        console.log(`Reordered themes in module ${moduleIdForReorder} after deleting theme that had order ${deletedThemeOrder}.`);
+        // --- END REORDERING LOGIC ---
 
-                if (global.io && studentUserIds && studentUserIds.length > 0) {
-                    studentUserIds.forEach(studentId => {
-                        global.io.to(studentId.toString()).emit('learning_path_updated', {
-                            learningPathId: learningPathId.toString(),
-                            message: 'A theme has been deleted from a learning path.'
-                        });
-                        console.log(`Emitted 'learning_path_updated' (theme deleted) to student ${studentId} for LP ${learningPathId}`);
+        // --- Emit socket event to students ---
+        try {
+            // learningPathIdForNotification is already defined and is a string
+            const studentUserIds = await getStudentUserIdsForLearningPath(learningPathIdForNotification, { LearningPath, Membership, User });
+
+            if (global.io && studentUserIds && studentUserIds.length > 0) {
+                studentUserIds.forEach(studentId => {
+                    global.io.to(studentId.toString()).emit('learning_path_updated', {
+                        learningPathId: learningPathIdForNotification,
+                        message: 'A theme has been deleted and subsequent themes reordered.'
                     });
-                } else if (!global.io) {
-                    console.warn('Socket.IO instance (global.io) not available. Real-time notifications for theme deletion might not be working.');
-                }
+                });
+                console.log(`Socket event 'learning_path_updated' emitted to ${studentUserIds.length} students for LP ${learningPathIdForNotification} after theme deletion and reorder.`);
+            } else if (!global.io) {
+                console.warn('Socket.IO instance (global.io) not available. Real-time notifications for theme deletion/reorder might not be working.');
             } else {
-                console.warn(`Could not determine learningPathId for theme ${themeId} deletion socket event.`);
+                console.log(`No student users found for LP ${learningPathIdForNotification} to notify about theme deletion/reorder.`);
             }
         } catch (socketError) {
-            console.error('Error emitting socket event in deleteTheme:', socketError);
+            console.error('Error emitting socket event after theme deletion and reorder:', socketError);
         }
         // --- End socket event emission ---
 
         // --- Respuesta exitosa ---
-        res.status(200).json({ message: 'Tema y su contenido asociado eliminados con éxito.' });
+        res.status(200).json({ message: 'Tema y su contenido asociado eliminados con éxito, y temas reordenados.' });
 
     } catch (error) {
-        console.error('Error eliminando tema:', error);
+        console.error('Error eliminando tema y reordenando:', error);
         next(error); // Pasa el error al siguiente middleware
     }
 };

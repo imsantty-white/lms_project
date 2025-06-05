@@ -1,16 +1,12 @@
 // src/components/CreateThemeModal.jsx
 import React, { useState, useEffect } from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   TextField,
-  Button,
   Stack,
-  CircularProgress
+  // Dialog, DialogTitle, DialogContent, DialogActions, Button, CircularProgress removed
 } from '@mui/material';
 import { toast } from 'react-toastify';
+import GenericFormModal from '../../components/GenericFormModal'; // Adjusted path
 
 // Este modal pide el nombre y descripción de un nuevo Tema.
 
@@ -28,8 +24,10 @@ function CreateThemeModal({ open, onClose, onSubmit, isCreating }) {
   }, [open]);
 
   // Maneja la presentación del formulario (llama a onSubmit del padre)
-  const handleFormSubmit = (event) => {
-      event.preventDefault();
+  // Renamed to handleInternalSubmit to avoid confusion with onSubmit prop for GenericFormModal
+  const handleInternalSubmit = () => {
+      // event.preventDefault() is not strictly needed if not a direct form onSubmit event handler
+      // but good practice if it were. GenericFormModal's button is onClick.
 
       // Validación frontend: nombre obligatorio
       if (!nombre.trim()) {
@@ -41,8 +39,6 @@ function CreateThemeModal({ open, onClose, onSubmit, isCreating }) {
       const newThemeData = {
           nombre: nombre.trim(),
           descripcion: descripcion?.trim() || '', // Descripción es opcional
-          // El module_id se añadirá en el componente padre (ManageLearningPathPage)
-          // El orden se calculará en el backend
       };
 
       // Llama a la función onSubmit proporcionada por el padre
@@ -50,59 +46,42 @@ function CreateThemeModal({ open, onClose, onSubmit, isCreating }) {
   };
 
   return (
-      <Dialog open={open} onClose={onClose} aria-labelledby="create-theme-dialog-title">
-          <DialogTitle id="create-theme-dialog-title"
-                sx={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                p: 2,
-                bgcolor: 'primary.light',
-                color: 'primary.contrastText'
-            }}
-            >Crear Nuevo Tema
-            </DialogTitle>
-          <DialogContent dividers>
-              <Stack spacing={2} component="form" onSubmit={handleFormSubmit} id="create-theme-form">
-                  {/* Campo Nombre del Tema */}
-                  <TextField
-                      label="Nombre del Tema"
-                      variant="outlined"
-                      color="primary.light"
-                      value={nombre}
-                      onChange={(e) => setNombre(e.target.value)}
-                      fullWidth
-                      required
-                      disabled={isCreating}
-                  />
-                  {/* Campo Descripción (Opcional) */}
-                  <TextField
-                      label="Descripción (Opcional)"
-                      variant="outlined"
-                      color="primary.light"
-                      value={descripcion}
-                      onChange={(e) => setDescripcion(e.target.value)}
-                      fullWidth
-                      disabled={isCreating}
-                      multiline
-                      rows={2}
-                  />
-              </Stack>
-          </DialogContent>
-          <DialogActions>
-              <Button onClick={onClose} disabled={isCreating} color="secondary">Cancelar</Button>
-              <Button
-                  type="submit"
-                  form="create-theme-form"
-                  variant="contained"
-                  color="primary"
-                  disabled={isCreating || !nombre.trim()}
-                  endIcon={isCreating ? <CircularProgress size={20} color="inherit" /> : null}
-              >
-                  Crear
-              </Button>
-          </DialogActions>
-      </Dialog>
+    <GenericFormModal
+      open={open}
+      onClose={onClose}
+      title="Crear Nuevo Tema"
+      onSubmit={handleInternalSubmit} // Pass the internal submit handler
+      isSubmitting={isCreating}
+      submitText="Crear Tema" // Updated text for clarity
+      // The sx prop for title is handled by GenericFormModal if needed, or could be passed via titleProps
+    >
+      <Stack spacing={2} sx={{pt: 1}}> {/* Removed component="form" and id, as GenericFormModal handles submission trigger */}
+          {/* Campo Nombre del Tema */}
+          <TextField
+              label="Nombre del Tema"
+              variant="outlined"
+              // color="primary.light" // Removed non-standard color prop
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              fullWidth
+              required
+              disabled={isCreating}
+              autoFocus
+          />
+          {/* Campo Descripción (Opcional) */}
+          <TextField
+              label="Descripción (Opcional)"
+              variant="outlined"
+              // color="primary.light" // Removed non-standard color prop
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              fullWidth
+              disabled={isCreating}
+              multiline
+              rows={3} // Standardized rows
+          />
+      </Stack>
+    </GenericFormModal>
   );
 }
 
