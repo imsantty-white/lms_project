@@ -721,38 +721,58 @@ function ManageLearningPathPage() {
 
     dispatchModuleModal({ type: 'SET_MODULE_ACTION_LOADING', payload: { actionType: 'isUpdatingModule', isLoading: true } });
 
-    // Optimistic update
-    const originalModules = learningPath.modules;
-    setLearningPath(prevPath => ({
-        ...prevPath,
-        modules: prevPath.modules.map(m =>
-            m._id === updatedData._id ? { ...m, ...updatedData, isOptimistic: true } : m
-        )
-    }));
+    const previousLearningPathState = learningPath ? JSON.parse(JSON.stringify(learningPath)) : null; // Deep clone for rollback
+
+    // Refined Optimistic update
+    setLearningPath(prevPath => {
+        if (!prevPath) return null;
+        return {
+            ...prevPath,
+            modules: prevPath.modules.map(m => {
+                if (m._id === updatedData._id) {
+                    return {
+                        ...m, // Preserve existing module properties (like themes)
+                        nombre: updatedData.nombre,
+                        descripcion: updatedData.descripcion,
+                        isOptimistic: true // Mark as optimistic
+                    };
+                }
+                return m;
+            })
+        };
+    });
 
     try {
-        // The updatedData from CreateModuleModal already contains nombre and descripcion.
-        // We only need to ensure the _id is correctly part of the URL, and the body is just {nombre, descripcion}
-        // or whatever the backend expects for PUT /api/learning-paths/modules/:moduleId
-        const { _id, ...dataToUpdate } = updatedData; // Separate _id from the rest of the data
+        const { _id, ...dataToUpdate } = updatedData; //nombre, descripcion
         const response = await axiosInstance.put(`/api/learning-paths/modules/${_id}`, dataToUpdate);
-        const actualUpdatedModule = response.data; // Backend returns the full updated module
+        const actualUpdatedModuleFromServer = response.data; // Backend returns the updated module (may not have themes)
 
-        // Update with actual data from backend
-        setLearningPath(prevPath => ({
-            ...prevPath,
-            modules: prevPath.modules.map(m =>
-                m._id === actualUpdatedModule._id ? actualUpdatedModule : m
-            )
-        }));
-        toast.success(`Módulo "${actualUpdatedModule.nombre}" actualizado con éxito!`);
-        dispatchModuleModal({ type: 'CLOSE_EDIT_MODULE_MODAL' }); // This closes CreateModuleModal and clears moduleToEdit
+        // Update module with server data (which might lack themes, but name/desc are fresh)
+        // Then fetch full structure to ensure everything is consistent.
+        setLearningPath(prevPath => {
+            if (!prevPath) return null;
+            return {
+                ...prevPath,
+                modules: prevPath.modules.map(m =>
+                    m._id === actualUpdatedModuleFromServer._id
+                    ? { ...m, ...actualUpdatedModuleFromServer, isOptimistic: false } // Merge with existing 'm' to retain themes if server doesn't send them, remove optimistic flag
+                    : m
+                )
+            };
+        });
+
+        toast.success(`Módulo "${actualUpdatedModuleFromServer.nombre}" actualizado con éxito!`);
+        await fetchLearningPathStructure(); // Fetch full structure to get all details (like themes)
+
+        dispatchModuleModal({ type: 'CLOSE_EDIT_MODULE_MODAL' });
     } catch (err) {
         console.error('Error updating module:', err.response ? err.response.data : err.message);
         const errorMessage = err.response?.data?.message || `Error al intentar actualizar el módulo "${updatedData.nombre}".`;
         toast.error(errorMessage);
-        // Rollback optimistic update
-        setLearningPath(prevPath => ({ ...prevPath, modules: originalModules }));
+        // Rollback optimistic update using the deep cloned state
+        if (previousLearningPathState) {
+            setLearningPath(previousLearningPathState);
+        }
     } finally {
         dispatchModuleModal({ type: 'SET_MODULE_ACTION_LOADING', payload: { actionType: 'isUpdatingModule', isLoading: false } });
     }
