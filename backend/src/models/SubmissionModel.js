@@ -55,7 +55,7 @@ const submissionSchema = new mongoose.Schema({
     estado_envio: { // Estado actual de la entrega
         type: String,
         required: [true, 'El estado de la entrega es obligatorio'],
-        enum: ['Pendiente', 'InProgress', 'Enviado', 'Calificado'], // Estados posibles: Pendiente de envío, Ya enviado, Calificado
+        enum: ['Pendiente', 'EnProgreso', 'Enviado', 'Calificado'], // Estados posibles: Pendiente de envío, Ya enviado, Calificado
         default: 'Pendiente', // Estado inicial antes de que el estudiante envíe
         index: true
     },

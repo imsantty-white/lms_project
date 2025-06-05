@@ -23,7 +23,7 @@ function StudentProgressPage() {
     'no iniciado': 'Sin Iniciar',
     open: 'Abierto',
     closed: 'Cerrado',
-    draft: 'Borrador',
+    draft: 'Próximamente',
     submitted: 'Entregado',
     graded: 'Calificado',
     'pendiente de entrega': 'Pendiente de entrega',
@@ -131,6 +131,7 @@ function StudentProgressPage() {
   return (
     <Container maxWidth="md">
       <Typography variant="h4" gutterBottom>Mi Progreso</Typography>
+      <Typography variant="body1" color='text.secondary' gutterBottom fontStyle={'italic'}>Observa y comprueba el progreso en cada una de tus rutas de aprendizaje.</Typography>
       
       {/* Selector de ruta de aprendizaje */}
       <Box sx={{ mb: 3 }}>
@@ -144,7 +145,7 @@ function StudentProgressPage() {
               label={`${lp.nombre} (Grupo: ${lp.group_name || lp.group_id})`} // Mostrar nombre del grupo si lo tienes
               color={selectedPath?._id === lp._id && selectedPath?.group_id === lp.group_id ? 'primary' : 'default'}
               onClick={() => setSelectedPath(lp)} // lp ya debería ser el objeto completo con _id y group_id
-              sx={{ mr: 1, mb: 1 }}
+              sx={{ mr: 1, mb: 1, mt:2 }}
             />
           ))
         )}
@@ -166,6 +167,7 @@ function StudentProgressPage() {
             <>
               <LinearProgress
                 variant="determinate"
+                color='secondary'
                 // Asegúrate de que graded_activities y total_activities provengan de 'calculated_data'
                 value={(progress.graded_activities / progress.total_activities) * 100}
                 sx={{ height: 10, borderRadius: 5, my: 2 }}
@@ -186,7 +188,7 @@ function StudentProgressPage() {
 
       {selectedPath && !loading && (
           <Paper sx={{ p: 3, mt: 3 }}>
-          <Typography variant="h6" gutterBottom>Detalle de Actividades</Typography>
+          <Typography variant="h6" gutterBottom>Informe de Actividades</Typography>
           {activities && activities.length > 0 ? (
             <List>
               {activities.map(act => (
@@ -197,7 +199,7 @@ function StudentProgressPage() {
                       secondary={
                         <>
                           <Typography variant="body2">
-                            Estado de la asignación: {translateStatus(act.status)}
+                            Estado de la Actividad: {translateStatus(act.status)}
                           </Typography>
                           <Typography variant="body2">
                             Tu calificación: {act.lastSubmission?.calificacion !== undefined && act.lastSubmission?.calificacion !== null
@@ -205,7 +207,7 @@ function StudentProgressPage() {
                               : 'Sin calificar'}
                           </Typography>
                            <Typography variant="body2">
-                            Estado de tu entrega: {act.lastSubmission
+                            Estado: {act.lastSubmission
                                 ? translateStatus(act.lastSubmission.estado_envio)
                                 : translateStatus('pendiente de entrega')
                             }
