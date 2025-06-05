@@ -1152,42 +1152,55 @@ const deleteModule = async (req, res, next) => { // Añadir 'next'
         await Theme.deleteMany({ module_id: moduleId });
         console.log(`Eliminados temas del módulo ${moduleId}.`);
 
+        // Store details for reordering and notification before deletion
+        const learningPathIdForReorder = module.learning_path_id.toString();
+        const deletedModuleOrder = module.orden;
+
         // 3. Eliminar el Módulo en sí
         await Module.deleteOne({ _id: moduleId }); // O findByIdAndDelete(moduleId)
-        console.log(`Módulo ${moduleId} eliminado.`);
+        console.log(`Módulo ${moduleId} (orden ${deletedModuleOrder}) eliminado de la ruta ${learningPathIdForReorder}.`);
         // --- Fin Eliminación en Cascada ---
 
-        // --- Emit socket event to students ---
-        // module object is defined above and contains learning_path_id
-        try {
-            const learningPathId = module.learning_path_id; // module is available from the ownership check
-            if (learningPathId) {
-                const studentUserIds = await getStudentUserIdsForLearningPath(learningPathId.toString(), { LearningPath, Membership, User });
+        // --- BEGIN REORDERING LOGIC ---
+        await Module.updateMany(
+            {
+                learning_path_id: learningPathIdForReorder,
+                orden: { $gt: deletedModuleOrder }
+            },
+            { $inc: { orden: -1 } }
+        );
+        console.log(`Reordered modules in learning path ${learningPathIdForReorder} after deleting module that had order ${deletedModuleOrder}.`);
+        // --- END REORDERING LOGIC ---
 
-                if (global.io && studentUserIds && studentUserIds.length > 0) {
-                    studentUserIds.forEach(studentId => {
-                        global.io.to(studentId.toString()).emit('learning_path_updated', {
-                            learningPathId: learningPathId.toString(),
-                            message: 'A module has been deleted from a learning path.'
-                        });
-                        console.log(`Emitted 'learning_path_updated' (module deleted) to student ${studentId} for LP ${learningPathId}`);
+        // --- Emit socket event to students ---
+        try {
+            // learningPathIdForReorder is already defined and is a string
+            const studentUserIds = await getStudentUserIdsForLearningPath(learningPathIdForReorder, { LearningPath, Membership, User });
+
+            if (global.io && studentUserIds && studentUserIds.length > 0) {
+                studentUserIds.forEach(studentId => {
+                    global.io.to(studentId.toString()).emit('learning_path_updated', {
+                        learningPathId: learningPathIdForReorder,
+                        message: 'A module has been deleted and subsequent modules reordered.'
                     });
-                } else if (!global.io) {
-                    console.warn('Socket.IO instance (global.io) not available. Real-time notifications for module deletion might not be working.');
-                }
+                    // console.log(`Emitted 'learning_path_updated' (module deleted & reordered) to student ${studentId} for LP ${learningPathIdForReorder}`);
+                });
+                console.log(`Socket event 'learning_path_updated' emitted to ${studentUserIds.length} students for LP ${learningPathIdForReorder} after module deletion and reorder.`);
+            } else if (!global.io) {
+                console.warn('Socket.IO instance (global.io) not available. Real-time notifications for module deletion/reorder might not be working.');
             } else {
-                console.warn('Could not determine learningPathId for module deletion socket event.');
+                console.log(`No student users found for LP ${learningPathIdForReorder} to notify about module deletion/reorder.`);
             }
         } catch (socketError) {
-            console.error('Error emitting socket event in deleteModule:', socketError);
+            console.error('Error emitting socket event after module deletion and reorder:', socketError);
         }
         // --- End socket event emission ---
 
         // --- Respuesta exitosa ---
-        res.status(200).json({ message: 'Módulo y su contenido asociado eliminados con éxito.' });
+        res.status(200).json({ message: 'Módulo y su contenido asociado eliminados con éxito, y módulos reordenados.' });
 
     } catch (error) {
-        console.error('Error eliminando módulo:', error);
+        console.error('Error eliminando módulo y reordenando:', error);
         next(error); // Pasa el error al siguiente middleware
     }
 };
