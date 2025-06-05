@@ -1,6 +1,6 @@
 // src/pages/StudentViewLearningPathPage.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback
 import { useParams } from 'react-router-dom';
 import {
     Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
@@ -24,6 +24,7 @@ import {
     Chip,
     useTheme
 } from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh'; // Added
 
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import LayersIcon from '@mui/icons-material/Layers';
@@ -37,6 +38,7 @@ import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
 import WorkIcon from '@mui/icons-material/Work';
 
 import { useAuth, axiosInstance } from '../../contexts/AuthContext';
+import { useSocket } from '../../contexts/SocketContext'; // Added
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
@@ -100,45 +102,67 @@ function StudentViewLearningPathPage() {
 
     const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
     const [currentVideo, setCurrentVideo] = useState(null);
+    const socket = useSocket(); // Added socket instance
 
 
+    // Define fetchStructure with useCallback
+    const fetchStructure = useCallback(async () => {
+        if (!pathId) {
+            setFetchError('ID de ruta de aprendizaje no proporcionado en la URL.');
+            setIsLoading(false);
+            return;
+        }
+
+        setIsLoading(true);
+        setFetchError(null); // Reset fetch error before new attempt
+
+        try {
+            const response = await axiosInstance.get(`/api/learning-paths/${pathId}/structure`);
+            console.log("Estructura de ruta de aprendizaje cargada:", response.data);
+            setLearningPathStructure(response.data);
+            // setFetchError(null); // Already nullified above
+        } catch (err) {
+            console.error('Error fetching learning path structure:', err.response ? err.response.data : err.message);
+            const errorMessage = err.response?.data?.message || 'Error al cargar la estructura de la ruta de aprendizaje.';
+            // toast.error(errorMessage); // Toasting error here might be redundant if also in initial useEffect
+            setFetchError(errorMessage); // Set fetch error state
+        } finally {
+            setIsLoading(false);
+        }
+    }, [pathId]); // Dependencies for fetchStructure: pathId. axiosInstance is stable.
+
+    // Initial data fetch
     useEffect(() => {
         if (isAuthInitialized) {
             if (isAuthenticated && user?.userType === 'Estudiante') {
-                const fetchStructure = async () => {
-                    if (!pathId) {
-                        setFetchError('ID de ruta de aprendizaje no proporcionado en la URL.');
-                        setIsLoading(false);
-                        return;
-                    }
-
-                    setIsLoading(true);
-                    setFetchError(null);
-
-                    try {
-                        const response = await axiosInstance.get(`/api/learning-paths/${pathId}/structure`);
-                        console.log("Estructura de ruta de aprendizaje cargada:", response.data);
-
-                        setLearningPathStructure(response.data);
-                        setFetchError(null);
-
-                    } catch (err) {
-                        console.error('Error fetching learning path structure:', err.response ? err.response.data : err.message);
-                        const errorMessage = err.response?.data?.message || 'Error al cargar la estructura de la ruta de aprendizaje.';
-                        toast.error(errorMessage);
-                    } finally {
-                        setIsLoading(false);
-                    }
-                };
-
                 fetchStructure();
-
             } else if (isAuthInitialized && (!isAuthenticated || user?.userType !== 'Estudiante')) {
                 setFetchError('Debes iniciar sesión como estudiante para ver esta página.');
-                setIsLoading(false);
+                setIsLoading(false); // Ensure loading is false if user is not authorized
             }
         }
-    }, [pathId, isAuthInitialized, isAuthenticated, user]);
+    }, [isAuthInitialized, isAuthenticated, user, fetchStructure]); // Added fetchStructure to dependencies
+
+    // Socket.IO event listener setup
+    useEffect(() => {
+        if (socket && pathId) {
+            const handlePathUpdate = (data) => {
+                console.log('Socket event "learning_path_updated" received:', data);
+                if (data && data.learningPathId === pathId) {
+                    toast.info('La estructura de la ruta de aprendizaje ha sido actualizada. Recargando...');
+                    fetchStructure();
+                }
+            };
+
+            socket.on('learning_path_updated', handlePathUpdate);
+            console.log(`Socket listener added for learning_path_updated on pathId: ${pathId}`);
+
+            return () => {
+                socket.off('learning_path_updated', handlePathUpdate);
+                console.log(`Socket listener removed for learning_path_updated on pathId: ${pathId}`);
+            };
+        }
+    }, [socket, pathId, fetchStructure]); // Added fetchStructure to dependencies
 
 
     const handleContentInteraction = (assignment) => {
@@ -296,15 +320,28 @@ function StudentViewLearningPathPage() {
     return (
         <Container maxWidth="md">
             <Box sx={{ mt: 1 }}>
-                {/* Título de la Ruta de Aprendizaje */}
-                <Typography variant="h4" gutterBottom>
-                    {learningPathStructure.nombre}
-                    {learningPathStructure.group_id?.nombre && (
-                        <Typography variant="h5" color="text.secondary" component="span" sx={{ ml: 2 }}>
-                            ({learningPathStructure.group_id.nombre})
-                        </Typography>
-                    )}
-                </Typography>
+                {/* Header with Title and Refresh Button */}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="h4" gutterBottom sx={{ mb: 0 }}> {/* gutterBottom removed from here if mb is on parent */}
+                        {learningPathStructure.nombre}
+                        {learningPathStructure.group_id?.nombre && (
+                            <Typography variant="h5" color="text.secondary" component="span" sx={{ ml: 2 }}>
+                                ({learningPathStructure.group_id.nombre})
+                            </Typography>
+                        )}
+                    </Typography>
+                    <Button
+                        variant="outlined"
+                        startIcon={<RefreshIcon />}
+                        onClick={() => {
+                            toast.info('Recargando estructura de la ruta...');
+                            fetchStructure();
+                        }}
+                        sx={{ ml: 2, flexShrink: 0 }} // Prevent button from shrinking
+                    >
+                        Refrescar
+                    </Button>
+                </Box>
                 <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
                     {learningPathStructure.descripcion || 'Sin descripción.'}
                 </Typography>

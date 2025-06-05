@@ -1,6 +1,6 @@
 // src/pages/StudentLearningPathsPage.jsx
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react'; // Added useCallback
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -13,7 +13,9 @@ import {
   Skeleton,
   Chip,
   Avatar,
+  Button, // Added Button
 } from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh'; // Added RefreshIcon
 import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -183,48 +185,55 @@ function StudentLearningPathsPage() {
   const [learningPaths, setLearningPaths] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
-  const hasShownSuccessToast = useRef(false);
+  const hasShownSuccessToast = useRef(false); // This toast logic might need adjustment with manual refresh
+
+  const fetchLearningPaths = useCallback(async (isManualRefresh = false) => {
+    setIsLoading(true);
+    setFetchError(null);
+    if (!isManualRefresh) { // Only reset paths if not a manual refresh from existing data
+        setLearningPaths([]);
+        hasShownSuccessToast.current = false;
+    }
+
+    try {
+        const response = await axiosInstance.get('/api/learning-paths/my-assigned');
+        const paths = response.data.data || [];
+        setLearningPaths(paths);
+
+        if (isManualRefresh) {
+            toast.success('Rutas de aprendizaje actualizadas.');
+        } else if (!hasShownSuccessToast.current) {
+            if (paths.length > 0) {
+                toast.success('Tus rutas de aprendizaje cargadas con éxito.');
+            } else {
+                toast.info('No tienes rutas de aprendizaje asignadas en este momento.');
+            }
+            hasShownSuccessToast.current = true;
+        }
+
+    } catch (err) {
+        console.error('Error fetching student learning paths:', err.response ? err.response.data : err.message);
+        const errorMessage = err.response?.data?.message || 'Error al cargar tus rutas de aprendizaje asignadas.';
+        setFetchError(errorMessage);
+        toast.error('Error al cargar rutas de aprendizaje.');
+        if (!isManualRefresh) { // Ensure toast ref is reset if initial load fails
+             hasShownSuccessToast.current = false;
+        }
+    } finally {
+        setIsLoading(false);
+    }
+  }, [axiosInstance]); // Assuming axiosInstance is stable or provided by AuthContext correctly
 
   useEffect(() => {
     if (isAuthInitialized) {
       if (isAuthenticated && user?.userType === 'Estudiante') {
-        const fetchLearningPaths = async () => {
-          setIsLoading(true);
-          setFetchError(null);
-          setLearningPaths([]);
-          hasShownSuccessToast.current = false;
-
-          try {
-            const response = await axiosInstance.get('/api/learning-paths/my-assigned');
-            const paths = response.data.data || [];
-            setLearningPaths(paths);
-
-            if (!hasShownSuccessToast.current) {
-              if (paths.length > 0) {
-                toast.success('Tus rutas de aprendizaje cargadas con éxito.');
-              } else {
-                toast.info('No tienes rutas de aprendizaje asignadas en este momento.');
-              }
-              hasShownSuccessToast.current = true;
-            }
-
-          } catch (err) {
-            console.error('Error fetching student learning paths:', err.response ? err.response.data : err.message);
-            const errorMessage = err.response?.data?.message || 'Error al cargar tus rutas de aprendizaje asignadas.';
-            setFetchError(errorMessage);
-            toast.error('Error al cargar rutas de aprendizaje.');
-            hasShownSuccessToast.current = false;
-          } finally {
-            setIsLoading(false);
-          }
-        };
         fetchLearningPaths();
-      } else {
+      } else if (isAuthInitialized) { // Check if initialized but not authenticated/student
         setFetchError('Debes iniciar sesión como estudiante para ver esta página.');
         setIsLoading(false);
       }
     }
-  }, [isAuthInitialized, isAuthenticated, user]);
+  }, [isAuthInitialized, isAuthenticated, user, fetchLearningPaths]);
 
 
   const handleViewLearningPath = (pathId) => {
@@ -239,8 +248,21 @@ function StudentLearningPathsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <Box sx={{ textAlign: 'center', mb: 4 }}>
-            <PageHeader title="Mis Rutas de Aprendizaje" />
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
+            <PageHeader title="Mis Rutas de Aprendizaje" sx={{ mb: { xs: 2, sm: 0 } }} />
+            <Button
+              variant="outlined"
+              startIcon={<RefreshIcon />}
+              onClick={() => {
+                toast.info('Recargando mis rutas de aprendizaje...');
+                fetchLearningPaths(true); // Pass true for manual refresh
+              }}
+              sx={{ alignSelf: { xs: 'stretch', sm: 'auto' } }}
+            >
+              Refrescar
+            </Button>
+          </Box>
+          <Box sx={{ textAlign: 'center', mb: 4, mt: 2 }}>
             <Typography
               variant="body1"
               color="text.secondary"
