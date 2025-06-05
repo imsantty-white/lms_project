@@ -301,30 +301,22 @@ const submitStudentActivityAttempt = async (req, res, next) => {
                 return res.status(400).json({ message: 'Este intento ya fue enviado o no se inició correctamente.' });
             }
 
-            // Calcular tiempo transcurrido si es una actividad cronometrada
             if (assignment.tiempo_limite && assignment.tiempo_limite > 0 && existingSubmission.attempt_start_time) {
                 const elapsedTimeMinutes = (new Date() - new Date(existingSubmission.attempt_start_time)) / (1000 * 60);
                 if (elapsedTimeMinutes > assignment.tiempo_limite) {
                     existingSubmission.is_timed_auto_submit = true;
-                    // Aquí podrías forzar un estado de 'Enviado' o 'Calificado' si el tiempo se acabó,
-                    // o permitir que el flujo normal de cálculo de calificación y estado continúe.
-                    // Por ahora, solo marcamos el flag y dejamos que el resto del flujo decida el estado.
                 }
             }
 
-            // Procesar respuestas y calificación (lógica similar a la creación, pero actualizando el existente)
             let updateSubmissionData = {};
-            let computedCalificacion = existingSubmission.calificacion; // Mantener calificación si no se recalcula
-            let computedEstadoEnvio = existingSubmission.estado_envio; // Mantener estado si no cambia
+            let computedCalificacion = existingSubmission.calificacion;
+            let computedEstadoEnvio = existingSubmission.estado_envio;
 
             if (activity.type === 'Quiz') {
-                // ... (lógica de procesamiento de Quiz, igual que en la rama de creación)
-                // Asegurarse de que studentAnswers esté disponible o manejar si es null (ej. auto-submit por tiempo)
                 let quizAnswersFormatted = [];
                 let correctAnswersCount = 0;
                 const totalQuizQuestions = activity.quiz_questions.length;
                 const currentStudentAnswers = studentAnswers || {};
-
                 activity.quiz_questions.forEach((q, index) => {
                     const studentAnswerValue = currentStudentAnswers[q._id] !== undefined ? String(currentStudentAnswers[q._id]).trim() : null;
                     quizAnswersFormatted.push({ question_index: index, student_answer: studentAnswerValue });
@@ -339,9 +331,7 @@ const submitStudentActivityAttempt = async (req, res, next) => {
                      computedEstadoEnvio = 'Enviado';
                 }
                 updateSubmissionData = { quiz_answers: quizAnswersFormatted };
-
             } else if (activity.type === 'Cuestionario') {
-                // ... (lógica de procesamiento de Cuestionario)
                 let cuestionarioAnswersFormatted = [];
                 const currentStudentAnswers = studentAnswers || {};
                  activity.cuestionario_questions.forEach((q, index) => {
@@ -349,42 +339,56 @@ const submitStudentActivityAttempt = async (req, res, next) => {
                     cuestionarioAnswersFormatted.push({ question_index: index, student_answer: studentAnswerValue });
                 });
                 computedEstadoEnvio = 'Enviado';
-                computedCalificacion = null; // Cuestionarios se califican manualmente
+                computedCalificacion = null;
                 updateSubmissionData = { cuestionario_answers: cuestionarioAnswersFormatted };
-
             } else if (activity.type === 'Trabajo') {
-                // ... (lógica de procesamiento de Trabajo)
                 computedEstadoEnvio = 'Enviado';
-                computedCalificacion = null; // Trabajos se califican manualmente
+                computedCalificacion = null;
                 updateSubmissionData = { link_entrega: trabajoLink ? trabajoLink.trim() : null };
             }
 
-            // Si es un auto-submit por cierre del profesor Y NO es un auto-submit por tiempo excedido
             if (isAutoSaveDueToClosure && !existingSubmission.is_timed_auto_submit) {
                 computedEstadoEnvio = 'Pendiente';
                 computedCalificacion = null;
             }
-
 
             existingSubmission.fecha_envio = new Date();
             existingSubmission.respuesta = updateSubmissionData;
             existingSubmission.is_late = assignment.fecha_fin && new Date() > new Date(assignment.fecha_fin);
             existingSubmission.calificacion = computedCalificacion;
             existingSubmission.estado_envio = computedEstadoEnvio;
-            // is_timed_auto_submit ya se estableció arriba si es aplicable.
-            // is_auto_save (por cierre de profesor) también se puede marcar si es necesario
             if (isAutoSaveDueToClosure) {
                 existingSubmission.is_auto_save = true;
             }
-
 
             savedSubmission = await existingSubmission.save();
             console.log(`Entrega #${savedSubmission.attempt_number} actualizada para la asignación ${assignmentId} por el estudiante ${studentId}. Estado: ${savedSubmission.estado_envio}. Tarde: ${savedSubmission.is_late}. AutoSubmit por tiempo: ${savedSubmission.is_timed_auto_submit}.`);
 
         } else {
             // --- RAMA: CREAR NUEVA ENTREGA (sin submissionId) ---
-            // Esta es la lógica original de creación de entrega
-            // Verificar membresía y límite de intentos (importante aquí también)
+
+            // NUEVA VERIFICACIÓN: Prevenir creación redundante si es auto-guardado por cierre Y actividad cronometrada
+            if (isAutoSaveDueToClosure && assignment.tiempo_limite && assignment.tiempo_limite > 0) {
+                const recentTimedSubmission = await Submission.findOne({
+                    assignment_id: assignmentId,
+                    student_id: studentId,
+                    $or: [
+                        { is_timed_auto_submit: true },
+                        { fecha_envio: { $gte: new Date(Date.now() - 15000) } } // Dentro de los últimos 15 segundos
+                    ],
+                    estado_envio: { $in: ['Calificado', 'Enviado'] }
+                }).sort({ fecha_envio: -1 });
+
+                if (recentTimedSubmission) {
+                    console.log(`Llamada de auto-guardado redundante para la asignación ${assignmentId} por el estudiante ${studentId} ignorada debido a una entrega reciente por tiempo límite o cierre.`);
+                    return res.status(200).json({
+                        message: 'Progreso ya guardado por tiempo límite o cierre.',
+                        submission: recentTimedSubmission
+                    });
+                }
+            }
+            // FIN NUEVA VERIFICACIÓN
+
             let groupId, docenteId;
             if (assignment.theme_id?.module_id?.learning_path_id?.group_id) {
                 groupId = assignment.theme_id.module_id.learning_path_id.group_id._id;
@@ -393,9 +397,8 @@ const submitStudentActivityAttempt = async (req, res, next) => {
                 if (!isMember) {
                     return res.status(403).json({ message: 'No tienes permiso para enviar esta entrega. No eres miembro aprobado del grupo.' });
                 }
-            } else if (assignment.group_id) { // Si group_id está directamente en la asignación
-                groupId = assignment.group_id._id; // Asumiendo que group_id está poblado o es solo ID
-                 // Para docenteId, priorizar el docente directo de la asignación si existe
+            } else if (assignment.group_id) {
+                groupId = assignment.group_id._id;
                 docenteId = assignment.docente_id?._id || (await Group.findById(groupId))?.docente_id;
                 const isMember = await isApprovedGroupMember(studentId, groupId);
                  if (!isMember) {
@@ -405,34 +408,29 @@ const submitStudentActivityAttempt = async (req, res, next) => {
              else {
                 return res.status(500).json({ message: 'Error interno del servidor al verificar la asignación (falta grupo).' });
             }
-             // Si docenteId no se pudo obtener del grupo de la ruta o de la asignación directa,
-             // y hay un docente_id directamente en ContentAssignment, usar ese.
             if (!docenteId && assignment.docente_id) {
-                docenteId = assignment.docente_id._id; // Asumiendo que está poblado o es solo ID
+                docenteId = assignment.docente_id._id;
             }
-            if (!docenteId) { // Fallback o error si no se encuentra docente
+            if (!docenteId) {
                 console.error(`Error crítico: No se pudo determinar docente_id para la nueva Submission en la asignación ${assignmentId} (rama nueva entrega)`);
                 return res.status(500).json({ message: 'Error interno: No se pudo determinar el docente_id para la entrega.' });
             }
 
-
             const currentAttempts = await Submission.countDocuments({
                 assignment_id: assignmentId,
                 student_id: studentId,
-                estado_envio: { $ne: 'InProgress' } // No contar 'InProgress' como un intento finalizado
+                estado_envio: { $ne: 'InProgress' }
             });
 
             if (assignment.intentos_permitidos !== undefined && assignment.intentos_permitidos !== null && currentAttempts >= assignment.intentos_permitidos) {
                 return res.status(400).json({ message: `Has alcanzado el número máximo de intentos (${assignment.intentos_permitidos}) para esta actividad.` });
             }
 
-            // Procesar respuestas y calificación (lógica original)
             let newSubmissionData = {};
             let computedCalificacion = null;
             let computedEstadoEnvio = 'Enviado';
 
             if (activity.type === 'Quiz') {
-                 // ... (lógica de procesamiento de Quiz, igual que antes)
                 let quizAnswersFormatted = [];
                 let correctAnswersCount = 0;
                 const totalQuizQuestions = activity.quiz_questions.length;
@@ -452,7 +450,6 @@ const submitStudentActivityAttempt = async (req, res, next) => {
                 }
                 newSubmissionData = { quiz_answers: quizAnswersFormatted };
             } else if (activity.type === 'Cuestionario') {
-                // ... (lógica de procesamiento de Cuestionario, igual que antes)
                 let cuestionarioAnswersFormatted = [];
                 const currentStudentAnswers = studentAnswers || {};
                  activity.cuestionario_questions.forEach((q, index) => {
@@ -462,7 +459,6 @@ const submitStudentActivityAttempt = async (req, res, next) => {
                 computedEstadoEnvio = 'Enviado';
                 newSubmissionData = { cuestionario_answers: cuestionarioAnswersFormatted };
             } else if (activity.type === 'Trabajo') {
-                // ... (lógica de procesamiento de Trabajo, igual que antes)
                  if ((!trabajoLink || trabajoLink.trim() === '') && !isAutoSaveDueToClosure) {
                     return res.status(400).json({ message: 'El enlace de entrega del trabajo es obligatorio.' });
                 }
@@ -487,16 +483,11 @@ const submitStudentActivityAttempt = async (req, res, next) => {
                 calificacion: computedCalificacion,
                 respuesta: newSubmissionData,
                 is_auto_save: isAutoSaveDueToClosure || false,
-                // attempt_start_time y is_timed_auto_submit no son relevantes aquí,
-                // ya que esta rama es para actividades no cronometradas o el primer envío de una cronometrada sin submissionId (que no debería ocurrir si el flujo es correcto)
             });
             savedSubmission = await newSubmissionDoc.save();
             console.log(`Nueva entrega #${savedSubmission.attempt_number} creada para la asignación ${assignmentId} por el estudiante ${studentId}. Estado: ${savedSubmission.estado_envio}.`);
         }
-        // ----- FIN LÓGICA CONDICIONAL -----
 
-
-        // Notificación (debe funcionar para ambas ramas, usando savedSubmission)
         try {
             const student = req.user;
             if (assignment && savedSubmission &&

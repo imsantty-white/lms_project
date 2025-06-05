@@ -652,14 +652,14 @@ return (
       ) : (
           <Box sx={{ mt: 4, textAlign: 'center' }}>
               <Alert severity="info">
-                  {isActivityClosedByTeacher ? "Esta actividad ha sido cerrada por el docente." :
-                   (activityDetails.type === 'Quiz' ?
-                      `Has utilizado todos tus ${assignmentDetails.intentos_permitidos} intentos permitidos para esta actividad.`
-                  : (
-                      isGraded
-                          ? 'Esta actividad ya ha sido calificada. No puedes realizar más entregas.'
-                          : `Has utilizado todos tus ${assignmentDetails.intentos_permitidos} intentos permitidos para esta actividad.`
-                  ))}
+                  {isActivityClosedByTeacher
+                      ? "Esta actividad ha sido cerrada por el docente."
+                      : (remainingAttempts !== null && remainingAttempts <= 0)
+                          ? `Has utilizado todos tus ${assignmentDetails.intentos_permitidos} intentos permitidos para esta actividad.`
+                      : (activityDetails.type !== 'Quiz' && isGraded)
+                          ? "Esta actividad ya ha sido calificada. No puedes realizar más entregas."
+                      : "Tu intento actual ha sido enviado. Si tienes más intentos permitidos, podrás realizar otro al volver a cargar esta actividad o desde la página de la ruta de aprendizaje."
+                  }
               </Alert>
           </Box>
       )}
