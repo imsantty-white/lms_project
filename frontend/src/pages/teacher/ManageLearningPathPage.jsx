@@ -48,7 +48,7 @@ import { useNavigate } from 'react-router-dom';
 // Importa los componentes modales (revisa tus rutas)
 import CreateModuleModal from '../components/CreateModuleModal';
 import CreateThemeModal from '../components/CreateThemeModal';
-import EditModuleModal from '../components/EditModuleModal';
+// import EditModuleModal from '../components/EditModuleModal'; // Removed
 import EditThemeModal from '../components/EditThemeModal';
 import AddContentAssignmentModal from '../components/AddContentAssignmentModal';
 import EditContentAssignmentModal from '../components/EditContentAssignmentModal';
@@ -79,9 +79,11 @@ function moduleModalReducer(state, action) {
     case 'CLOSE_CREATE_MODULE_MODAL':
       return { ...state, isCreateModuleModalOpen: false }; // moduleDataToCreate reset is handled in the handler
     case 'OPEN_EDIT_MODULE_MODAL':
-      return { ...state, isEditModuleModalOpen: true, moduleToEdit: action.payload };
+      // Now opens CreateModuleModal in edit mode
+      return { ...state, isCreateModuleModalOpen: true, moduleToEdit: action.payload };
     case 'CLOSE_EDIT_MODULE_MODAL':
-      return { ...state, isEditModuleModalOpen: false, moduleToEdit: null };
+      // Now closes CreateModuleModal and clears moduleToEdit
+      return { ...state, isCreateModuleModalOpen: false, moduleToEdit: null };
     case 'OPEN_DELETE_MODULE_CONFIRM':
       return { ...state, isDeleteModuleConfirmOpen: true, moduleIdToDelete: action.payload };
     case 'CLOSE_DELETE_MODULE_CONFIRM':
@@ -699,28 +701,61 @@ function ManageLearningPathPage() {
 
   // --- Lógica para Editar Módulo ---
   const handleOpenEditModuleModal = (moduleData) => { if (isAnyOperationInProgress) return; dispatchModuleModal({ type: 'OPEN_EDIT_MODULE_MODAL', payload: moduleData }); };
-  const handleCloseEditModuleModal = (event, reason) => { 
-      if (reason && (reason === 'backdropClick' || reason === 'escapeKeyDown')) {
-          return; 
-      }
-      dispatchModuleModal({ type: 'CLOSE_EDIT_MODULE_MODAL' });
+  const handleCloseEditModuleModal = (event, reason) => {
+    if (reason && (reason === 'backdropClick' || reason === 'escapeKeyDown')) {
+        return;
+    }
+    // This dispatch will now close the CreateModuleModal (used for editing) and clear moduleToEdit
+    dispatchModuleModal({ type: 'CLOSE_EDIT_MODULE_MODAL' });
   };
+
   const handleUpdateModuleFormSubmit = async (updatedData) => {
-    if (!updatedData?._id) { toast.error('No se pudo actualizar el módulo. ID no proporcionado.'); dispatchModuleModal({ type: 'CLOSE_EDIT_MODULE_MODAL' }); return; } 
+    // updatedData comes from CreateModuleModal and includes _id
+    if (!updatedData?._id) {
+        toast.error('No se pudo actualizar el módulo. ID no proporcionado.');
+        // Ensure modal closes correctly even if there's an early exit.
+        // CLOSE_EDIT_MODULE_MODAL will clear moduleToEdit and close the CreateModuleModal.
+        dispatchModuleModal({ type: 'CLOSE_EDIT_MODULE_MODAL' });
+        return;
+    }
+
     dispatchModuleModal({ type: 'SET_MODULE_ACTION_LOADING', payload: { actionType: 'isUpdatingModule', isLoading: true } });
+
+    // Optimistic update
+    const originalModules = learningPath.modules;
+    setLearningPath(prevPath => ({
+        ...prevPath,
+        modules: prevPath.modules.map(m =>
+            m._id === updatedData._id ? { ...m, ...updatedData, isOptimistic: true } : m
+        )
+    }));
+
     try {
-      const response = await axiosInstance.put(`/api/learning-paths/modules/${updatedData._id}`, updatedData); 
-      const updatedModuleData = response.data; // Assuming backend returns updated module
-      toast.success(`Módulo "${updatedModuleData.nombre}" actualizado con éxito!`);
-      await fetchLearningPathStructure(); // Recargar la estructura
-      dispatchModuleModal({ type: 'CLOSE_EDIT_MODULE_MODAL' }); 
+        // The updatedData from CreateModuleModal already contains nombre and descripcion.
+        // We only need to ensure the _id is correctly part of the URL, and the body is just {nombre, descripcion}
+        // or whatever the backend expects for PUT /api/learning-paths/modules/:moduleId
+        const { _id, ...dataToUpdate } = updatedData; // Separate _id from the rest of the data
+        const response = await axiosInstance.put(`/api/learning-paths/modules/${_id}`, dataToUpdate);
+        const actualUpdatedModule = response.data; // Backend returns the full updated module
+
+        // Update with actual data from backend
+        setLearningPath(prevPath => ({
+            ...prevPath,
+            modules: prevPath.modules.map(m =>
+                m._id === actualUpdatedModule._id ? actualUpdatedModule : m
+            )
+        }));
+        toast.success(`Módulo "${actualUpdatedModule.nombre}" actualizado con éxito!`);
+        dispatchModuleModal({ type: 'CLOSE_EDIT_MODULE_MODAL' }); // This closes CreateModuleModal and clears moduleToEdit
     } catch (err) {
-         console.error('Error updating module:', err.response ? err.response.data : err.message);
-         const errorMessage = err.response?.data?.message || `Error al intentar actualizar el módulo "${updatedData.nombre}".`;
-         toast.error(errorMessage);
-     } finally {
-         dispatchModuleModal({ type: 'SET_MODULE_ACTION_LOADING', payload: { actionType: 'isUpdatingModule', isLoading: false } });
-     }
+        console.error('Error updating module:', err.response ? err.response.data : err.message);
+        const errorMessage = err.response?.data?.message || `Error al intentar actualizar el módulo "${updatedData.nombre}".`;
+        toast.error(errorMessage);
+        // Rollback optimistic update
+        setLearningPath(prevPath => ({ ...prevPath, modules: originalModules }));
+    } finally {
+        dispatchModuleModal({ type: 'SET_MODULE_ACTION_LOADING', payload: { actionType: 'isUpdatingModule', isLoading: false } });
+    }
   };
 
   // --- Lógica para Editar Tema ---
@@ -965,10 +1000,18 @@ function ManageLearningPathPage() {
 
         {/* --- Modales y Diálogos --- */}
 
-        {/* Modal para Crear Módulo */}
-        <CreateModuleModal open={moduleModalState.isCreateModuleModalOpen} onClose={handleCloseCreateModuleModal} onSubmit={handleModuleFormSubmit} isCreating={moduleModalState.isCreatingModule} />
-        {/* Diálogo de Confirmación Módulo Creación (still uses useState for now) */}
-        <Dialog open={isCreateModuleConfirmOpen} onClose={handleCloseCreateModuleConfirm} aria-labelledby="create-module-confirm-title" aria-describedby="create-module-confirm-description"> <DialogTitle id="create-module-confirm-title">{"Confirmar Creación de Módulo"}</DialogTitle> <DialogContent> <DialogContentText id="create-module-confirm-description"> ¿Estás seguro de que deseas crear el módulo "{moduleDataToCreate?.nombre}" en esta ruta? </DialogContentText> </DialogContent> <DialogActions> <Button onClick={handleCloseCreateModuleConfirm} disabled={moduleModalState.isCreatingModule}>Cancelar</Button> <Button onClick={handleConfirmCreateModule} color="primary" disabled={moduleModalState.isCreatingModule} autoFocus> {moduleModalState.isCreatingModule ? 'Creando...' : 'Confirmar Creación'} </Button> </DialogActions> </Dialog>
+        {/* Unified Modal for Creating and Editing Modules */}
+        <CreateModuleModal
+            open={moduleModalState.isCreateModuleModalOpen}
+            onClose={moduleModalState.moduleToEdit ? handleCloseEditModuleModal : handleCloseCreateModuleModal}
+            onSubmit={moduleModalState.moduleToEdit ? handleUpdateModuleFormSubmit : handleModuleFormSubmit}
+            isCreating={moduleModalState.moduleToEdit ? moduleModalState.isUpdatingModule : moduleModalState.isCreatingModule}
+            moduleToEdit={moduleModalState.moduleToEdit}
+        />
+        {/* Diálogo de Confirmación Módulo Creación (still uses useState for now, only for actual creation) */}
+        {!moduleModalState.moduleToEdit && isCreateModuleConfirmOpen && ( // Only show confirm dialog if not in edit mode
+            <Dialog open={isCreateModuleConfirmOpen} onClose={handleCloseCreateModuleConfirm} aria-labelledby="create-module-confirm-title" aria-describedby="create-module-confirm-description"> <DialogTitle id="create-module-confirm-title">{"Confirmar Creación de Módulo"}</DialogTitle> <DialogContent> <DialogContentText id="create-module-confirm-description"> ¿Estás seguro de que deseas crear el módulo "{moduleDataToCreate?.nombre}" en esta ruta? </DialogContentText> </DialogContent> <DialogActions> <Button onClick={handleCloseCreateModuleConfirm} disabled={moduleModalState.isCreatingModule}>Cancelar</Button> <Button onClick={handleConfirmCreateModule} color="primary" disabled={moduleModalState.isCreatingModule} autoFocus> {moduleModalState.isCreatingModule ? 'Creando...' : 'Confirmar Creación'} </Button> </DialogActions> </Dialog>
+        )}
 
 
         {/* Modal para Crear Tema */}
@@ -1082,14 +1125,7 @@ function ManageLearningPathPage() {
       </Dialog>
 
 
-      {/* Modal para Editar Módulo */}
-      <EditModuleModal
-        open={moduleModalState.isEditModuleModalOpen}
-        onClose={handleCloseEditModuleModal}
-        onSubmit={handleUpdateModuleFormSubmit}
-        initialData={moduleModalState.moduleToEdit}
-        isSaving={moduleModalState.isUpdatingModule}
-      />
+      {/* EditModuleModal is no longer used */}
 
       {/* Modal para Editar Tema */}
       <EditThemeModal

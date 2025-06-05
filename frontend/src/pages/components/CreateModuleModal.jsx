@@ -4,37 +4,53 @@ import { TextField, Stack } from '@mui/material';
 import { toast } from 'react-toastify';
 import GenericFormModal from '../../components/GenericFormModal'; // Ajusta la ruta según tu estructura
 
-function CreateModuleModal({ open, onClose, onSubmit, isCreating }) {
+function CreateModuleModal({ open, onClose, onSubmit, isCreating, moduleToEdit = null }) { // Added moduleToEdit prop
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
 
   useEffect(() => {
     if (open) {
-      setNombre('');
-      setDescripcion('');
+      if (moduleToEdit) {
+        setNombre(moduleToEdit.nombre || '');
+        setDescripcion(moduleToEdit.descripcion || '');
+      } else {
+        setNombre('');
+        setDescripcion('');
+      }
     }
-  }, [open]);
+  }, [open, moduleToEdit]);
 
-  const handleInternalSubmit = () => { // Renombrado para evitar confusión con prop onSubmit
+  const handleInternalSubmit = () => {
     if (!nombre.trim()) {
       toast.warning('El nombre del módulo es obligatorio.');
       return;
     }
-    const newModuleData = {
+    const moduleData = {
       nombre: nombre.trim(),
       descripcion: descripcion?.trim() || '',
     };
-    onSubmit(newModuleData); // Llama al onSubmit del padre
+
+    if (moduleToEdit) {
+      onSubmit({ _id: moduleToEdit._id, ...moduleData }); // Include _id for editing
+    } else {
+      onSubmit(moduleData); // For creating
+    }
   };
+
+  const isEditMode = Boolean(moduleToEdit);
+  const modalTitle = isEditMode ? "Editar Módulo" : "Crear Nuevo Módulo";
+  const submitButtonText = isEditMode ? "Guardar Cambios" : "Crear Módulo";
+  // The prop `isCreating` can be interpreted as `isProcessing` for both create/edit.
+  // `GenericFormModal` uses `isSubmitting`.
 
   return (
     <GenericFormModal
       open={open}
       onClose={onClose}
-      title="Crear Nuevo Módulo"
-      onSubmit={handleInternalSubmit} // Pasa la función de submit interna
-      isSubmitting={isCreating}
-      submitText="Crear"
+      title={modalTitle}
+      onSubmit={handleInternalSubmit}
+      isSubmitting={isCreating} // Prop name on GenericFormModal is isSubmitting
+      submitText={submitButtonText}
       sx={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
