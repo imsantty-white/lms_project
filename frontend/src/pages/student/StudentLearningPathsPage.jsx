@@ -73,7 +73,7 @@ const LearningPathCard = ({ path, index, onClick }) => {
         };
       case 'Completado': // Cambiado de 'Completada' a 'Completado'
         return {
-          text: 'Completada', // El texto que se muestra en UI puede seguir siendo "Completada"
+          text: 'Completada Parcialmente', // El texto que se muestra en UI puede seguir siendo "Completada Parcialmente" porque realmente es que tiene actividades completadas 
           color: 'success',
           icon: <CheckCircleOutlineIcon sx={{ fontSize: 16 }} />,
           bgColor: (theme) => alpha(theme.palette.success.main, 0.1)
@@ -354,7 +354,7 @@ function StudentLearningPathsPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.2 }}
                   >
-                    <Card sx={{ mb: 4, background: 'linear-gradient(135deg, #5d4aab 0%, #7c6fd1 100%)' }}>
+                    <Card sx={{ mb: 4, background: 'linear-gradient(135deg,rgb(28, 77, 56) 0%,rgb(8, 53, 49) 100%)' }}>
                       <CardContent sx={{ py: 3 }}>
                         <Stack direction="row" spacing={4} justifyContent="center" alignItems="center">
                           <Box sx={{ textAlign: 'center' }}>

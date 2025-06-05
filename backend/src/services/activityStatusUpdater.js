@@ -5,7 +5,7 @@ const NotificationService = require('../services/NotificationService'); // Impor
 const startActivityStatusUpdater = () => {
   // Schedule a task to run every minute
   cron.schedule('* * * * *', async () => {
-    console.log('Running activity status update job...');
+    // console.log('Running activity status update job...');
     const now = new Date();
 
     try {
@@ -46,7 +46,7 @@ const startActivityStatusUpdater = () => {
         await Promise.all(updatePromises);
         console.log(`Processed ${assignmentsToUpdate.length} assignments for auto-closing.`);
       } else {
-        console.log('No assignments to update.');
+        // console.log('No assignments to update.');
       }
     } catch (error) {
       console.error('Error updating activity statuses:', error);

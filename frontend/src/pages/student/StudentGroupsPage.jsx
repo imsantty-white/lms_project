@@ -379,7 +379,7 @@ function StudentGroupsPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.2 }}
                   >
-                    <Card sx={{ mb: 4, background: 'linear-gradient(135deg, #5d4aab 0%, #7c6fd1 100%)' }}>
+                    <Card sx={{ mb: 4, background: 'linear-gradient(135deg,rgb(28, 77, 56) 0%,rgb(8, 53, 49) 100%)' }}>
                       <CardContent sx={{ py: 3 }}>
                         <Stack direction="row" spacing={4} justifyContent="center" alignItems="center">
                           <Box sx={{ textAlign: 'center' }}>
