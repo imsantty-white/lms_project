@@ -1,148 +1,85 @@
-# LMS Project
+# Sistema de Gestión de Aprendizaje (LMS)
 
-Sistema de Gestión de Aprendizaje (LMS, Sin Nombre por ahora)
+## Introducción
 
-## Descripción
+Este proyecto es un Sistema de Gestión de Aprendizaje (LMS) diseñado para facilitar la creación, gestión y seguimiento de contenido educativo, cursos y la interacción entre docentes y estudiantes. Permite a los docentes construir rutas de aprendizaje estructuradas y a los estudiantes participar en actividades y seguir su progreso.
 
-Este repositorio contiene el backend y frontend de un Sistema de Gestión de Aprendizaje (LMS) desarrollado en Node.js/Express y React, con MongoDB como base de datos. El sistema permite la gestión de usuarios (estudiantes, docentes y administradores), grupos, rutas de aprendizaje, actividades, entregas y seguimiento del progreso estudiantil.
+El sistema está actualmente en desarrollo, preparándose para su despliegue inicial en AWS. Se ha realizado un análisis de seguridad y rendimiento para identificar áreas de mejora antes de la implementación.
 
-## Características principales
+## Características Clave Actuales
 
-- **Autenticación y autorización JWT** con roles (Estudiante, Docente, Administrador)  
-  _(Próximamente integración con autenticación Firebase)_
-- **Gestión de usuarios**: registro, login, aprobación de docentes, activación/desactivación de cuentas
-- **Gestión de grupos** y membresías (solicitudes de unión, aprobación/rechazo, remoción de estudiantes)
-- **Rutas de aprendizaje**: módulos y temas jerárquicos, edición y reordenamiento visual
-- **Banco de contenido** para docentes (recursos y actividades: contenido, enlaces, videos, cuestionarios, quiz, trabajos)
-- **Asignación y entrega de actividades** (quiz, cuestionario, trabajo) con fechas de inicio/fin, intentos, tiempo límite y puntaje máximo
-- **Calificación automática y manual** de actividades y retroalimentación docente
-- **Seguimiento del progreso** de los estudiantes por tema, módulo y ruta de aprendizaje
-- **Paneles de administración** para gestión de usuarios y grupos
-- **Notificaciones en tiempo real** (en desarrollo)
-- **Documentación interactiva de la API** con Swagger
+El sistema cuenta con una arquitectura de backend (Node.js) y frontend (React) e incluye las siguientes funcionalidades principales:
 
-## Funcionalidades del Frontend
+*   **Gestión de Usuarios:**
+    *   Registro y autenticación de usuarios (Estudiantes, Docentes, Administradores).
+    *   Perfiles de usuario.
+    *   Aprobación de cuentas de docentes por administradores.
+    *   Gestión de estado de cuentas (activar/desactivar).
+*   **Gestión de Grupos:**
+    *   Creación de grupos por docentes con códigos de acceso únicos.
+    *   Solicitudes de unión a grupos por estudiantes y aprobación/rechazo por docentes.
+    *   Listado de miembros del grupo.
+    *   Archivado y restauración de grupos.
+*   **Rutas de Aprendizaje:**
+    *   Creación de rutas de aprendizaje por docentes, asociadas a grupos.
+    *   Estructuración de rutas en Módulos y Temas.
+    *   Asignación de contenido (recursos y actividades) a los temas.
+    *   Gestión del orden de módulos, temas y asignaciones.
+*   **Gestión de Contenido:**
+    *   Banco de Recursos (creación de contenido HTML, enlaces, videos).
+    *   Banco de Actividades (creación de Quizzes, Cuestionarios, Trabajos).
+    *   Asignación de contenido de los bancos a las rutas de aprendizaje.
+    *   Configuración de parámetros para actividades asignadas (fechas, puntos, intentos, tiempo límite).
+    *   Gestión del estado de las asignaciones (Borrador, Abierto, Cerrado).
+*   **Interacción y Progreso del Estudiante:**
+    *   Visualización de rutas de aprendizaje y su contenido.
+    *   Realización de actividades (Quizzes, Cuestionarios, envío de Trabajos).
+    *   Seguimiento del progreso en las rutas de aprendizaje.
+    *   Recepción de calificaciones y retroalimentación.
+*   **Funcionalidades para Docentes:**
+    *   Panel de control para gestionar grupos, rutas y contenido.
+    *   Visualización de entregas de estudiantes.
+    *   Calificación manual de actividades.
+*   **Funcionalidades para Administradores:**
+    *   Dashboard con estadísticas del sistema.
+    *   Gestión completa de usuarios, grupos y planes de suscripción.
+    *   Revisión de mensajes de contacto.
+    *   Envío de notificaciones del sistema y anuncios.
+*   **Notificaciones:**
+    *   Sistema de notificaciones en tiempo real (usando WebSockets) para eventos relevantes (ej. nuevas entregas, solicitudes de unión, contenido nuevo/actualizado, calificaciones).
+*   **Suscripciones y Planes (para Docentes):**
+    *   Sistema de planes con límites de uso (ej. número de grupos, rutas, etc.).
+    *   Asignación de un plan gratuito por defecto a nuevos docentes.
+    *   Verificación del estado de la suscripción para acceso a funcionalidades.
 
-- **Interfaz de usuario en React** con Material UI (MUI) y Vite
-- **Paneles diferenciados** para Administrador, Docente y Estudiante
-- **Gestión visual de rutas de aprendizaje**: creación, edición, asignación de módulos, temas y actividades
-- **Banco de contenido**: creación, edición y reutilización de recursos y actividades
-- **Asignación de actividades** a temas con configuración avanzada (fechas, intentos, tiempo, puntaje)
-- **Visualización y calificación de entregas** de estudiantes (incluye retroalimentación)
-- **Seguimiento visual del progreso** para estudiantes y docentes
-- **Gestión de grupos**: solicitudes, aprobación/rechazo, invitaciones y remoción de miembros
-- **Sistema de notificaciones** (en desarrollo)
-- **Soporte para modo claro/oscuro**
-- **Validaciones avanzadas** en formularios y feedback visual con Toasts
-- **Carga y manejo de estados de error y acceso** en todas las vistas
-- **Rutas protegidas** según el rol del usuario
+## Tecnologías Utilizadas
 
-## Tecnologías utilizadas
+*   **Backend:**
+    *   Node.js
+    *   Express.js
+    *   MongoDB (con Mongoose)
+    *   JSON Web Tokens (JWT) para autenticación
+    *   Socket.IO para comunicación en tiempo real
+    *   bcrypt para hashing de contraseñas
+*   **Frontend:**
+    *   React
+    *   React Router para enrutamiento
+    *   Material-UI (MUI) para componentes de interfaz de usuario
+    *   Axios para peticiones HTTP
+    *   Socket.IO Client
+    *   Vite como herramienta de construcción
+*   **Base de Datos:**
+    *   MongoDB
 
-- Node.js
-- Express.js
-- MongoDB + Mongoose
-- JWT (JSON Web Tokens)
-- Swagger (OpenAPI)
-- express-mongo-sanitize y otras medidas de seguridad
-- React + Vite + Material UI (MUI)
-- Axios, React Router, React Toastify
+## Estado Actual
 
-## Instalación
+En desarrollo, preparándose para despliegue en AWS. Se está trabajando en la optimización y aseguramiento del sistema.
 
-### Backend
+## Próximos Pasos (Post-Análisis Inicial)
 
-1. Clona el repositorio:
-   ```bash
-   git clone https://github.com/tu-usuario/lms_project.git
-   cd lms_project/backend
-   ```
-
-2. Instala las dependencias:
-   ```bash
-   npm install
-   ```
-
-3. Crea un archivo `.env` en la carpeta `backend` con el siguiente contenido:
-   ```
-   MONGODB_URI=tu_uri_de_mongodb
-   JWT_SECRET=tu_secreto_jwt
-   PORT=3000
-   ```
-
-4. Inicia el servidor:
-   ```bash
-   npm start
-   ```
-
-### Frontend
-
-1. En otra terminal, ve a la carpeta `frontend`:
-   ```bash
-   cd ../frontend
-   ```
-
-2. Instala las dependencias:
-   ```bash
-   npm install
-   ```
-
-3. Inicia la aplicación de React:
-   ```bash
-   npm run dev
-   ```
-
-4. El frontend estará disponible en `http://localhost:5173` (por defecto).
-
-## Uso
-
-- La API estará disponible en `http://localhost:3000`.
-- La documentación Swagger está en `http://localhost:3000/api-docs`.
-- El frontend estará disponible en `http://localhost:5173`.
-
-## Estructura del proyecto
-
+1.  Implementar las mejoras de seguridad y rendimiento identificadas.
+2.  Configurar el entorno de despliegue en AWS.
+3.  Realizar pruebas exhaustivas en un entorno de staging.
+4.  Desplegar la aplicación.
+5.  Configurar monitoreo, logging y alertas en producción.
 ```
-lms_project/
-├── backend/
-│   ├── src/
-│   │   ├── controllers/
-│   │   ├── middleware/
-│   │   ├── models/
-│   │   ├── routes/
-│   │   ├── services/
-│   │   ├── utils/
-│   │   ├── config/
-│   │   └── app.js
-│   ├── .env
-│   ├── .gitignore
-│   └── package.json
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── assets/
-│   │   ├── components/
-│   │   ├── contexts/
-│   │   ├── pages/
-│   │   ├── services/
-│   │   ├── utils/
-│   │   ├── App.jsx
-│   │   ├── main.jsx
-│   │   ├── theme.js
-│   │   └── index.css
-│   ├── .gitignore
-│   ├── index.html
-│   ├── package.json
-│   ├── vite.config.js
-│   └── vitest.config.js
-└── README.md
-```
-
-## Seguridad
-
-- Las credenciales y secretos se gestionan mediante variables de entorno (`.env`).
-- El archivo `.env` está en `.gitignore` y **no debe subirse al repositorio**.
-- Se utiliza `express-mongo-sanitize` para proteger contra NoSQL Injection.
-- El frontend no almacena credenciales sensibles en el código fuente.
-
----
