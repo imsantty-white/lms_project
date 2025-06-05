@@ -514,8 +514,8 @@ const submitStudentActivityAttempt = async (req, res, next) => {
 
                 if(teacherIdForNotification){
                     const studentName = `${student.nombre} ${student.apellidos || ''}`.trim();
-                    const message = `${studentName} submitted work for '${activityTitle}' in group '${groupNameForNotification}'.`;
-                    const link = `/teacher/assignments/${assignment._id}/submissions/student/${student._id}`;
+                    const message = `${studentName} hizo una entrega de '${activityTitle}' del Grupo '${groupNameForNotification}'.`;
+                    const link = `/teacher/assignments`;
 
                     await NotificationService.createNotification({
                         recipient: teacherIdForNotification,
@@ -979,7 +979,7 @@ const gradeSubmission = async (req, res, next) => {
                 const score = populatedSubmission.calificacion;
                 const maxPoints = populatedSubmission.assignment_id.puntos_maximos;
                 
-                let message = `Your submission for '${activityTitle}' has been graded. Score: ${score}`;
+                let message = `Tu entrega para '${activityTitle}' ha sido calificada. Puntuación: ${score}`;
                 if (maxPoints !== undefined && maxPoints !== null) {
                     message += `/${maxPoints}`;
                 }
@@ -987,7 +987,7 @@ const gradeSubmission = async (req, res, next) => {
 
                 // TODO: Confirm actual frontend URL structure for student's graded work view.
                 // Using a generic link to a submissions page or specific submission.
-                const link = `/student/assignments/${populatedSubmission.assignment_id._id}/submissions/${populatedSubmission._id}`;
+                const link = `/student/progress`;
 
                 await NotificationService.createNotification({
                     recipient: studentId,

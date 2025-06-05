@@ -1820,9 +1820,9 @@ const updateContentAssignmentStatus = async (req, res, next) => {
                     for (const member of approvedMembers) {
                         // Ensure the member is a student
                         if (member.usuario_id && member.usuario_id.tipo_usuario === 'Estudiante') {
-                            const message = `New assignment '${assignmentTitle}' in '${learningPathName}' is now open.`;
+                            const message = `Nueva Actividad '${assignmentTitle}' en '${learningPathName}' está disponible.`;
                             // TODO: Confirm actual frontend URL structure for student assignment view
-                            const link = `/student/learning-paths/${detailedAssignment.theme_id.module_id.learning_path_id._id}/themes/${detailedAssignment.theme_id._id}/assignments/${detailedAssignment._id}`;
+                            const link = `/student/learning-paths/`;
 
                             // 1. Crear la notificación en la base de datos
                             const newNotification = await NotificationService.createNotification({

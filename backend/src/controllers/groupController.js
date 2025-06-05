@@ -173,7 +173,7 @@ const requestJoinGroup = async (req, res) => {
               const groupName = group.nombre || 'the group';
               const studentName = `${student.nombre} ${student.apellidos || ''}`.trim();
 
-              const message = `${studentName} has requested to join your group '${groupName}'.`;
+              const message = `${studentName} ha solicitado unirse al Grupo '${groupName}'.`;
               // TODO: Confirm teacher's link to manage join requests for this specific group.
               // Assuming a route like /teacher/groups/:groupId/manage or similar where requests are listed.
               const link = `/teacher/groups/${group._id}/manage`; // Link to member management page
@@ -356,7 +356,7 @@ const respondJoinRequest = async (req, res) => {
               if (currentStatus === 'Aprobado') {
                   notifType = 'GROUP_INVITE_ACCEPTED';
                   message = `Tu solicitud para unirte al grupo '${groupName}' ha sido aprobada.`;
-                  link = `/student/learning-paths/group/${updatedPopulatedMembership.grupo_id._id}`;
+                  link = `/student/groups`;
 
                   // --- REMOVE THIS BLOCK ---
                   // try {
@@ -376,7 +376,7 @@ const respondJoinRequest = async (req, res) => {
               } else if (currentStatus === 'Rechazado') {
                   notifType = 'GROUP_INVITE_DECLINED';
                   message = `Tu solicitud para unirte al grupo '${groupName}' ha sido rechazada.`;
-                  link = '/student/groups/my-groups';
+                  link = '/student/groups';
               }
 
               if (notifType && message) {
@@ -968,7 +968,7 @@ const removeMembershipById = async (req, res) => {
                 sender: docenteId, // Teacher who performed the action
                 type: 'MEMBERSHIP_REMOVED', // A new type for this action
                 message: `Has sido removido del grupo '${groupName}' por el docente.`,
-                // link: '/student/groups/my-groups' // Link to student's group page or dashboard
+                link: '/student/groups/' // Link to student's group page or dashboard
             });
         }
     } catch (notificationError) {
