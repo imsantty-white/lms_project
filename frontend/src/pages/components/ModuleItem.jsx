@@ -101,7 +101,7 @@ const ModuleItem = React.memo(({
                 disabled={isAnyOperationInProgress}
                 sx={{ mr: 2, color: 'inherit',
                   bgcolor: alpha(theme.palette.primary.dark, 0.2),
-        '&:hover': { bgcolor: alpha(theme.palette.primary.dark, 0.5) },
+                  '&:hover': { bgcolor: alpha(theme.palette.primary.dark, 0.5) },
                  }} // Inherit color for contrast
               >
                 <EditIcon fontSize="small" />
@@ -111,15 +111,14 @@ const ModuleItem = React.memo(({
               <IconButton
                 aria-label="eliminar módulo"
                 size="small"
-                color="error" // Changed color
                 onClick={(e) => {
                   e.stopPropagation(); // Prevent Accordion toggle
                   onDeleteModule(module._id);
                 }}
                 disabled={isAnyOperationInProgress}
-                sx={{ mr: 2,
-                  bgcolor: alpha(theme.palette.error.main, 0.2),
-                  '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.5) },
+                sx={{ mr: 2, color: 'inherit',
+                  bgcolor: alpha(theme.palette.primary.dark, 0.2),
+                  '&:hover': { bgcolor: alpha(theme.palette.primary.dark, 0.5) },
                  }} // Adjusted margin
               >
                 <DeleteIcon fontSize="small" />

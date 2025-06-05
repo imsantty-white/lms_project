@@ -50,7 +50,7 @@ const GenericFormModal = React.memo(({
       // To prevent closing while submitting, could also disable EscapeKeyDown
       // disableEscapeKeyDown={isSubmitting}
     >
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontStyle: 'italic' }}>
         {title}
         <IconButton
           aria-label="close"
@@ -58,9 +58,9 @@ const GenericFormModal = React.memo(({
           disabled={isSubmitting}
           sx={{
             position: 'absolute',
-            right: 8,
-            top: 8,
-            color: (theme) => theme.palette.grey[500],
+            right: 6,
+            //top: 8,
+            color: (theme) => theme.palette.text.primary,
           }}
         >
           <CloseIcon />

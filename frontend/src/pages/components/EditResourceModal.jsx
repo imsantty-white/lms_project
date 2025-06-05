@@ -201,6 +201,7 @@ function EditResourceModal({ open, onClose, resourceId, onUpdateSuccess }) {
             disabled={isSaving}
             required
             autoFocus
+            color='text.primary'
           />
           <TextField
             label="Descripción (Opcional)"
@@ -210,6 +211,7 @@ function EditResourceModal({ open, onClose, resourceId, onUpdateSuccess }) {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             disabled={isSaving}
+            color='text.primary'
           />
           <TextField // Display original type, not editable
             label="Tipo de Recurso"
@@ -217,6 +219,7 @@ function EditResourceModal({ open, onClose, resourceId, onUpdateSuccess }) {
             value={originalResourceType}
             InputProps={{ readOnly: true }}
             disabled={isSaving} // Should still be disabled if saving
+            color='text.primary'
           />
           {originalResourceType === 'Contenido' && (
             <>
@@ -225,6 +228,7 @@ function EditResourceModal({ open, onClose, resourceId, onUpdateSuccess }) {
                 onChange={(newContent) => setContentBody(newContent)}
                 disabled={isSaving}
                 placeholder="Edita el contenido del recurso aquí..."
+                color='text.primary'
               />
               {/* Display validation error for contentBody, if any */}
               {errors.contentBody && (
@@ -245,6 +249,7 @@ function EditResourceModal({ open, onClose, resourceId, onUpdateSuccess }) {
               disabled={isSaving}
               required
               type="url"
+              color='text.primary'
             />
           )}
           {/* Submit button is handled by GenericFormModal */}

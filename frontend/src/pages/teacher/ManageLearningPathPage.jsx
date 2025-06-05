@@ -969,15 +969,15 @@ function ManageLearningPathPage() {
                 variant="h5"
                 fontWeight="bold"
                 gutterBottom
-                sx={{ mb: 3, color: 'primary.light',textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}
+                sx={{ mb: 2, color: 'primary.main',textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}
               >
                 {learningPath.nombre}
               </Typography>
               
               <Typography
-                variant="body1"
+                variant="body2"
                 color="text.secondary"
-                sx={{ mb: 3, lineHeight: 1.6 }}
+                sx={{ mb: 3, lineHeight: 1.6, fontStyle: 'italic' }}
               >
                 {learningPath.descripcion ||
                   "Esta ruta de aprendizaje no tiene una descripción detallada."}

@@ -16,6 +16,7 @@ import {
   Button // Keep Button for specific actions like "Add Question"
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import { toast } from 'react-toastify';
 import GenericFormModal from '../../components/GenericFormModal'; // Ajusta la ruta
 
@@ -199,7 +200,7 @@ function CreateActivityModal({ open, onClose, onSubmit, isCreating }) {
       {/* The Stack for form elements is now the direct child */}
       <Stack spacing={2} sx={{ pt: 1 }}> {/* pt:1 for padding top */}
         {/* Selector de Tipo de Actividad */}
-        <FormControl fullWidth variant="outlined" required disabled={isCreating} error={!!errors.type}>
+        <FormControl fullWidth variant="outlined" color='text.primary' required disabled={isCreating} error={!!errors.type}>
           <InputLabel id="activity-type-label">Tipo de Actividad</InputLabel>
           <Select
             labelId="activity-type-label"
@@ -220,6 +221,7 @@ function CreateActivityModal({ open, onClose, onSubmit, isCreating }) {
           <TextField
             label="Título de la Actividad"
             variant="outlined"
+            color='text.primary'
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             fullWidth
@@ -231,6 +233,7 @@ function CreateActivityModal({ open, onClose, onSubmit, isCreating }) {
           <TextField
             label="Descripción (Opcional)"
             variant="outlined"
+            color='text.primary'
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             fullWidth
@@ -257,6 +260,7 @@ function CreateActivityModal({ open, onClose, onSubmit, isCreating }) {
                     <TextField
                       label={`Pregunta ${index + 1}`}
                       variant="outlined"
+                      color='text.primary'
                       value={q.text}
                       onChange={(e) => handleUpdateCuestionarioQuestion(index, e.target.value)}
                       fullWidth
@@ -281,6 +285,8 @@ function CreateActivityModal({ open, onClose, onSubmit, isCreating }) {
                 ))}
                 <Button
                   variant="outlined"
+                  color='secondary'
+                  startIcon={<AddCircleOutlineIcon />}
                   onClick={handleAddCuestionarioQuestion}
                   disabled={isCreating}
                   sx={{ mt: 1 }}
@@ -299,6 +305,7 @@ function CreateActivityModal({ open, onClose, onSubmit, isCreating }) {
                     <TextField
                       label={`Pregunta ${qIndex + 1}`}
                       variant="outlined"
+                      color='text.primary'
                       value={q.text}
                       onChange={(e) => handleUpdateQuizQuestionText(qIndex, e.target.value)}
                       fullWidth
@@ -314,6 +321,7 @@ function CreateActivityModal({ open, onClose, onSubmit, isCreating }) {
                         <TextField
                           label={`Opción ${optIndex + 1}`}
                           variant="outlined"
+                          color='text.primary'
                           value={opt}
                           onChange={(e) => handleUpdateQuizOptionText(qIndex, optIndex, e.target.value)}
                           fullWidth
@@ -335,6 +343,8 @@ function CreateActivityModal({ open, onClose, onSubmit, isCreating }) {
                   <Button
                     variant="outlined"
                     size="small"
+                    color='info'
+                    startIcon={<AddCircleOutlineIcon />}
                     onClick={() => handleAddQuizOption(qIndex)}
                     disabled={isCreating}
                     sx={{ mt: 1, mb: 2 }}
@@ -342,12 +352,13 @@ function CreateActivityModal({ open, onClose, onSubmit, isCreating }) {
                     Añadir Opción
                   </Button>
 
-                  <FormControl fullWidth variant="outlined" disabled={isCreating} required sx={{ mb: 2 }} error={!!(errors.quizQuestions && errors.quizQuestions.includes('respuesta correcta'))}>
+                  <FormControl fullWidth variant="outlined" color='text.primary' disabled={isCreating} required sx={{ mb: 2 }} error={!!(errors.quizQuestions && errors.quizQuestions.includes('respuesta correcta'))}>
                     <InputLabel>Respuesta Correcta</InputLabel>
                     <Select
                       value={q.correct_answer}
                       onChange={(e) => handleUpdateQuizCorrectAnswer(qIndex, e.target.value)}
                       label="Respuesta Correcta"
+                      color='text.primary'
                     >
                       {q.options.map((opt, optIndex) => (
                         <MenuItem key={optIndex} value={opt}>{opt}</MenuItem>
@@ -371,6 +382,8 @@ function CreateActivityModal({ open, onClose, onSubmit, isCreating }) {
                 ))}
                 <Button
                   variant="outlined"
+                  color='secondary'
+                  startIcon={<AddCircleOutlineIcon />}
                   onClick={handleAddQuizQuestion}
                   disabled={isCreating}
                   sx={{ mt: 1 }}

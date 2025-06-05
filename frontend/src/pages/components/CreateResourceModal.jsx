@@ -102,7 +102,7 @@ function CreateResourceModal({ open, onClose, onSubmit, isCreating }) {
       // The actual validation logic remains within `handleInternalSubmit`.
     >
       <Stack spacing={2} sx={{ pt: 1 }}>
-        <FormControl fullWidth variant="outlined" required disabled={isCreating}>
+        <FormControl fullWidth variant="outlined"  color='text.primary' required disabled={isCreating}>
           <InputLabel id="resource-type-label">Tipo de Recurso</InputLabel>
           <Select
             labelId="resource-type-label"
@@ -120,6 +120,7 @@ function CreateResourceModal({ open, onClose, onSubmit, isCreating }) {
         <TextField
           label="Título del Recurso"
           variant="outlined"
+          color='text.primary'
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           fullWidth
@@ -129,6 +130,7 @@ function CreateResourceModal({ open, onClose, onSubmit, isCreating }) {
         <TextField
           label="Descripción (Opcional)"
           variant="outlined"
+          color='text.primary'
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           fullWidth
@@ -138,6 +140,7 @@ function CreateResourceModal({ open, onClose, onSubmit, isCreating }) {
         />
         {type === 'Contenido' && (
           <TipTapEditor
+            color='text.primary'
             value={contentBody}
             onChange={(newContent) => setContentBody(newContent)}
             disabled={isCreating}
@@ -148,6 +151,7 @@ function CreateResourceModal({ open, onClose, onSubmit, isCreating }) {
           <TextField
             label="URL del Enlace"
             variant="outlined"
+            color='text.primary'
             value={linkUrl}
             onChange={(e) => setLinkUrl(e.target.value)}
             fullWidth
@@ -160,6 +164,7 @@ function CreateResourceModal({ open, onClose, onSubmit, isCreating }) {
           <TextField
             label="URL del Video"
             variant="outlined"
+            color='text.primary'
             value={videoUrl}
             onChange={(e) => setVideoUrl(e.target.value)}
             fullWidth

@@ -305,6 +305,7 @@ function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
             disabled={isSaving}
             required
             autoFocus
+            color='text.primary'
           />
           <TextField
             label="Descripción (Opcional)"
@@ -314,13 +315,16 @@ function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             disabled={isSaving}
+            color='text.primary'
           />
           <TextField // Display original type, not editable
             label="Tipo de Actividad"
             fullWidth
             value={originalActivityType}
             InputProps={{ readOnly: true }}
+            color='text.primary'
             disabled={isSaving}
+            sx={{ pointerEvents: "none" }}
           />
 
           {originalActivityType === 'Cuestionario' && (
@@ -332,6 +336,7 @@ function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
                   <TextField
                     label={`Pregunta ${index + 1}`}
                     variant="outlined"
+                    color='text.primary'
                     value={q.text}
                     onChange={(e) => handleUpdateCuestionarioQuestion(index, e.target.value)}
                     fullWidth
@@ -377,6 +382,7 @@ function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
                   <TextField
                     label={`Pregunta ${qIndex + 1}`}
                     variant="outlined"
+                    color='text.primary'
                     value={q.text}
                     onChange={(e) => handleUpdateQuizQuestionText(qIndex, e.target.value)}
                     fullWidth
@@ -392,6 +398,7 @@ function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
                       <TextField
                         label={`Opción ${optIndex + 1}`}
                         variant="outlined"
+                        color='text.primary'
                         value={opt}
                         onChange={(e) => handleUpdateQuizOptionText(qIndex, optIndex, e.target.value)}
                         fullWidth
@@ -412,7 +419,7 @@ function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
                   ))}
                   <Button
                     variant="outlined"
-                    color='secondary'
+                    color='info'
                     size="small"
                     startIcon={<AddCircleOutlineIcon />}
                     onClick={() => handleAddQuizOption(qIndex)}
@@ -421,7 +428,7 @@ function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
                   >
                     Añadir Opción
                   </Button>
-                  <FormControl fullWidth variant="outlined" disabled={isSaving} required sx={{ mb: 2 }} error={!!errors.quizQuestions && q && (!q.correct_answer || !q.options.includes(q.correct_answer.trim()))}>
+                  <FormControl fullWidth variant="outlined" color='text.primary' disabled={isSaving} required sx={{ mb: 2 }} error={!!errors.quizQuestions && q && (!q.correct_answer || !q.options.includes(q.correct_answer.trim()))}>
                     <InputLabel>Respuesta Correcta</InputLabel>
                     <Select
                       value={q.correct_answer || ''} // Ensure value is not undefined
@@ -463,7 +470,7 @@ function EditActivityModal({ open, onClose, activityId, onUpdateSuccess }) {
 
           {originalActivityType === 'Trabajo' && (
             <Box sx={{ mt: 2 }}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" fontStyle={'italic'}>
                 Este tipo de actividad ('Trabajo') solo requiere Título y Descripción para las instrucciones.
               </Typography>
             </Box>
