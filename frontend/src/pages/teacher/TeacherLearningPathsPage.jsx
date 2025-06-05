@@ -1,5 +1,5 @@
 // src/pages/TeacherLearningPathsPage.jsx
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react'; // Added useCallback
 import {
     Container,
     Box,
@@ -30,6 +30,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import GroupIcon from '@mui/icons-material/Group';
 import RouteIcon from '@mui/icons-material/Route';
 import InfoIcon from '@mui/icons-material/Info'; // <-- ADD THIS
+import RefreshIcon from '@mui/icons-material/Refresh'; // Added RefreshIcon
 
 
 // Importar useAuth y axiosInstance
@@ -212,89 +213,98 @@ function TeacherLearningPathsPage() {
 
     const hasShownInitialToast = useRef(false);
 
+    const fetchPageData = useCallback(async (isManualRefresh = false) => {
+        setIsLoading(true);
+        setFetchError(null);
+        setGroupsLoadingError(null);
+        if (!isManualRefresh) {
+            setLearningPaths([]); // Limpiar rutas previas solo en carga inicial
+            hasShownInitialToast.current = false;
+        }
+
+        try {
+            // Cargar Rutas de Aprendizaje
+            const pathsResponse = await axiosInstance.get('/api/learning-paths/my-creations');
+            const fetchedPaths = pathsResponse.data.data || [];
+
+            // Cargar Grupos del Docente
+            const groupsResponse = await axiosInstance.get('/api/groups/docente/me');
+            const fetchedGroups = groupsResponse.data.data || [];
+
+            // Asignar nombres de grupo a las rutas de aprendizaje para mostrar en la UI
+            const pathsWithGroupNames = fetchedPaths.map(path => {
+                const group = fetchedGroups.find(g => g._id === path.group_id);
+                return {
+                    ...path,
+                    group_name: group ? group.nombre : 'Grupo Desconocido'
+                };
+            });
+
+            setLearningPaths(pathsWithGroupNames);
+            setTeacherGroups(fetchedGroups);
+
+            // --- BEGIN Plan Limit Check (for Docente only) ---
+            // This uses 'user' from the outer scope, make sure 'user' is a dependency of `useEffect` calling `fetchPageData`
+            // or pass `user` as an argument to `fetchPageData` if it needs to be more reactive to user changes.
+            // For now, assuming `user` from `useAuth` is relatively stable or updated contextually.
+            if (user?.userType === 'Docente' && user.plan && user.plan.limits && user.usage) {
+                const { maxRoutes } = user.plan.limits;
+                const { routesCreated } = user.usage;
+                if (routesCreated >= maxRoutes) {
+                    setCanCreateLearningPath(false);
+                    setLearningPathLimitMessage(`Has alcanzado el límite de ${maxRoutes} rutas de aprendizaje de tu plan.`);
+                } else {
+                    setCanCreateLearningPath(true);
+                    setLearningPathLimitMessage(`Rutas de aprendizaje creadas: ${routesCreated}/${maxRoutes}`);
+                }
+            } else if (user?.userType === 'Administrador') {
+                setCanCreateLearningPath(true);
+                setLearningPathLimitMessage('');
+            }
+            // --- END Plan Limit Check ---
+
+            if (isManualRefresh) {
+                toast.success('Datos actualizados.');
+            } else if (!hasShownInitialToast.current) {
+                // Simplified toast logic for initial load, can be expanded
+                if (pathsWithGroupNames.length > 0 || fetchedGroups.length > 0) {
+                     toast.success('Datos cargados con éxito.');
+                } else {
+                     toast.info('No se encontraron rutas de aprendizaje o grupos.');
+                }
+                hasShownInitialToast.current = true;
+            }
+
+        } catch (err) {
+            console.error('Error fetching data:', err.response ? err.response.data : err.message);
+            let errorMessage = 'Error al cargar los datos.';
+            if (err.config?.url?.includes('/my-creations')) {
+                errorMessage = err.response?.data?.message || 'Error al cargar tus rutas de aprendizaje.';
+                setFetchError(errorMessage);
+            } else if (err.config?.url?.includes('/groups/docente/me')) {
+                errorMessage = err.response?.data?.message || 'Error al cargar tus grupos.';
+                setGroupsLoadingError(errorMessage);
+            } else {
+                setFetchError(errorMessage); // General error
+            }
+            toast.error(errorMessage); // Show specific or general error
+            if (!isManualRefresh) hasShownInitialToast.current = false;
+        } finally {
+            setIsLoading(false);
+        }
+    }, [axiosInstance, user]); // Added user as dependency
+
     // Carga las Rutas de Aprendizaje Y los Grupos del docente al montar el componente
     useEffect(() => {
-        const fetchData = async () => {
-            setIsLoading(true);
-            setFetchError(null);
-            setGroupsLoadingError(null);
-            setLearningPaths([]); // Limpiar rutas previas
-
-            try {
-                // Cargar Rutas de Aprendizaje
-                const pathsResponse = await axiosInstance.get('/api/learning-paths/my-creations');
-                const fetchedPaths = pathsResponse.data.data || [];
-
-                // Cargar Grupos del Docente
-                const groupsResponse = await axiosInstance.get('/api/groups/docente/me');
-                const fetchedGroups = groupsResponse.data.data || [];
-
-                // Asignar nombres de grupo a las rutas de aprendizaje para mostrar en la UI
-                const pathsWithGroupNames = fetchedPaths.map(path => {
-                    const group = fetchedGroups.find(g => g._id === path.group_id);
-                    return {
-                        ...path,
-                        group_name: group ? group.nombre : 'Grupo Desconocido'
-                    };
-                });
-
-                setLearningPaths(pathsWithGroupNames);
-                setTeacherGroups(fetchedGroups);
-
-                // --- BEGIN Plan Limit Check (for Docente only) ---
-                if (user?.userType === 'Docente' && user.plan && user.plan.limits && user.usage) {
-                    const { maxRoutes } = user.plan.limits;
-                    const { routesCreated } = user.usage; // This was added to UserModel.usage
-                    if (routesCreated >= maxRoutes) {
-                        setCanCreateLearningPath(false);
-                        setLearningPathLimitMessage(`Has alcanzado el límite de ${maxRoutes} rutas de aprendizaje de tu plan.`);
-                    } else {
-                        setCanCreateLearningPath(true);
-                        setLearningPathLimitMessage(`Rutas de aprendizaje creadas: ${routesCreated}/${maxRoutes}`);
-                    }
-                } else if (user?.userType === 'Administrador') {
-                    setCanCreateLearningPath(true);
-                    setLearningPathLimitMessage('');
-                }
-                // --- END Plan Limit Check ---
-
-
-                if (!hasShownInitialToast.current) {
-                    // ... toast logic ...
-                }
-
-            } catch (err) {
-                console.error('Error fetching data:', err.response ? err.response.data : err.message);
-                let errorMessage = 'Error al cargar los datos.';
-
-                if (err.config?.url?.includes('/my-creations')) {
-                    errorMessage = err.response?.data?.message || 'Error al cargar tus rutas de aprendizaje.';
-                    setFetchError(errorMessage);
-                    toast.error('Error al cargar rutas de aprendizaje.');
-                } else if (err.config?.url?.includes('/groups/docente/me')) {
-                    errorMessage = err.response?.data?.message || 'Error al cargar tus grupos.';
-                    setGroupsLoadingError(errorMessage);
-                    toast.error('Error al cargar grupos del docente.');
-                } else {
-                    setFetchError(errorMessage);
-                    toast.error('Error al cargar datos generales.');
-                }
-                hasShownInitialToast.current = false; // Resetear si hay error
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
         if (isAuthInitialized && isAuthenticated && (user?.userType === 'Docente' || user?.userType === 'Administrador')) {
-            fetchData();
-        } else if (isAuthInitialized && (!isAuthenticated || user?.userType === 'Docente')) {
-             // For non-docentes or unauthenticated, set loading to false and show appropriate message
+            fetchPageData();
+        } else if (isAuthInitialized) {
             setIsLoading(false);
-            if (user?.userType !== 'Administrador') { // Allow admin to see if they have a specific view later
+            if (!isAuthenticated || (user?.userType !== 'Docente' && user?.userType !== 'Administrador')) {
                 setFetchError("No tienes permiso para ver esta página.");
             }
         }
-    }, [isAuthenticated, user, isAuthInitialized]); // Added user to dependency array
+    }, [isAuthenticated, user, isAuthInitialized, fetchPageData]);
 
 
     // Manejador para navegar a la página de gestión de la ruta
@@ -563,28 +573,41 @@ function TeacherLearningPathsPage() {
                             )}
                             {/* --- END Display Usage/Limit --- */}
                         </Box>
-                        {/* --- BEGIN Tooltip and Disable Logic for Create Button --- */}
-                        <Tooltip title={!canCreateLearningPath && user?.userType === 'Docente' ? learningPathLimitMessage : "Crear Nueva Ruta de Aprendizaje"}>
-                            <span> {/* Span needed for Tooltip when button is disabled */}
-                                <Button
-                                    variant="contained"
-                                    color="primary"
-                                    startIcon={<AddCircleOutlineIcon />}
-                                    onClick={handleOpenCreateLearningPathModal}
-                                    disabled={
-                                        isLoading ||
-                                        isCreatingLearningPath ||
-                                        !teacherGroups ||
-                                        teacherGroups.length === 0 ||
-                                        (user?.userType === 'Docente' && !canCreateLearningPath) // Disable if Docente and limit reached
-                                    }
-                                    sx={{ /* ... existing sx ... */ }}
-                                >
-                                    Crear Ruta
-                                </Button>
-                            </span>
-                        </Tooltip>
-                        {/* --- END Tooltip and Disable Logic for Create Button --- */}
+                        <Stack direction="row" spacing={1}>
+                            <Button
+                                variant="outlined"
+                                startIcon={<RefreshIcon />}
+                                onClick={() => {
+                                    toast.info('Recargando tus rutas de aprendizaje...');
+                                    fetchPageData(true); // Pass true for manual refresh
+                                }}
+                                disabled={isLoading}
+                            >
+                                Refrescar
+                            </Button>
+                            {/* --- BEGIN Tooltip and Disable Logic for Create Button --- */}
+                            <Tooltip title={!canCreateLearningPath && user?.userType === 'Docente' ? learningPathLimitMessage : "Crear Nueva Ruta de Aprendizaje"}>
+                                <span> {/* Span needed for Tooltip when button is disabled */}
+                                    <Button
+                                        variant="contained"
+                                        color="primary"
+                                        startIcon={<AddCircleOutlineIcon />}
+                                        onClick={handleOpenCreateLearningPathModal}
+                                        disabled={
+                                            isLoading ||
+                                            isCreatingLearningPath ||
+                                            !teacherGroups ||
+                                            teacherGroups.length === 0 ||
+                                            (user?.userType === 'Docente' && !canCreateLearningPath) // Disable if Docente and limit reached
+                                        }
+                                        sx={{ /* ... existing sx ... */ }}
+                                    >
+                                        Crear Ruta
+                                    </Button>
+                                </span>
+                            </Tooltip>
+                            {/* --- END Tooltip and Disable Logic for Create Button --- */}
+                        </Stack>
                     </Box>
                 </motion.div>
 

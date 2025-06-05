@@ -276,6 +276,35 @@ const createTheme = async (req, res, next) => { // Añadir 'next'
         });
 
         // Opcional: Puedes querer devolver el tema creado completo
+        // res.status(201).json(newTheme); // Response will be sent after socket emission
+
+        // --- Emit socket event to students ---
+        try {
+            // Need to fetch the module to get learning_path_id
+            const parentModule = await Module.findById(newTheme.module_id);
+            if (parentModule && parentModule.learning_path_id) {
+                const learningPathId = parentModule.learning_path_id;
+                const studentUserIds = await getStudentUserIdsForLearningPath(learningPathId.toString(), { LearningPath, Membership, User });
+
+                if (global.io && studentUserIds && studentUserIds.length > 0) {
+                    studentUserIds.forEach(studentId => {
+                        global.io.to(studentId.toString()).emit('learning_path_updated', {
+                            learningPathId: learningPathId.toString(),
+                            message: 'A theme has been added to a learning path.'
+                        });
+                        console.log(`Emitted 'learning_path_updated' (theme created) to student ${studentId} for LP ${learningPathId}`);
+                    });
+                } else if (!global.io) {
+                    console.warn('Socket.IO instance (global.io) not available. Real-time notifications for theme creation might not be working.');
+                }
+            } else {
+                console.warn(`Could not find parent module or learningPathId for theme ${newTheme._id} for socket event.`);
+            }
+        } catch (socketError) {
+            console.error('Error emitting socket event in createTheme:', socketError);
+        }
+        // --- End socket event emission ---
+
         res.status(201).json(newTheme);
 
     } catch (error) {
@@ -497,8 +526,44 @@ const assignContentToTheme = async (req, res, next) => {
              .populate('activity_id', 'title type');
 
 
-        res.status(201).json(populatedAssignment); // 201 Creado
+        // res.status(201).json(populatedAssignment); // Send response after socket emission
 
+
+        // --- Emit socket event to students ---
+        try {
+            if (newAssignment && newAssignment.theme_id) {
+                const theme = await Theme.findById(newAssignment.theme_id).populate({
+                    path: 'module_id',
+                    select: 'learning_path_id' // Ensure learning_path_id is selected
+                });
+
+                if (theme && theme.module_id && theme.module_id.learning_path_id) {
+                    const learningPathId = theme.module_id.learning_path_id.toString();
+                    const studentUserIds = await getStudentUserIdsForLearningPath(learningPathId, { LearningPath, Membership, User });
+
+                    if (global.io && studentUserIds && studentUserIds.length > 0) {
+                        studentUserIds.forEach(studentId => {
+                            global.io.to(studentId.toString()).emit('learning_path_updated', {
+                                learningPathId: learningPathId,
+                                message: 'Content has been assigned in a learning path.'
+                            });
+                            console.log(`Emitted 'learning_path_updated' (content assigned) to student ${studentId} for LP ${learningPathId}`);
+                        });
+                    } else if (!global.io) {
+                        console.warn('Socket.IO instance (global.io) not available. Real-time notifications for content assignment might not be working.');
+                    }
+                } else {
+                    console.warn(`Could not determine learningPathId for new assignment ${newAssignment._id} for socket event.`);
+                }
+            } else {
+                 console.warn('New assignment or theme_id missing for socket event in assignContentToTheme.');
+            }
+        } catch (socketError) {
+            console.error('Error emitting socket event in assignContentToTheme:', socketError);
+        }
+        // --- End socket event emission ---
+
+        res.status(201).json(populatedAssignment); // 201 Creado
 
     } catch (error) {
         // --- Manejo de errores ---
@@ -830,6 +895,30 @@ const updateLearningPath = async (req, res) => {
         }
 
         await learningPath.save();
+        // res.status(200).json(learningPath); // Respond after socket emission
+
+        // --- Emit socket event to students ---
+        try {
+            // learningPathId is from req.params
+            const lpId = learningPathId; // or learningPath._id.toString();
+            const studentUserIds = await getStudentUserIdsForLearningPath(lpId.toString(), { LearningPath, Membership, User });
+
+            if (global.io && studentUserIds && studentUserIds.length > 0) {
+                studentUserIds.forEach(studentId => {
+                    global.io.to(studentId.toString()).emit('learning_path_updated', {
+                        learningPathId: lpId.toString(),
+                        message: 'Learning path details have been updated.'
+                    });
+                    console.log(`Emitted 'learning_path_updated' (LP details updated) to student ${studentId} for LP ${lpId}`);
+                });
+            } else if (!global.io) {
+                console.warn('Socket.IO instance (global.io) not available. Real-time notifications for LP detail update might not be working.');
+            }
+        } catch (socketError) {
+            console.error('Error emitting socket event in updateLearningPath:', socketError);
+        }
+        // --- End socket event emission ---
+
         res.status(200).json(learningPath);
 
     } catch (error) {
@@ -976,6 +1065,31 @@ const updateModule = async (req, res, next) => { // Añadir 'next'
         // Guardar los cambios
         const updatedModule = await moduleToUpdate.save();
 
+        // --- Emit socket event to students ---
+        try {
+            const learningPathId = updatedModule.learning_path_id; // or moduleToUpdate.learning_path_id
+            if (learningPathId) {
+                const studentUserIds = await getStudentUserIdsForLearningPath(learningPathId.toString(), { LearningPath, Membership, User });
+
+                if (global.io && studentUserIds && studentUserIds.length > 0) {
+                    studentUserIds.forEach(studentId => {
+                        global.io.to(studentId.toString()).emit('learning_path_updated', {
+                            learningPathId: learningPathId.toString(),
+                            message: 'A module has been updated in a learning path.'
+                        });
+                        console.log(`Emitted 'learning_path_updated' (module updated) to student ${studentId} for LP ${learningPathId}`);
+                    });
+                } else if (!global.io) {
+                    console.warn('Socket.IO instance (global.io) not available. Real-time notifications for module update might not be working.');
+                }
+            } else {
+                console.warn('Could not determine learningPathId for module update socket event.');
+            }
+        } catch (socketError) {
+            console.error('Error emitting socket event in updateModule:', socketError);
+        }
+        // --- End socket event emission ---
+
         // --- Respuesta exitosa ---
         // Opcional: Podrías popular learning_path_id, group_id si necesitas esos datos en la respuesta
         // const populatedUpdatedModule = await Module.findById(updatedModule._id).populate('learning_path_id'); // Ejemplo de población
@@ -1043,6 +1157,31 @@ const deleteModule = async (req, res, next) => { // Añadir 'next'
         console.log(`Módulo ${moduleId} eliminado.`);
         // --- Fin Eliminación en Cascada ---
 
+        // --- Emit socket event to students ---
+        // module object is defined above and contains learning_path_id
+        try {
+            const learningPathId = module.learning_path_id; // module is available from the ownership check
+            if (learningPathId) {
+                const studentUserIds = await getStudentUserIdsForLearningPath(learningPathId.toString(), { LearningPath, Membership, User });
+
+                if (global.io && studentUserIds && studentUserIds.length > 0) {
+                    studentUserIds.forEach(studentId => {
+                        global.io.to(studentId.toString()).emit('learning_path_updated', {
+                            learningPathId: learningPathId.toString(),
+                            message: 'A module has been deleted from a learning path.'
+                        });
+                        console.log(`Emitted 'learning_path_updated' (module deleted) to student ${studentId} for LP ${learningPathId}`);
+                    });
+                } else if (!global.io) {
+                    console.warn('Socket.IO instance (global.io) not available. Real-time notifications for module deletion might not be working.');
+                }
+            } else {
+                console.warn('Could not determine learningPathId for module deletion socket event.');
+            }
+        } catch (socketError) {
+            console.error('Error emitting socket event in deleteModule:', socketError);
+        }
+        // --- End socket event emission ---
 
         // --- Respuesta exitosa ---
         res.status(200).json({ message: 'Módulo y su contenido asociado eliminados con éxito.' });
@@ -1103,6 +1242,33 @@ const updateTheme = async (req, res, next) => {
 
         const updatedTheme = await themeToUpdate.save();
 
+        // --- Emit socket event to students ---
+        try {
+            // themeToUpdate should have module_id, which has learning_path_id
+            // The module was populated during ownership check: themeToUpdate.module_id.learning_path_id
+            if (themeToUpdate.module_id && themeToUpdate.module_id.learning_path_id) {
+                const learningPathId = themeToUpdate.module_id.learning_path_id._id; // or .id
+                const studentUserIds = await getStudentUserIdsForLearningPath(learningPathId.toString(), { LearningPath, Membership, User });
+
+                if (global.io && studentUserIds && studentUserIds.length > 0) {
+                    studentUserIds.forEach(studentId => {
+                        global.io.to(studentId.toString()).emit('learning_path_updated', {
+                            learningPathId: learningPathId.toString(),
+                            message: 'A theme has been updated in a learning path.'
+                        });
+                        console.log(`Emitted 'learning_path_updated' (theme updated) to student ${studentId} for LP ${learningPathId}`);
+                    });
+                } else if (!global.io) {
+                    console.warn('Socket.IO instance (global.io) not available. Real-time notifications for theme update might not be working.');
+                }
+            } else {
+                console.warn(`Could not determine learningPathId for theme ${updatedTheme._id} update socket event.`);
+            }
+        } catch (socketError) {
+            console.error('Error emitting socket event in updateTheme:', socketError);
+        }
+        // --- End socket event emission ---
+
         res.status(200).json(updatedTheme);
 
     } catch (error) {
@@ -1157,6 +1323,32 @@ const deleteTheme = async (req, res, next) => { // Añadir 'next'
         console.log(`Tema ${themeId} eliminado.`);
         // --- Fin Eliminación en Cascada ---
 
+        // --- Emit socket event to students ---
+        // theme object is available from the ownership check
+        // theme.module_id.learning_path_id contains the learningPathId
+        try {
+            if (theme && theme.module_id && theme.module_id.learning_path_id) {
+                const learningPathId = theme.module_id.learning_path_id._id; // or .id
+                const studentUserIds = await getStudentUserIdsForLearningPath(learningPathId.toString(), { LearningPath, Membership, User });
+
+                if (global.io && studentUserIds && studentUserIds.length > 0) {
+                    studentUserIds.forEach(studentId => {
+                        global.io.to(studentId.toString()).emit('learning_path_updated', {
+                            learningPathId: learningPathId.toString(),
+                            message: 'A theme has been deleted from a learning path.'
+                        });
+                        console.log(`Emitted 'learning_path_updated' (theme deleted) to student ${studentId} for LP ${learningPathId}`);
+                    });
+                } else if (!global.io) {
+                    console.warn('Socket.IO instance (global.io) not available. Real-time notifications for theme deletion might not be working.');
+                }
+            } else {
+                console.warn(`Could not determine learningPathId for theme ${themeId} deletion socket event.`);
+            }
+        } catch (socketError) {
+            console.error('Error emitting socket event in deleteTheme:', socketError);
+        }
+        // --- End socket event emission ---
 
         // --- Respuesta exitosa ---
         res.status(200).json({ message: 'Tema y su contenido asociado eliminados con éxito.' });
@@ -1294,6 +1486,34 @@ const updateContentAssignment = async (req, res, next) => { // Añadir 'next'
              .populate('activity_id', 'title type'); // Asumiendo que Activity tiene title y type
 
 
+        // res.status(200).json(populatedUpdatedAssignment); // Respond after socket emission
+
+        // --- Emit socket event to students ---
+        try {
+            // assignmentToUpdate is populated with theme_id -> module_id -> learning_path_id -> group_id
+            if (assignmentToUpdate && assignmentToUpdate.theme_id && assignmentToUpdate.theme_id.module_id && assignmentToUpdate.theme_id.module_id.learning_path_id) {
+                const learningPathId = assignmentToUpdate.theme_id.module_id.learning_path_id._id.toString();
+                const studentUserIds = await getStudentUserIdsForLearningPath(learningPathId, { LearningPath, Membership, User });
+
+                if (global.io && studentUserIds && studentUserIds.length > 0) {
+                    studentUserIds.forEach(studentId => {
+                        global.io.to(studentId.toString()).emit('learning_path_updated', {
+                            learningPathId: learningPathId,
+                            message: 'Content assignment has been updated in a learning path.'
+                        });
+                        console.log(`Emitted 'learning_path_updated' (content assignment updated) to student ${studentId} for LP ${learningPathId}`);
+                    });
+                } else if (!global.io) {
+                    console.warn('Socket.IO instance (global.io) not available. Real-time notifications for content assignment update might not be working.');
+                }
+            } else {
+                console.warn(`Could not determine learningPathId for assignment ${assignmentId} update socket event.`);
+            }
+        } catch (socketError) {
+            console.error('Error emitting socket event in updateContentAssignment:', socketError);
+        }
+        // --- End socket event emission ---
+
         res.status(200).json(populatedUpdatedAssignment); // Responde con la asignación actualizada y populada
 
     } catch (error) {
@@ -1384,6 +1604,37 @@ const deleteContentAssignment = async (req, res, next) => {
 
 
         // --- Respuesta exitosa ---
+        // res.status(200).json({ message: 'Asignación de contenido eliminada y orden reorganizado con éxito.' }); // Respond after socket emission
+
+        // --- Emit socket event to students ---
+        try {
+            // assignmentWithOwnership is populated with theme_id -> module_id -> learning_path_id
+            if (assignmentWithOwnership && assignmentWithOwnership.theme_id && assignmentWithOwnership.theme_id.module_id && assignmentWithOwnership.theme_id.module_id.learning_path_id) {
+                const learningPathId = assignmentWithOwnership.theme_id.module_id.learning_path_id._id.toString();
+                const studentUserIds = await getStudentUserIdsForLearningPath(learningPathId, { LearningPath, Membership, User });
+
+                if (global.io && studentUserIds && studentUserIds.length > 0) {
+                    studentUserIds.forEach(studentId => {
+                        global.io.to(studentId.toString()).emit('learning_path_updated', {
+                            learningPathId: learningPathId,
+                            message: 'Content assignment has been deleted from a learning path.'
+                        });
+                        console.log(`Emitted 'learning_path_updated' (content assignment deleted) to student ${studentId} for LP ${learningPathId}`);
+                    });
+                } else if (!global.io) {
+                    console.warn('Socket.IO instance (global.io) not available. Real-time notifications for content assignment deletion might not be working.');
+                }
+            } else {
+                // Use themeId obtained from assignmentToDelete if assignmentWithOwnership path is not fully populated
+                // This requires an additional fetch if learning_path_id is not available.
+                // For now, relying on assignmentWithOwnership population.
+                console.warn(`Could not determine learningPathId directly for assignment ${assignmentId} deletion socket event. Check population.`);
+            }
+        } catch (socketError) {
+            console.error('Error emitting socket event in deleteContentAssignment:', socketError);
+        }
+        // --- End socket event emission ---
+
         res.status(200).json({ message: 'Asignación de contenido eliminada y orden reorganizado con éxito.' });
 
     } catch (error) {
@@ -1568,11 +1819,35 @@ const updateContentAssignmentStatus = async (req, res, next) => {
                             }
                         }
                     }
+
+                    // --- Emit learning_path_updated event ---
+                    // Need to get learningPathId from detailedAssignment
+                    if (detailedAssignment.theme_id && detailedAssignment.theme_id.module_id && detailedAssignment.theme_id.module_id.learning_path_id) {
+                        const learningPathIdForUpdate = detailedAssignment.theme_id.module_id.learning_path_id._id.toString();
+                        // studentUserIds are the user IDs of the approved members of the group.
+                        const studentUserIdsForLpUpdate = approvedMembers
+                            .filter(member => member.usuario_id && member.usuario_id.tipo_usuario === 'Estudiante')
+                            .map(member => member.usuario_id._id.toString());
+
+                        if (global.io && studentUserIdsForLpUpdate && studentUserIdsForLpUpdate.length > 0) {
+                            studentUserIdsForLpUpdate.forEach(studentId => {
+                                global.io.to(studentId.toString()).emit('learning_path_updated', {
+                                    learningPathId: learningPathIdForUpdate,
+                                    message: 'Content assignment status has changed in a learning path.'
+                                });
+                                console.log(`Emitted 'learning_path_updated' (assignment status change) to student ${studentId} for LP ${learningPathIdForUpdate}`);
+                            });
+                        }
+                    } else {
+                        console.warn(`Could not determine learningPathId for assignment ${assignment._id} status update for 'learning_path_updated' event.`);
+                    }
+                    // --- End learning_path_updated event emission ---
+
                 } else {
-                    console.error(`Could not populate details for assignment ${assignment._id} to send notifications.`);
+                    console.error(`Could not populate details for assignment ${assignment._id} to send notifications or learning_path_updated event.`);
                 }
             } catch (notificationError) {
-                console.error('Failed to send new assignment notifications:', notificationError);
+                console.error('Failed to send new assignment notifications or learning_path_updated event:', notificationError);
                 // No se debe detener la respuesta principal por un error de notificación.
             }
         }
@@ -1588,6 +1863,36 @@ const updateContentAssignmentStatus = async (req, res, next) => {
         next(error); // Pasa el error al siguiente middleware para manejo centralizado
     }
 };
+
+// Helper function to get student user IDs for a learning path
+async function getStudentUserIdsForLearningPath(learningPathId, { LearningPath, Membership, User }) {
+  try {
+    const learningPath = await LearningPath.findById(learningPathId);
+    if (!learningPath || !learningPath.group_id) {
+      console.log(`Learning path or group_id not found for learningPathId: ${learningPathId}`);
+      return [];
+    }
+
+    const groupId = learningPath.group_id;
+
+    const memberships = await Membership.find({
+      grupo_id: groupId,
+      estado_solicitud: 'Aprobado'
+    }).populate({
+      path: 'usuario_id',
+      select: 'tipo_usuario' // Select only 'tipo_usuario'
+    });
+
+    const studentUserIds = memberships
+      .filter(membership => membership.usuario_id && membership.usuario_id.tipo_usuario === 'Estudiante')
+      .map(membership => membership.usuario_id._id.toString()); // Ensure it's an array of strings
+
+    return [...new Set(studentUserIds)]; // Return unique student IDs
+  } catch (error) {
+    console.error('Error in getStudentUserIdsForLearningPath:', error);
+    return []; // Return empty array on error
+  }
+}
 
 // @desc    Obtener todas las actividades asignadas a un estudiante en una ruta de aprendizaje
 // @route   GET /api/learning-paths/:learningPathId/student-activities

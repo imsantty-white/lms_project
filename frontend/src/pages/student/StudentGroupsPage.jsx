@@ -1,5 +1,5 @@
 // src/pages/StudentGroupsPage.jsx
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react'; // Added useCallback
 import { 
   Container, 
   Typography, 
@@ -12,8 +12,10 @@ import {
   Avatar,
   Stack,
   Fade,
-  Skeleton
+  Skeleton,
+  Button, // Added Button
 } from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh'; // Added RefreshIcon
 import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import GroupsIcon from '@mui/icons-material/Groups';
@@ -210,46 +212,50 @@ function StudentGroupsPage() {
   const [error, setError] = useState(null);
   const hasShownSuccessToast = useRef(false);
 
+  const fetchStudentGroups = useCallback(async (isManualRefresh = false) => {
+    setIsLoading(true);
+    setError(null);
+    if (!isManualRefresh) {
+        setGroups([]);
+        hasShownSuccessToast.current = false;
+    }
+
+    try {
+        const response = await axiosInstance.get('/api/groups/my-memberships');
+        setGroups(response.data);
+
+        if (isManualRefresh) {
+            toast.success('Lista de grupos actualizada.');
+        } else if (!hasShownSuccessToast.current) {
+            if (response.data.length > 0) {
+                toast.success('Tus grupos cargados con éxito.');
+            } else {
+                toast.info('No estás asociado a ningún grupo aún.');
+            }
+            hasShownSuccessToast.current = true;
+        }
+
+    } catch (err) {
+        console.error('Error al obtener los grupos del estudiante:', err.response ? err.response.data : err.message);
+        const errorMessage = err.response?.data?.message || 'Error al cargar tus grupos.';
+        setError(errorMessage);
+        toast.error('Error al cargar grupos.');
+        if(!isManualRefresh) hasShownSuccessToast.current = false;
+    } finally {
+        setIsLoading(false);
+    }
+  }, [axiosInstance]);
+
   useEffect(() => {
     if (isAuthInitialized) {
       if (isAuthenticated && user?.userType === 'Estudiante') {
-        const fetchStudentGroups = async () => {
-          setIsLoading(true);
-          setError(null);
-          setGroups([]);
-          hasShownSuccessToast.current = false;
-
-          try {
-            const response = await axiosInstance.get('/api/groups/my-memberships');
-            setGroups(response.data);
-
-            if (!hasShownSuccessToast.current) {
-              if(response.data.length > 0) {
-                toast.success('Tus grupos cargados con éxito.');
-              } else {
-                toast.info('No estás asociado a ningún grupo aún.');
-              }
-              hasShownSuccessToast.current = true;
-            }
-
-          } catch (err) {
-            console.error('Error al obtener los grupos del estudiante:', err.response ? err.response.data : err.message);
-            const errorMessage = err.response?.data?.message || 'Error al cargar tus grupos.';
-            setError(errorMessage);
-            toast.error('Error al cargar grupos.');
-            hasShownSuccessToast.current = false;
-          } finally {
-            setIsLoading(false);
-          }
-        };
-
         fetchStudentGroups();
-      } else {
+      } else if (isAuthInitialized) {
         setError('No tienes permiso para ver esta página.');
         setIsLoading(false);
       }
     }
-  }, [isAuthInitialized, isAuthenticated, user]);
+  }, [isAuthInitialized, isAuthenticated, user, fetchStudentGroups]);
 
   return (
     <Container maxWidth="lg">
@@ -260,8 +266,22 @@ function StudentGroupsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <Box sx={{ textAlign: 'center', mb: 4 }}>
-            <PageHeader title="Mis Grupos" />
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
+            <PageHeader title="Mis Grupos" sx={{ mb: { xs: 2, sm: 0 }, textAlign: { xs: 'center', sm: 'left' } }} />
+            <Button
+                variant="outlined"
+                startIcon={<RefreshIcon />}
+                onClick={() => {
+                    toast.info('Recargando mis grupos...');
+                    fetchStudentGroups(true);
+                }}
+                disabled={isLoading}
+                sx={{ alignSelf: { xs: 'stretch', sm: 'auto' } }}
+            >
+                Refrescar
+            </Button>
+          </Box>
+          <Box sx={{ textAlign: 'center', mb: 4, mt: 2 }}>
             <Typography 
               variant="body1" 
               color="text.secondary" 

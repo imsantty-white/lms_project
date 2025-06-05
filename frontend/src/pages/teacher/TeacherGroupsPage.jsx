@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react'; // Added useCallback
 import { Link, useNavigate } from "react-router-dom";
 import {
   Container,
@@ -32,6 +32,7 @@ import PinRoundedIcon from '@mui/icons-material/PinRounded';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import InfoIcon from '@mui/icons-material/Info'; // For usage display
+import RefreshIcon from '@mui/icons-material/Refresh'; // Added RefreshIcon
 
 // Context and utilities
 import { useAuth, axiosInstance } from '../../contexts/AuthContext'; // useAuth already imported
@@ -206,41 +207,35 @@ function TeacherGroupsPage() {
   const [groupToUnarchive, setGroupToUnarchive] = useState(null);
   const [isUnarchiving, setIsUnarchiving] = useState(false);
 
-  useEffect(() => {
-    const fetchTeacherGroups = async () => {
-      setIsLoading(true);
-      setError(null);
-      const endpoint = `/api/groups/docente/me?status=${currentTab}`;
+  const fetchTeacherGroups = useCallback(async (isManualRefresh = false) => {
+    setIsLoading(true);
+    setError(null);
+    const endpoint = `/api/groups/docente/me?status=${currentTab}`;
 
-      try {
-        const response = await axiosInstance.get(endpoint);
-        setGroups(response.data.data);
+    if (!isManualRefresh) {
+        // Reset toast flag for the current tab if not a manual refresh
+        // hasShownSuccessToast.current[currentTab] = false; // Consider if this reset is needed or if toast logic simplifies
+    }
 
-        if (currentTab === 'active') {
-          setStats(prev => ({ ...prev, active: response.data.data.length }));
-        } else {
-          setStats(prev => ({ ...prev, archived: response.data.data.length }));
-        }
+    try {
+      const response = await axiosInstance.get(endpoint);
+      setGroups(response.data.data);
 
-        if (!hasShownSuccessToast.current[currentTab]) {
-          toast.success(`Grupos ${currentTab === 'active' ? 'activos' : 'archivados'} cargados.`);
-          hasShownSuccessToast.current[currentTab] = true;
-        }
-      } catch (err) {
-        console.error(`Error al obtener los grupos (${currentTab}):`, err.response ? err.response.data : err.message);
-        const errorMessage = err.response?.data?.message || `Error al cargar tus grupos.`;
-        setError(errorMessage);
-        toast.error(errorMessage);
-      } finally {
-        setIsLoading(false);
+      if (currentTab === 'active') {
+        setStats(prev => ({ ...prev, active: response.data.data.length }));
+      } else {
+        setStats(prev => ({ ...prev, archived: response.data.data.length }));
       }
-    };
 
-    if (isAuthInitialized && isAuthenticated && user?.userType === 'Docente') {
-      fetchTeacherGroups();
+      if (isManualRefresh) {
+        toast.success(`Lista de grupos (${currentTab === 'active' ? 'activos' : 'archivados'}) actualizada.`);
+      } else if (!hasShownSuccessToast.current[currentTab]) {
+        toast.success(`Grupos ${currentTab === 'active' ? 'activos' : 'archivados'} cargados.`);
+        hasShownSuccessToast.current[currentTab] = true;
+      }
 
-      // --- BEGIN Plan Limit Check ---
-      if (user.plan && user.plan.limits && user.usage) {
+      // --- BEGIN Plan Limit Check --- (Also run on refresh)
+      if (user && user.plan && user.plan.limits && user.usage) {
         const { maxGroups } = user.plan.limits;
         const { groupsCreated } = user.usage;
         if (groupsCreated >= maxGroups) {
@@ -251,17 +246,30 @@ function TeacherGroupsPage() {
           setGroupLimitMessage(`Grupos creados: ${groupsCreated}/${maxGroups}`);
         }
       } else {
-        // Default to can create if plan info is somehow missing (backend should prevent actual creation)
         setCanCreateGroup(true);
         setGroupLimitMessage('');
       }
       // --- END Plan Limit Check ---
 
+    } catch (err) {
+      console.error(`Error al obtener los grupos (${currentTab}):`, err.response ? err.response.data : err.message);
+      const errorMessage = err.response?.data?.message || `Error al cargar tus grupos.`;
+      setError(errorMessage);
+      toast.error(errorMessage);
+      if (!isManualRefresh) hasShownSuccessToast.current[currentTab] = false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [axiosInstance, currentTab, user, hasShownSuccessToast]); // user is needed for plan limits, hasShownSuccessToast to avoid re-triggering initial toasts
+
+  useEffect(() => {
+    if (isAuthInitialized && isAuthenticated && user?.userType === 'Docente') {
+      fetchTeacherGroups();
     } else if (isAuthInitialized && (!isAuthenticated || user?.userType !== 'Docente')) {
       setIsLoading(false);
       setError("No estás autenticado o no tienes permiso para ver esta página.");
     }
-  }, [isAuthenticated, user, isAuthInitialized, currentTab]); // Added user to dependency array for plan limit check
+  }, [isAuthenticated, user, isAuthInitialized, currentTab, fetchTeacherGroups]); // Added fetchTeacherGroups
 
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
@@ -451,10 +459,26 @@ function TeacherGroupsPage() {
       <Box sx={{ py: 4 }}>
         {/* ... Page Title ... */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, textAlign: { xs: 'center', sm: 'left'}, flexDirection: { xs: 'column', sm: 'row'} }}>
+            <Box>
+              <Typography variant="h3" sx={{ fontWeight: 700, mb: {xs:1, sm:0.5} }}>
+                Mis Grupos
+              </Typography>
+            </Box>
+            <Button
+              variant="outlined"
+              startIcon={<RefreshIcon />}
+              onClick={() => {
+                toast.info('Recargando grupos...');
+                fetchTeacherGroups(true); // Pass true for manual refresh
+              }}
+              disabled={isLoading}
+              sx={{ mt: { xs: 1, sm: 0 }, width: { xs: '100%', sm: 'auto'} }}
+            >
+              Refrescar Lista
+            </Button>
+          </Box>
           <Box sx={{ textAlign: 'center', mb: 1 }}> {/* Reduced mb here */}
-            <Typography variant="h3" sx={{ fontWeight: 700, mb: 2 }}>
-              Mis Grupos
-            </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 600, mx: 'auto', fontSize: '1.1rem' }}>
               Administra todos tus grupos de estudiantes desde un solo lugar.
             </Typography>
