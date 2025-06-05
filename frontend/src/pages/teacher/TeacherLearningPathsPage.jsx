@@ -557,11 +557,14 @@ function TeacherLearningPathsPage() {
                         flexWrap: 'wrap',
                         gap: 2
                     }}>
+                        
                         <Box>
                             <PageHeader title="Mis Rutas de Aprendizaje" />
-                            <Typography /* ... subtitle ... */ >
+                            
+                            <Typography variant='body2'>
                                 Crea y gestiona las rutas de aprendizaje que asignas a tus grupos.
                             </Typography>
+                            
                             {/* --- BEGIN Display Usage/Limit --- */}
                             {user?.userType === 'Docente' && learningPathLimitMessage && (
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, color: canCreateLearningPath ? 'text.secondary' : 'warning.main' }}>
@@ -572,43 +575,64 @@ function TeacherLearningPathsPage() {
                                 </Box>
                             )}
                             {/* --- END Display Usage/Limit --- */}
-                        </Box>
-                        <Stack direction="row" spacing={1}>
-                            <Button
-                                variant="outlined"
-                                startIcon={<RefreshIcon />}
-                                onClick={() => {
-                                    toast.info('Recargando tus rutas de aprendizaje...');
-                                    fetchPageData(true); // Pass true for manual refresh
-                                }}
-                                disabled={isLoading}
-                            >
-                                Refrescar
-                            </Button>
+                            </Box>
+
+                            <Stack direction="row" spacing={3} alignItems="center">
                             {/* --- BEGIN Tooltip and Disable Logic for Create Button --- */}
                             <Tooltip title={!canCreateLearningPath && user?.userType === 'Docente' ? learningPathLimitMessage : "Crear Nueva Ruta de Aprendizaje"}>
                                 <span> {/* Span needed for Tooltip when button is disabled */}
-                                    <Button
-                                        variant="contained"
-                                        color="primary"
-                                        startIcon={<AddCircleOutlineIcon />}
-                                        onClick={handleOpenCreateLearningPathModal}
-                                        disabled={
-                                            isLoading ||
-                                            isCreatingLearningPath ||
-                                            !teacherGroups ||
-                                            teacherGroups.length === 0 ||
-                                            (user?.userType === 'Docente' && !canCreateLearningPath) // Disable if Docente and limit reached
-                                        }
-                                        sx={{ /* ... existing sx ... */ }}
-                                    >
-                                        Crear Ruta
-                                    </Button>
+                                <Button
+                                    variant="contained"
+                                    color="primary"
+                                    startIcon={<AddCircleOutlineIcon />}
+                                    onClick={handleOpenCreateLearningPathModal}
+                                    disabled={
+                                    isLoading ||
+                                    isCreatingLearningPath ||
+                                    !teacherGroups ||
+                                    teacherGroups.length === 0 ||
+                                    (user?.userType === 'Docente' && !canCreateLearningPath) // Disable if Docente and limit reached
+                                    }
+                                    sx={{ /* ... existing sx ... */ }}
+                                >
+                                    Crear Ruta
+                                </Button>
                                 </span>
                             </Tooltip>
                             {/* --- END Tooltip and Disable Logic for Create Button --- */}
-                        </Stack>
-                    </Box>
+                            
+                            {/* --- BEGIN Refresh Button --- */}
+                            <Tooltip title="Recargar" arrow placement="top">
+                                <Button
+                                variant="contained"
+                                onClick={() => {
+                                    toast.info('Recargando rutas...');
+                                    fetchPageData(true);
+                                }}
+                                disabled={isLoading}
+                                sx={{ 
+                                    minWidth: 'auto',
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: '50%',
+                                    backgroundColor: 'primary.main',
+                                    '&:hover': {
+                                        backgroundColor: 'primary.light',
+                                        transform: 'scale(1.05)',
+                                    },
+                                    '&:active': {
+                                    transform: 'scale(0.95)',
+                                    },
+                                    transition: 'all 0.2s ease-in-out',
+                                    boxShadow: '0 4px 12px rgba(210, 25, 50, 0.3)',
+                                }}
+                                >
+                                <RefreshIcon />
+                                </Button>
+                            </Tooltip>
+                            {/* --- END Refresh Button --- */}
+                            </Stack>
+                        </Box>
                 </motion.div>
 
                 <Box sx={{ mt: 4 }}>

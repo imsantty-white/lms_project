@@ -22,6 +22,7 @@ import {
     ListItemButton,
     Divider,
     Chip,
+    Tooltip,
     useTheme
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh'; // Added
@@ -330,17 +331,34 @@ function StudentViewLearningPathPage() {
                             </Typography>
                         )}
                     </Typography>
-                    <Button
-                        variant="outlined"
-                        startIcon={<RefreshIcon />}
-                        onClick={() => {
-                            toast.info('Recargando estructura de la ruta...');
-                            fetchStructure();
-                        }}
-                        sx={{ ml: 2, flexShrink: 0 }} // Prevent button from shrinking
-                    >
-                        Refrescar
-                    </Button>
+                    <Tooltip title="Recargar" arrow placement="top">
+                                <Button
+                                variant="contained"
+                                onClick={() => {
+                                    toast.info('Recargando estructura de ruta...');
+                                    fetchStructure(true);
+                                }}
+                                disabled={isLoading}
+                                sx={{ 
+                                    minWidth: 'auto',
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: '50%',
+                                    backgroundColor: 'primary.main',
+                                    '&:hover': {
+                                        backgroundColor: 'primary.light',
+                                        transform: 'scale(1.05)',
+                                    },
+                                    '&:active': {
+                                    transform: 'scale(0.95)',
+                                    },
+                                    transition: 'all 0.2s ease-in-out',
+                                    boxShadow: '0 4px 12px rgba(210, 25, 50, 0.3)',
+                                }}
+                                >
+                                <RefreshIcon />
+                                </Button>
+                            </Tooltip>
                 </Box>
                 <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
                     {learningPathStructure.descripcion || 'Sin descripción.'}
@@ -601,7 +619,7 @@ function StudentViewLearningPathPage() {
                         {`... Iniciando ${activityToConfirm?.activity_id?.type || 'Actividad'}: ${activityToConfirm?.activity_id?.title || 'Desconocido'}`}
                     </DialogTitle>
                     <DialogContent>
-                        <DialogContentText id="activity-confirm-description" variant="body1" color="secondary.dark" sx={{ mb: 1 }}>
+                        <DialogContentText id="activity-confirm-description" variant="body1" color="secondary.main" sx={{ mb: 1 }}>
                             Estás a punto de comenzar este {activityToConfirm?.activity_id?.type || 'actividad'}.
                         </DialogContentText>
                         <Stack spacing={0.5} sx={{ mt: 1 }}>
@@ -625,7 +643,7 @@ function StudentViewLearningPathPage() {
                                     Fecha Límite: {fechaFinActividad}
                                 </Typography>
                             )}
-                            <Typography variant="body2" color="secondary.dark" sx={{ mt: 2 }}>
+                            <Typography variant="body2" color="secondary.main" sx={{ mt: 2 }}>
                                 ¿Deseas continuar?
                             </Typography>
                         </Stack>

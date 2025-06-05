@@ -13,7 +13,8 @@ import {
   Skeleton,
   Chip,
   Avatar,
-  Button, // Added Button
+  Button,
+  Tooltip
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh'; // Added RefreshIcon
 import { alpha } from '@mui/material/styles';
@@ -250,17 +251,34 @@ function StudentLearningPathsPage() {
         >
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
             <PageHeader title="Mis Rutas de Aprendizaje" sx={{ mb: { xs: 2, sm: 0 } }} />
-            <Button
-              variant="outlined"
-              startIcon={<RefreshIcon />}
-              onClick={() => {
-                toast.info('Recargando mis rutas de aprendizaje...');
-                fetchLearningPaths(true); // Pass true for manual refresh
-              }}
-              sx={{ alignSelf: { xs: 'stretch', sm: 'auto' } }}
-            >
-              Refrescar
-            </Button>
+            <Tooltip title="Recargar" arrow placement="top">
+                                <Button
+                                variant="contained"
+                                onClick={() => {
+                                    toast.info('Recargando rutas...');
+                                    fetchLearningPaths(true);
+                                }}
+                                disabled={isLoading}
+                                sx={{ 
+                                    minWidth: 'auto',
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: '50%',
+                                    backgroundColor: 'primary.main',
+                                    '&:hover': {
+                                        backgroundColor: 'primary.light',
+                                        transform: 'scale(1.05)',
+                                    },
+                                    '&:active': {
+                                    transform: 'scale(0.95)',
+                                    },
+                                    transition: 'all 0.2s ease-in-out',
+                                    boxShadow: '0 4px 12px rgba(210, 25, 50, 0.3)',
+                                }}
+                                >
+                                <RefreshIcon />
+                                </Button>
+                            </Tooltip>
           </Box>
           <Box sx={{ textAlign: 'center', mb: 4, mt: 2 }}>
             <Typography

@@ -422,7 +422,24 @@ function TeacherAssignmentsListPage() {
           </Box>
           <Box>
             <Tooltip title="Actualizar">
-              <IconButton onClick={handleRefresh} disabled={refreshing}>
+              <IconButton onClick={handleRefresh} disabled={refreshing}
+              sx={{ 
+                   minWidth: 'auto',
+                   width: 32,
+                   height: 32,
+                   borderRadius: '50%',
+                   backgroundColor: 'primary.main',
+                   '&:hover': {
+                   backgroundColor: 'primary.light',
+                   transform: 'scale(1.05)',
+                   },
+                   '&:active': {
+                   transform: 'scale(0.95)',
+                   },
+                   transition: 'all 0.2s ease-in-out',
+                   boxShadow: '0 4px 12px rgba(210, 25, 50, 0.3)',
+                   }}
+              >
                 <RefreshIcon />
               </IconButton>
             </Tooltip>

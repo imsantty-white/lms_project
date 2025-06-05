@@ -303,15 +303,13 @@ function TeacherManageGroupPage() {
           </Typography>
           
           {group.descripcion && (
-            <Typography variant="body1" color="text.secondary" sx={{ mb: 2, fontStyle: 'italic' }}>
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 4, fontStyle: 'italic' }}>
               {group.descripcion}
             </Typography>
           )}
 
-          <Divider sx={{ mb: 2 }} />
-
           {/* Código de Acceso y Contador */}
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" color="text.primary">
             Código de Acceso: {group.codigo_acceso}
           </Typography>
 
@@ -322,7 +320,7 @@ function TeacherManageGroupPage() {
               display: 'flex', 
               alignItems: 'center',
               gap: 1,
-              color: 'text.secondary'
+              color: 'text.primary'
             }}>
               <InfoIcon fontSize="small" />
               <Typography variant="body2">
@@ -331,7 +329,7 @@ function TeacherManageGroupPage() {
             </Box>
           )}
 
-          <Divider sx={{ mb: 3 }} />
+          <Divider sx={{ borderBottomWidth: '3px', borderStyle: 'dashed', borderColor: 'palette.divider' , my: 2 }} />
 
           {/* Mostrar advertencia solo cuando se alcanza el límite */}
           {user?.userType === 'Docente' && studentLimitMessage && (
@@ -359,7 +357,11 @@ function TeacherManageGroupPage() {
 
           {/* Lista de Estudiantes */}
           <Typography variant="h5" gutterBottom>
-            Lista de Estudiantes
+            Listado de Estudiantes
+          </Typography>
+          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+            Revisa el perfil de los estudiantes. <br/>
+            Puedes aprobar o rechazar sus solicitudes, o remover estudiantes aprobados.
           </Typography>
 
           {/* ... JSX de carga y error para estudiantes ... */}
@@ -383,31 +385,67 @@ function TeacherManageGroupPage() {
            )}
 
 
-           {/* *** Muestra la TABLA de estudiantes si no está cargando, no hay error y hay membresías *** */}
+          {/* *** Muestra la TABLA de estudiantes si no está cargando, no hay error y hay membresías *** */}
          {!isLoading && !error && studentMemberships.length > 0 && (
-           <TableContainer component={Paper} sx={{ mt: 3 }}>
-             <Table sx={{ minWidth: 650 }} aria-label="student memberships table">
+           <TableContainer 
+             component={Paper} 
+             sx={{ 
+               mt: 3,
+               borderRadius: 2,
+               boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+               overflow: 'hidden',
+               border: '1px solid',
+               borderColor: 'divider',
+               maxHeight: 600, // Altura máxima para scroll en tablas grandes
+               '&::-webkit-scrollbar': {
+                 width: '8px',
+                 height: '8px'
+               },
+               '&::-webkit-scrollbar-track': {
+                 backgroundColor: 'rgba(0,0,0,0.1)'
+               },
+               '&::-webkit-scrollbar-thumb': {
+                 backgroundColor: 'rgba(0,0,0,0.3)',
+                 borderRadius: '4px'
+               }
+             }}
+           >
+             <Table size="small" aria-label="student memberships table" stickyHeader>
                <TableHead>
-                 <TableRow>
-                   <TableCell>Nombre Completo</TableCell>
-                   <TableCell align="right">Correo</TableCell> {/* Alineación a la derecha para números o emails */}
-                   <TableCell align="center">Estado</TableCell> {/* Centrado para Chip de estado */}
-                   <TableCell align="center">Acciones</TableCell> {/* Centrado para botones de acción */}
+                 <TableRow sx={{ 
+                   '& .MuiTableCell-head': {
+                     fontWeight: 600,
+                     fontSize: '0.8rem',
+                     textTransform: 'uppercase',
+                     letterSpacing: '0.5px',
+                     color: 'text.primary',
+                     bgcolor: 'paper',
+                     borderBottom: '2px solid',
+                     borderBottomColor: 'divider',
+                     py: 1.5
+                   }
+                 }}>
+                   <TableCell sx={{ pl: 2, width: '40%' }}>Estudiante</TableCell>
+                   <TableCell align="center" sx={{ width: '20%' }}>Estado</TableCell>
+                   <TableCell align="center" sx={{ width: '40%' }}>Acciones</TableCell>
                  </TableRow>
                </TableHead>
                <TableBody>
-                 {studentMemberships.map((membership) => {
+                 {studentMemberships.map((membership, index) => {
                     const student = membership.usuario_id;
                     const statusInfo = getMembershipStatusDisplay(membership.estado_solicitud);
 
                     // Verificar que la información del estudiante está populada y es un objeto válido
                     if (!student || typeof student !== 'object') {
                         console.warn(`Información de estudiante no válida o no poblada para membresía ${membership._id}:`, student);
-                        // Renderizar una fila de error en la tabla si la data del estudiante no está disponible
                         return (
                            <TableRow key={membership._id}>
-                               <TableCell component="th" scope="row" colSpan={4}> {/* Ocupa todas las columnas */}
-                                   <Alert severity="error">Error: Información de estudiante no disponible para Membresía ID: {membership._id}</Alert>
+                               <TableCell component="th" scope="row" colSpan={3} sx={{ p: 1.5 }}>
+                                   <Alert severity="error" sx={{ borderRadius: 1, py: 0.5 }}>
+                                     <Typography variant="body2">
+                                       Error: Información no disponible (ID: {membership._id})
+                                     </Typography>
+                                   </Alert>
                                </TableCell>
                            </TableRow>
                         );
@@ -416,32 +454,103 @@ function TeacherManageGroupPage() {
                    return (
                      <TableRow
                         key={membership._id}
-                        sx={{ '&:last-child td, &:last-child th': { border: 0 } }} // Remover borde en la última fila
+                        sx={{ 
+                          '&:hover': { 
+                            bgcolor: 'action.hover'
+                          },
+                          '&:last-child td': { border: 0 },
+                          bgcolor: index % 2 === 0 ? 'transparent' : 'action.selected'
+                        }}
                      >
-                       <TableCell component="th" scope="row"> {/* Columna Nombre */}
-                         <Link component={RouterLink} to={`/profile/${student._id}`} underline="hover" color="inherit">
-                           <Typography variant="body1">{`${student.nombre} ${student.apellidos}`.trim()}</Typography>
-                         </Link>
+                       <TableCell component="th" scope="row" sx={{ pl: 2, py: 1 }}>
+                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                           <Box sx={{ 
+                             width: 32, 
+                             height: 32, 
+                             borderRadius: '50%', 
+                             bgcolor: 'info.main',
+                             display: 'flex',
+                             alignItems: 'center',
+                             justifyContent: 'center',
+                             flexShrink: 0
+                           }}>
+                             <Typography variant="body2" color="white" sx={{ fontWeight: 600 }}>
+                               {student.nombre.charAt(0).toUpperCase()}{student.apellidos.charAt(0).toUpperCase()}
+                             </Typography>
+                           </Box>
+                           <Box sx={{ minWidth: 0, flex: 1 }}>
+                             <Link 
+                               component={RouterLink} 
+                               to={`/profile/${student._id}`} 
+                               underline="hover" 
+                               sx={{ 
+                                 color: 'text.primary',
+                                 fontWeight: 500,
+                                 fontSize: '0.875rem',
+                                 display: 'block',
+                                 overflow: 'hidden',
+                                 textOverflow: 'ellipsis',
+                                 whiteSpace: 'nowrap',
+                                 '&:hover': { color: 'primary.main' }
+                               }}
+                             >
+                               {`${student.nombre} ${student.apellidos}`.trim()}
+                             </Link>
+                             <Typography 
+                               variant="caption" 
+                               color="text.secondary"
+                               sx={{ 
+                                 display: 'block',
+                                 overflow: 'hidden',
+                                 textOverflow: 'ellipsis',
+                                 whiteSpace: 'nowrap'
+                               }}
+                             >
+                               {student.email}
+                             </Typography>
+                           </Box>
+                         </Box>
                        </TableCell>
-                       <TableCell align="right"> {/* Columna Email */}
-                         <Typography variant="body2" color="text.secondary">{student.email}</Typography>
+                       
+                       <TableCell align="center" sx={{ py: 1 }}>
+                         <Chip 
+                           label={statusInfo.text} 
+                           size="small" 
+                           sx={{ 
+                             bgcolor: statusInfo.color,
+                             color: 'white',
+                             fontWeight: 500,
+                             fontSize: '0.7rem',
+                             height: 24,
+                             minWidth: 70,
+                             '& .MuiChip-label': {
+                               px: 1
+                             }
+                           }} 
+                         />
                        </TableCell>
-                       <TableCell align="center"> {/* Columna Estado */}
-                         <Chip label={statusInfo.text} size="small" sx={{ bgcolor: statusInfo.color, color: 'white' }} /> {/* Usamos Chip con color del estado */}
-                       </TableCell>
-                       <TableCell align="center"> {/* Columna Acciones */}
-                         {/* Botones de acción condicionales (tu lógica existente, adaptada a Stack en TableCell) */}
+                       
+                       <TableCell align="center" sx={{ py: 1 }}>
                           {membership.estado_solicitud === 'Pendiente' && (
-                              <Stack direction="row" spacing={1} justifyContent="center"> {/* Centra los botones */}
+                              <Stack direction="row" spacing={0.5} justifyContent="center">
                                   <Button
-                                      variant="outlined"
+                                      variant="contained"
                                       size="small"
                                       color="success"
                                       onClick={() => handleRespondRequest(membership._id, 'Aprobado')}
                                       disabled={actionLoading[membership._id]}
-                                      startIcon={actionLoading[membership._id] ? <CircularProgress size={16} color="inherit" /> : null}
+                                      startIcon={actionLoading[membership._id] ? <CircularProgress size={12} color="inherit" /> : null}
+                                      sx={{
+                                        minWidth: 75,
+                                        height: 28,
+                                        borderRadius: 1.5,
+                                        textTransform: 'none',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 500,
+                                        px: 1.5
+                                      }}
                                      >
-                                        {actionLoading[membership._id] ? 'Aprobando...' : 'Aprobar'}
+                                        {actionLoading[membership._id] ? 'Aprobando' : 'Aprobar'}
                                      </Button>
                                      <Button
                                           variant="outlined"
@@ -449,43 +558,55 @@ function TeacherManageGroupPage() {
                                           color="error"
                                           onClick={() => handleRespondRequest(membership._id, 'Rechazado')}
                                           disabled={actionLoading[membership._id]}
-                                           startIcon={actionLoading[membership._id] ? <CircularProgress size={16} color="inherit" /> : null}
+                                          startIcon={actionLoading[membership._id] ? <CircularProgress size={12} color="inherit" /> : null}
+                                          sx={{
+                                            minWidth: 75,
+                                            height: 28,
+                                            borderRadius: 1.5,
+                                            textTransform: 'none',
+                                            fontSize: '0.7rem',
+                                            fontWeight: 500,
+                                            px: 1.5
+                                          }}
                                           >
-                                             {actionLoading[membership._id] ? 'Rechazando...' : 'Rechazar'}
+                                             {actionLoading[membership._id] ? 'Rechazando' : 'Rechazar'}
                                           </Button>
                                      </Stack>
                                  )}
-                                 {/* Si es Aprobado, podrías añadir botón para eliminar (ejemplo) */}
-                                 {membership.estado_solicitud !== 'Pendiente' && ( // Muestra eliminar/otras acciones si no está pendiente
-                                   <Stack direction="row" spacing={1} justifyContent="center">
-                                       {/* Botón de Eliminar Membresía */}
-                                       <Button
-                                           variant="outlined"
-                                           size="small"
-                                           color="error"
-                                           onClick={() => {
-                                               const studentFullName = `${student.nombre} ${student.apellidos}`.trim();
-                                               handleRemoveStudent(membership._id, studentFullName);
-                                           }}
-                                           disabled={actionLoading[membership._id]}
-                                           startIcon={actionLoading[membership._id] ? <CircularProgress size={16} color="inherit" /> : null}
-                                       >
-                                           {actionLoading[membership._id] && selectedMembershipId === membership._id ? 'Removiendo...' : 'Remover'}
-                                       </Button>
-                                       {/* Podrías añadir otros botones aquí (ej. Ver Perfil Estudiante) */}
-                                   </Stack>
+                                 
+                                 {membership.estado_solicitud !== 'Pendiente' && (
+                                   <Button
+                                       variant="outlined"
+                                       size="small"
+                                       color="error"
+                                       onClick={() => {
+                                           const studentFullName = `${student.nombre} ${student.apellidos}`.trim();
+                                           handleRemoveStudent(membership._id, studentFullName);
+                                       }}
+                                       disabled={actionLoading[membership._id]}
+                                       startIcon={actionLoading[membership._id] ? <CircularProgress size={12} color="inherit" /> : null}
+                                       sx={{
+                                         minWidth: 75,
+                                         height: 28,
+                                         borderRadius: 1.5,
+                                         textTransform: 'none',
+                                         fontSize: '0.7rem',
+                                         fontWeight: 500,
+                                         px: 1.5
+                                       }}
+                                   >
+                                       {actionLoading[membership._id] && selectedMembershipId === membership._id ? 'Removiendo' : 'Remover'}
+                                   </Button>
                                    )}
                            </TableCell>
                      </TableRow>
                    );
                 })}
               </TableBody>
-              { /* Mover los spinners de carga/error aquí dentro o justo antes del TableContainer si lo prefieres */ }
               </Table>
             </TableContainer>
           )}
           {/* Fin de la Sección de Estudiantes/Membresías */}
-           <Divider sx={{ mt: 3 }} /> {/* Añade un divisor después de la tabla */}
         </Box>
 
         {/* Modal de Confirmación */}

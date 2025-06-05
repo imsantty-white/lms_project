@@ -465,18 +465,37 @@ function TeacherGroupsPage() {
                 Mis Grupos
               </Typography>
             </Box>
-            <Button
-              variant="outlined"
-              startIcon={<RefreshIcon />}
-              onClick={() => {
-                toast.info('Recargando grupos...');
-                fetchTeacherGroups(true); // Pass true for manual refresh
-              }}
-              disabled={isLoading}
-              sx={{ mt: { xs: 1, sm: 0 }, width: { xs: '100%', sm: 'auto'} }}
-            >
-              Refrescar Lista
-            </Button>
+             {/* Botón circular con fondo sólido */}
+             <Tooltip title="Recargar" arrow placement="top">
+              <Button
+                title="Recargar"
+                variant="contained"
+                onClick={() => {
+                  toast.info('Recargando grupos...');
+                  fetchTeacherGroups(true);
+                }}
+                disabled={isLoading}
+                sx={{ 
+                  minWidth: 'auto',
+                  width: 32,
+                  height: 32,
+                  borderRadius: '50%',
+                  backgroundColor: 'primary.main',
+                  '&:hover': {
+                    backgroundColor: 'primary.light',
+                    transform: 'scale(1.05)',
+                  },
+                  '&:active': {
+                    transform: 'scale(0.95)',
+                  },
+                  transition: 'all 0.2s ease-in-out',
+                  boxShadow: '0 4px 12px rgba(210, 25, 50, 0.3)',
+                  mt: { xs: 1, sm: 0 }
+                }}
+              >
+                <RefreshIcon />
+              </Button>
+            </Tooltip>
           </Box>
           <Box sx={{ textAlign: 'center', mb: 1 }}> {/* Reduced mb here */}
             <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 600, mx: 'auto', fontSize: '1.1rem' }}>
