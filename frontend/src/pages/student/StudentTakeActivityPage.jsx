@@ -71,6 +71,14 @@ function StudentTakeActivityPage() {
   // *** NUEVO ESTADO: Para controlar si la sección de última entrega está expandida ***
   const [isLastSubmissionExpanded, setIsLastSubmissionExpanded] = useState(false);
 
+  // States for timer
+  const [tiempoLimite, setTiempoLimite] = useState(null);
+  const [attemptStartTime, setAttemptStartTime] = useState(null);
+  const [submissionId, setSubmissionId] = useState(null); // This will hold the ID of an 'InProgress' submission
+  const [remainingTime, setRemainingTime] = useState(0); // in seconds
+  const [isActiveTimer, setIsActiveTimer] = useState(false);
+
+
   // States for WebSocket driven auto-save when teacher closes activity
   const [isActivityClosedByTeacher, setIsActivityClosedByTeacher] = useState(false);
   const [autoSaveMessage, setAutoSaveMessage] = useState(null);
@@ -82,329 +90,302 @@ function StudentTakeActivityPage() {
     if (assignmentDetails?.theme_id?.module_id?.learning_path_id?._id) {
       return `/student/learning-paths/${assignmentDetails.theme_id.module_id.learning_path_id._id}/view`;
     }
-    // Fallback if path details are not available for some reason
     toast.warn("No se pudo determinar la ruta de aprendizaje, redirigiendo a la lista general.");
     return '/student/learning-paths';
   };
 
+  // Wrapped handleSubmitAttempt in useCallback to satisfy useEffect dependency linting for timer effects
+  const handleSubmitAttemptCallback = React.useCallback(async (isAuto = false) => {
+    if (!isAuto) handleCloseConfirmDialog(); // Close confirmation dialog if not an auto-submission
+
+    setIsSubmitting(true);
+
+    try {
+      const url = `/api/activities/student/${assignmentId}/submit-attempt`;
+      let payload = {};
+      if (activityDetails.type === 'Quiz' || activityDetails.type === 'Cuestionario') {
+        payload = { studentAnswers };
+      } else if (activityDetails.type === 'Trabajo') {
+        payload = { trabajoLink };
+      } else {
+        toast.error('Tipo de actividad no soportado para envío.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (submissionId) { // Include submissionId if available (for timed activities)
+        payload.submissionId = submissionId;
+      }
+
+      if (isAuto) { // If it's an auto-submit (timer expired or teacher closed)
+        payload.isAutoSaveDueToClosure = isActivityClosedByTeacher; // True if teacher closed, false if timer just expired
+        // For timed auto-submit, the backend will set is_timed_auto_submit based on time check
+      }
+
+
+      console.log('Frontend: Enviando respuestas...');
+      console.log('Frontend: URL:', url);
+      console.log('Frontend: Payload:', payload);
+
+      const response = await axiosInstance.post(url, payload);
+      console.log('Intento enviado con éxito:', response.data);
+
+      setHasSubmitted(true);
+      setAttemptsUsed(prev => prev + 1);
+      setSubmissionDetails(response.data.submission);
+      setIsActiveTimer(false); // Stop timer on successful submission
+
+      if (isAuto) { // If auto-submitted (e.g. timer ran out or teacher closed)
+        setAutoSaveMessage(response.data.message || 'Tu progreso ha sido guardado automáticamente. Serás redirigido.');
+        setIsAutoSaving(false); // Ensure auto-saving state is reset
+        setTimeout(() => {
+          navigate(determineRedirectPath());
+        }, 4000);
+      } else {
+        setIsSuccessModalOpen(true); // Open manual success modal
+      }
+
+    } catch (err) {
+      console.error('Error submitting attempt:', err.response ? err.response.data : err.message);
+      const errorMessage = err.response?.data?.message || 'Error al enviar tus respuestas.';
+      toast.error(errorMessage);
+       if (isAuto) {
+         setAutoSaveMessage(errorMessage);
+         setIsAutoSaving(false);
+       }
+    } finally {
+      if (!isAuto) setIsSubmitting(false); // Only reset for manual submit, auto might be followed by redirect
+    }
+  }, [assignmentId, activityDetails, studentAnswers, trabajoLink, submissionId, navigate, isActivityClosedByTeacher, determineRedirectPath]);
+
+
   // WebSocket listener for assignment closure
   useEffect(() => {
-    if (socket && assignmentId) {
-      const handleAssignmentClosed = async (data) => {
+    if (socket && assignmentId && activityDetails) { // Ensure activityDetails is available for type check
+      const handleAssignmentClosed = (data) => {
         if (data.assignmentId === assignmentId) {
           console.log(`Activity ${data.title} (ID: ${data.assignmentId}) closed by teacher. Initiating auto-save.`);
-          setIsActivityClosedByTeacher(true);
+          setIsActivityClosedByTeacher(true); // Set flag
           setAutoSaveMessage(`La actividad '${data.title}' ha sido cerrada por el docente. Guardando tu progreso actual...`);
           setIsAutoSaving(true);
-
-          // Collect current answers
-          const currentAnswers = studentAnswers;
-          const currentTrabajoLink = trabajoLink;
-          let payload = {};
-
-          if (activityDetails?.type === 'Quiz' || activityDetails?.type === 'Cuestionario') {
-            payload = { studentAnswers: currentAnswers, isAutoSaveDueToClosure: true };
-          } else if (activityDetails?.type === 'Trabajo') {
-            payload = { trabajoLink: currentTrabajoLink, isAutoSaveDueToClosure: true };
-          } else {
-            console.error('Auto-save failed: Could not determine activity type.');
-            setAutoSaveMessage('Error: No se pudo determinar el tipo de actividad para el guardado automático. Notifica a tu docente.');
-            setIsAutoSaving(false);
-            return;
-          }
-
-          try {
-            const response = await axiosInstance.post(`/api/activities/student/${assignmentId}/submit-attempt`, payload);
-            setAutoSaveMessage(response.data.message || 'Tu progreso ha sido guardado. Serás redirigido en unos segundos...');
-            setIsAutoSaving(false);
-            setTimeout(() => {
-              navigate(determineRedirectPath());
-            }, 4000); // 4-second delay before redirect
-          } catch (err) {
-            console.error('Error during auto-save due to closure:', err);
-            setAutoSaveMessage(err.response?.data?.message || 'Ocurrió un error al guardar tu progreso. Por favor, notifica a tu docente.');
-            setIsAutoSaving(false);
-            // Optionally, you might want to allow the student to copy their answers or take some other action here.
-            // For now, it just shows the error.
-          }
+          handleSubmitAttemptCallback(true); // Call auto-submit
         }
       };
 
       socket.on('assignmentClosed', handleAssignmentClosed);
-
-      return () => {
-        socket.off('assignmentClosed', handleAssignmentClosed);
-      };
+      return () => socket.off('assignmentClosed', handleAssignmentClosed);
     }
-  }, [socket, assignmentId, navigate, studentAnswers, trabajoLink, activityDetails]); // activityDetails needed for type, studentAnswers & trabajoLink for payload
+  }, [socket, assignmentId, activityDetails, handleSubmitAttemptCallback]);
+
 
   // Efecto para cargar los detalles de la actividad y la asignación
   useEffect(() => {
-    // *** Esperar a que la autenticación inicialice antes de hacer cualquier otra cosa ***
-    if (isAuthInitialized) { // <-- Lógica añadida
-      // Una vez inicializada, verificar si el usuario está autenticado y tiene el rol correcto
-      if (isAuthenticated && user?.userType === 'Estudiante') { // <-- Lógica añadida
+    if (isAuthInitialized) {
+      if (isAuthenticated && user?.userType === 'Estudiante') {
         const fetchActivityData = async () => {
           if (!assignmentId) {
             setFetchError('ID de asignación no proporcionado en la URL.');
             setIsLoading(false);
             return;
           }
-
-          setIsLoading(true); // Activar carga
-          setFetchError(null); // Limpiar errores previos
+          setIsLoading(true);
+          setFetchError(null);
+          // Reset relevant states
           setAssignmentDetails(null);
           setActivityDetails(null);
-          setStudentAnswers({}); // Limpiar respuestas anteriores
+          setStudentAnswers({});
           setAttemptsUsed(0);
           setTrabajoLink('');
           setLastSubmissionDetails(null);
-
-          setHasSubmitted(false); // Reiniciar estado de envío
+          setHasSubmitted(false);
           setSubmissionDetails(null);
-
-          // *** REINICIAR ESTADO DE EXPANSIÓN ***
           setIsLastSubmissionExpanded(false);
+          // Reset timer states
+          setTiempoLimite(null);
+          setAttemptStartTime(null);
+          setSubmissionId(null);
+          setRemainingTime(0);
+          setIsActiveTimer(false);
+
 
           try {
-              // *** LLAMADA GET AL BACKEND USANDO axiosInstance ***
-              const response = await axiosInstance.get(`/api/activities/student/${assignmentId}/start`);
-              console.log("Datos de actividad para intento cargados:", response.data);
+            const response = await axiosInstance.get(`/api/activities/student/${assignmentId}/start`);
+            console.log("Datos de actividad para intento cargados:", response.data);
 
-              setAssignmentDetails(response.data.assignmentDetails);
-              setActivityDetails(response.data.activityDetails);
-              setAttemptsUsed(response.data.attemptsUsed);
-              setLastSubmissionDetails(response.data.lastSubmission);
-              setFetchError(null); // Asegurarse de que no haya error
+            setAssignmentDetails(response.data.assignmentDetails);
+            setActivityDetails(response.data.activityDetails);
+            setAttemptsUsed(response.data.attemptsUsed);
+            setLastSubmissionDetails(response.data.lastSubmission);
 
-              // *** Lógica para inicializar studentAnswers/trabajoLink si se muestra la última entrega y para determinar si está calificada ***
-              if (response.data.lastSubmission) {
-                  // Si hay una última entrega Y tiene una calificación (no nula y no indefinida)
-                  // La condición es que 'calificacion' debe ser un número (no null, no undefined)
-                  if (response.data.lastSubmission.calificacion !== undefined && response.data.lastSubmission.calificacion !== null) {
-                      setIsGraded(true);
-                  } else {
-                      setIsGraded(false); // Si hay lastSubmission pero no calificación, no está calificada.
-                  }
+            // Store timer-related data from response
+            if (response.data.tiempo_limite && response.data.attempt_start_time && response.data.submissionId) {
+              setTiempoLimite(response.data.tiempo_limite);
+              setAttemptStartTime(response.data.attempt_start_time);
+              setSubmissionId(response.data.submissionId); // This is the ID of the 'InProgress' submission
+            }
 
-                  // Si tienes una estructura de respuesta en lastSubmission.respuesta
-                  if (response.data.activityDetails?.type === 'Quiz' && response.data.lastSubmission.respuesta?.quiz_answers) {
-                      // Mapear quiz_answers a la estructura de studentAnswers si es necesario
-                      // Por ejemplo, para mostrar las respuestas del estudiante en un formulario deshabilitado
-                      const _initialAnswers = {};
-                      // Asumiendo que quiz_answers es un array de objetos { question_index: N, student_answer: "respuesta" }
-                      // O { question_id: "id", student_answer: "respuesta" }
-                      // Si tus preguntas tienen '_id', lo ideal es usar eso.
-                      response.data.lastSubmission.respuesta.quiz_answers.forEach(qAnswer => {
-                          // Si la pregunta tiene _id, usar qAnswer.question_id
-                          // _initialAnswers[qAnswer.question_id] = qAnswer.student_answer;
-                          // Si usas question_index como ID temporal:
-                          // _initialAnswers[questionsToRender[qAnswer.question_index]._id] = qAnswer.student_answer;
-                          // Por ahora, solo precargamos si la respuesta es simple como texto o una sola opción.
-                          // Ajusta esto según cómo almacenas las respuestas de Quiz/Cuestionario.
-                      });
-                      // setStudentAnswers(_initialAnswers); // Descomentar si implementas el mapeo
-                  } else if (response.data.activityDetails?.type === 'Cuestionario' && response.data.lastSubmission.respuesta?.cuestionario_answers) {
-                      // Lógica similar para Cuestionario (asume que son respuestas de texto)
-                      const _initialAnswers = {};
-                      response.data.lastSubmission.respuesta.cuestionario_answers.forEach(qAnswer => {
-                          // _initialAnswers[qAnswer.question_id] = qAnswer.student_answer;
-                      });
-                      // setStudentAnswers(_initialAnswers); // Descomentar si implementas el mapeo
-                  } else if (response.data.activityDetails?.type === 'Trabajo' && response.data.lastSubmission.respuesta?.link_entrega) {
-                      setTrabajoLink(response.data.lastSubmission.respuesta.link_entrega); // Sí podemos precargar el enlace de Trabajo
-                  }
+            setFetchError(null);
+
+            if (response.data.lastSubmission) {
+              if (response.data.lastSubmission.calificacion !== undefined && response.data.lastSubmission.calificacion !== null) {
+                setIsGraded(true);
               } else {
-                  // Si NO hay lastSubmission, la actividad no ha sido entregada y, por lo tanto, no está calificada.
-                  setIsGraded(false);
+                setIsGraded(false);
               }
-              // Fin Lógica de inicialización
-            
+              if (response.data.activityDetails?.type === 'Trabajo' && response.data.lastSubmission.respuesta?.link_entrega) {
+                setTrabajoLink(response.data.lastSubmission.respuesta.link_entrega);
+              }
+            } else {
+              setIsGraded(false);
+            }
           } catch (err) {
             console.error('Error fetching activity data:', err.response ? err.response.data : err.message);
             const errorMessage = err.response?.data?.message || 'Error al cargar la actividad.';
             setFetchError(errorMessage);
             toast.error(errorMessage);
           } finally {
-            setIsLoading(false); // Desactivar carga
+            setIsLoading(false);
           }
         };
-
-        // Solo intentar cargar si assignmentId está presente Y el usuario es un estudiante autenticado
         fetchActivityData();
-
       } else {
-        // Si la autenticación inicializó pero el usuario no está autenticado o no es estudiante
-        setFetchError('Debes iniciar sesión como estudiante para ver esta página.'); // Mensaje de acceso denegado
-        setIsLoading(false); // Desactivar carga
+        setFetchError('Debes iniciar sesión como estudiante para ver esta página.');
+        setIsLoading(false);
       }
     }
-    // Si !isAuthInitialized, isLoading sigue siendo true y se muestra el indicador de carga inicial.
-
-    // Dependencias del effect: Recargar si cambian assignmentId, o el estado de autenticación
   }, [assignmentId, user, isAuthenticated, isAuthInitialized]);
+
+  // Effect to initialize and manage the timer once data is fetched
+  useEffect(() => {
+    if (tiempoLimite && attemptStartTime && submissionId && !hasSubmitted && !isActivityClosedByTeacher) { // Only run if timed, submissionId exists, not submitted, and not closed by teacher
+      const serverStartTimeMs = new Date(attemptStartTime).getTime();
+      const nowMs = Date.now();
+      const elapsedSeconds = Math.max(0, (nowMs - serverStartTimeMs) / 1000); // Ensure elapsedSeconds is not negative
+      const initialRemainingSeconds = Math.round((tiempoLimite * 60) - elapsedSeconds);
+
+      if (initialRemainingSeconds <= 0) {
+        toast.info("El tiempo para esta actividad ha expirado. Enviando automáticamente...");
+        handleSubmitAttemptCallback(true); // Auto-submit
+      } else {
+        setRemainingTime(initialRemainingSeconds);
+        setIsActiveTimer(true);
+      }
+    } else {
+      setIsActiveTimer(false); // Ensure timer is not active if conditions aren't met
+    }
+  }, [tiempoLimite, attemptStartTime, submissionId, handleSubmitAttemptCallback, hasSubmitted, isActivityClosedByTeacher]);
+
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (!isActiveTimer || hasSubmitted || isActivityClosedByTeacher) return; // also stop if submitted or closed
+
+    if (remainingTime <= 0) {
+      setIsActiveTimer(false);
+      toast.info("Tiempo agotado. Enviando respuestas...");
+      handleSubmitAttemptCallback(true); // Auto-submit
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      setRemainingTime(prevTime => prevTime - 1);
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [isActiveTimer, remainingTime, handleSubmitAttemptCallback, hasSubmitted, isActivityClosedByTeacher]);
+
 
   // --- Calcular intentos restantes ---
   const remainingAttempts = assignmentDetails?.intentos_permitidos !== undefined && assignmentDetails.intentos_permitidos !== null
     ? assignmentDetails.intentos_permitidos - attemptsUsed
-    : null; // O undefined, o un valor que indique ilimitado
+    : null;
   // ---------------------------------
 
-  // *** NUEVO: Lógica para determinar si un nuevo intento es permitido ***
   const canTakeNewAttempt = (() => {
-      // Si no hay detalles de asignación o actividad (aún cargando o error), no se puede intentar
-      if (!assignmentDetails || !activityDetails) return false;
+    if (!assignmentDetails || !activityDetails) return false;
 
-      // Condición 1: Comprobar intentos restantes
-      // true si es ilimitado (null) o si hay > 0 intentos restantes
-      const hasRemainingAttempts = (remainingAttempts === null || remainingAttempts > 0);
+    // If it's a timed activity with an active timer or an 'InProgress' submission, allow interaction
+    if (submissionId && (isActiveTimer || tiempoLimite > 0)) { // Check isActiveTimer OR if it was ever a timed activity
+      return !hasSubmitted && !isActivityClosedByTeacher; // Allow if not submitted and not closed by teacher
+    }
 
-      // Condición 2: Comprobar si ya se envió en esta sesión (para evitar doble clic/envío)
-      const notSubmittedInThisSession = !hasSubmitted;
-
-      // Condición 3: Comprobar el estado de calificación, dependiendo del tipo de actividad
-      let isBlockingByGrading = false;
-      if (activityDetails.type === 'Cuestionario' || activityDetails.type === 'Trabajo') {
-          // Para Cuestionario y Trabajo (calificación manual):
-          // Si ya está calificada (isGraded es true), bloquea nuevos intentos.
-          isBlockingByGrading = isGraded;
-      }
-      // Para 'Quiz' (calificación automática):
-      // La calificación no bloquea nuevos intentos, solo importa si quedan intentos.
-      // Por lo tanto, isBlockingByGrading permanece false para Quiz.
-
-      // Un nuevo intento es permitido si:
-      // a) Quedan intentos O son ilimitados
-      // b) No se ha enviado en la sesión actual
-      // c) NO está bloqueado por calificación (solo aplica a Cuestionario/Trabajo)
-      return hasRemainingAttempts && notSubmittedInThisSession && !isBlockingByGrading;
+    // Original logic for non-timed or already completed/non-started timed activities
+    const hasRemainingAttempts = (remainingAttempts === null || remainingAttempts > 0);
+    const notSubmittedInThisSession = !hasSubmitted;
+    let isBlockingByGrading = false;
+    if (activityDetails.type === 'Cuestionario' || activityDetails.type === 'Trabajo') {
+      isBlockingByGrading = isGraded;
+    }
+    return hasRemainingAttempts && notSubmittedInThisSession && !isBlockingByGrading && !isActivityClosedByTeacher;
   })();
 
-  // --- Lógica para capturar respuestas del estudiante ---
-  // Se mantiene la lógica de tu código para Single-Choice (RadioGroup) y Text (TextField)
-  // No añadimos lógica específica para Multiple-Choice si no estaba presente.
 
-  // Maneja el cambio en una pregunta (ej. radio button, text field)
+  // --- Lógica para capturar respuestas del estudiante ---
   const handleAnswerChange = (questionId, answer) => {
     setStudentAnswers(prevAnswers => ({
       ...prevAnswers,
-      [questionId]: answer // Guarda la respuesta asociada al ID de la pregunta
+      [questionId]: answer
     }));
-    console.log(`Respuesta para pregunta ${questionId}:`, answer); // Log de depuración
+    console.log(`Respuesta para pregunta ${questionId}:`, answer);
   };
 
-  // Maneja el cambio en una pregunta de selección múltiple (checkboxes)
-  // Asume que la respuesta es un array de IDs de opción seleccionados
-  // Esta función parece estar preparada para Multiple-Choice aunque esto sera por ahora.
   const _handleMultipleAnswerChange = (questionId, optionId, isChecked) => {
     setStudentAnswers(prevAnswers => {
-      const currentAnswers = prevAnswers[questionId] || []; // Obtiene el array actual o crea uno nuevo
+      const currentAnswers = prevAnswers[questionId] || [];
       const newAnswers = isChecked
-        ? [...currentAnswers, optionId] // Añade la opción si está marcada
-        : currentAnswers.filter(id => id !== optionId); // Elimina la opción si está desmarcada
+        ? [...currentAnswers, optionId]
+        : currentAnswers.filter(id => id !== optionId);
 
       return {
         ...prevAnswers,
-        [questionId]: newAnswers // Actualiza el array de respuestas para la pregunta
+        [questionId]: newAnswers
       };
     });
-    console.log(`Respuesta múltiple cambiada para pregunta ${questionId}:`, studentAnswers); // Log de depuración
+    console.log(`Respuesta múltiple cambiada para pregunta ${questionId}:`, studentAnswers);
   };
 
-  // --- Lógica para abrir el diálogo de confirmación ---
   const handleOpenConfirmDialog = () => {
-    // Opcional: Validar respuestas mínimas antes de abrir el diálogo
-    // if (!validateMinimumAnswers()) {
-    //   toast.warning('Debes responder al menos una pregunta antes de enviar.');
-    //   return;
-    // }
-    setIsConfirmDialogOpen(true); // Abre el diálogo de confirmación
+    setIsConfirmDialogOpen(true);
   };
 
-  // --- Lógica para cerrar el diálogo de confirmación ---
   const handleCloseConfirmDialog = () => {
-    setIsConfirmDialogOpen(false); // Cierra el diálogo de confirmación
+    setIsConfirmDialogOpen(false);
   };
 
-  // --- Lógica para cerrar el modal de éxito y REDIRECCIONAR ---
   const handleCloseSuccessModalAndRedirect = () => {
-    setIsSuccessModalOpen(false); // Cierra el modal de éxito
-
-    // *** LÓGICA DE REDIRECCIÓN ***
-    // Opción 1: Redireccionar a la página de la ruta de aprendizaje específica
-    // Necesitamos el ID de la ruta de aprendizaje, que está en assignmentDetails.
+    setIsSuccessModalOpen(false);
     if (assignmentDetails?.theme_id?.module_id?.learning_path_id?._id) {
       const learningPathId = assignmentDetails.theme_id.module_id.learning_path_id._id;
       navigate(`/student/learning-paths/${learningPathId}/view`);
     } else {
-      // Opción 2: Redireccionar a la lista de mis rutas de aprendizaje si no se pudo obtener el ID de la ruta actual
       console.warn('Could not determine learning path ID, redirecting to my learning paths list.');
       navigate('/student/learning-paths');
     }
   };
 
-  // --- Lógica para enviar respuestas (LLAMADA POR EL DIÁLOGO DE CONFIRMACIÓN) ---
-  const handleSubmitAttempt = async () => {
-    handleCloseConfirmDialog();
-
-    setIsSubmitting(true);
-
-    try {
-      // *** LLAMADA POST AL BACKEND USANDO axiosInstance ***
-      const url = `/api/activities/student/${assignmentId}/submit-attempt`; // <-- MODIFICADO
-      let payload = {};
-      if (activityDetails.type === 'Quiz' || activityDetails.type === 'Cuestionario') {
-        payload = { studentAnswers: studentAnswers };
-      } else if (activityDetails.type === 'Trabajo') {
-        payload = { trabajoLink: trabajoLink }; // Enviar el enlace de trabajo
-      } else {
-        // Esto no debería pasar si la validación inicial funciona, pero es una precaución
-        console.error(`Frontend: Attempting to submit unsupported activity type: ${activityDetails.type}`);
-        toast.error('Tipo de actividad no soportado para envío.');
-        setIsSubmitting(false); // Desactiva estado de envío si no se envía
-        return; // Detener la ejecución
-      }
-
-      console.log('Frontend: Enviando respuestas...');
-      console.log('Frontend: URL:', url);
-      console.log('Frontend: Payload:', payload);
-
-      const response = await axiosInstance.post(url, payload); // <-- MODIFICADO
-
-      console.log('Intento enviado con éxito:', response.data);
-
-      // *** Manejo de éxito: guardar detalles y abrir modal de éxito ***
-      setHasSubmitted(true); // Marca que se ha enviado con éxito
-      setAttemptsUsed(prev => prev + 1); // <--- Añade esta línea
-      setSubmissionDetails(response.data.submission); // Guarda los detalles de la entrega
-      //toast.success(response.data.message || 'Entrega registrada con éxito.'); // Eliminamos el toast
-      setIsSuccessModalOpen(true); // Abre el modal de éxito
-
-    } catch (err) {
-      console.error('Error submitting attempt:', err.response ? err.response.data : err.message);
-      const errorMessage = err.response?.data?.message || 'Error al enviar tus respuestas.';
-      toast.error(errorMessage); // Mantenemos el toast para errores
-      // No establecemos hasSubmitted(true) en caso de error (a menos que sea error de límite de intentos)
-    } finally {
-      setIsSubmitting(false); // Desactiva estado de envío
-    }
+  // Use the callback version for the dialog confirmation
+  const handleSubmitAttemptFromDialog = () => {
+    handleSubmitAttemptCallback(false); // false indicates it's not an auto-submission
   };
 
-  // *** NUEVA FUNCIÓN: Togglear expansión de última entrega ***
+  // Function to format time (MM:SS)
+  const formatTime = (totalSeconds) => {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
+
   const handleToggleLastSubmission = () => {
     setIsLastSubmissionExpanded(prev => !prev);
   };
-  // --- FIN Lógica para enviar respuestas ---
 
   // --- Renderizado de la Página ---
 
-  // *** Mostrar estado de carga inicial mientras la autenticación inicializa o se cargan los datos ***
   if (isLoading) {
     return (
       <Container>
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
           <CircularProgress />
-          {/* Mensaje opcional para el usuario */}
           <Typography variant="body1" color="text.secondary" sx={{ ml: 2 }}>
             {isAuthInitialized ? 'Cargando actividad...' : 'Inicializando autenticación...'}
           </Typography>
@@ -413,7 +394,6 @@ function StudentTakeActivityPage() {
     );
   }
 
-  // Mostrar error de carga (incluye errores de permiso 403 del backend manejados por axiosInstance)
   if (fetchError) {
     return (
       <Container>
@@ -424,7 +404,6 @@ function StudentTakeActivityPage() {
     );
   }
 
-  // Si no hay assignmentDetails o activityDetails después de cargar (ej. ID inválido que no dio 404 o 500)
   if (!assignmentDetails || !activityDetails) {
       return (
         <Container>
@@ -435,19 +414,15 @@ function StudentTakeActivityPage() {
     );
   }
 
-  // --- Declara questionsToRender AQUÍ, antes del return principal ---
   const questionsToRender = activityDetails.type === 'Quiz'
     ? activityDetails.quiz_questions
-    : activityDetails.type === 'Cuestionario' // Añade la verificación para Cuestionario aquí también
+    : activityDetails.type === 'Cuestionario'
       ? activityDetails.cuestionario_questions
-      : []; // Si no es Quiz ni Cuestionario, es un array vacío (o undefined, pero [] es más seguro)
-  // --- Fin declaración questionsToRender ---
+      : [];
 
-  // Renderizar la interfaz de la Actividad (Quiz/Cuestionario/Trabajo)
 return (
     <Container maxWidth="md">
       <Box sx={{ mt: 4 }}>
-        {/* Título y descripción de la Actividad (siempre visibles) */}
         <Typography variant="h4" gutterBottom>
           {activityDetails.title}
         </Typography>
@@ -455,18 +430,15 @@ return (
           {activityDetails.description || 'Sin descripción.'}
         </Typography>
 
-        {/* Mostrar detalles de la asignación (puntos, intentos, tiempo) (siempre visibles) */}
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 3 }}>
-          {/* ...Chips existentes para Puntos máximos, Intentos permitidos... */}
           {assignmentDetails?.puntos_maximos !== undefined && assignmentDetails.puntos_maximos !== null && (
             <Chip label={`Pts máximos: ${assignmentDetails.puntos_maximos}`} size="small" variant="outlined" />
           )}
           {assignmentDetails?.intentos_permitidos !== undefined && assignmentDetails.intentos_permitidos !== null ? (
             <Chip label={`Intentos permitidos: ${assignmentDetails.intentos_permitidos}`} size="small" variant="outlined" />
           ) : (
-                <Chip label={`Intentos permitidos: Ilimitados`} size="small" variant="outlined" />
-            )}
-          {/* Chips de intentos usados y restantes (siempre visibles si se cargaron) */}
+             <Chip label={`Intentos permitidos: Ilimitados`} size="small" variant="outlined" />
+          )}
           {attemptsUsed !== undefined && (
             <Chip label={`Intentos usados: ${attemptsUsed}`} size="small" variant="outlined" />
           )}
@@ -478,15 +450,25 @@ return (
               variant="outlined"
             />
           )}
-          {assignmentDetails?.tiempo_limite !== undefined && assignmentDetails.tiempo_limite !== null && (
-            <Chip label={`Tiempo límite: ${assignmentDetails.tiempo_limite} min`} size="small" variant="outlined" />
+          {/* Display Timer if active */}
+          {isActiveTimer && tiempoLimite && (
+            <Chip
+              label={`Tiempo Restante: ${formatTime(remainingTime)}`}
+              size="small"
+              color={remainingTime < 60 ? "error" : "primary"} // Change color if less than 1 minute
+              variant="filled"
+              sx={{ fontWeight: 'bold' }}
+            />
           )}
+           {/* Display original tiempo_limite if not active but was set */}
+          {!isActiveTimer && tiempoLimite && !hasSubmitted && (
+             <Chip label={`Tiempo límite: ${tiempoLimite} min`} size="small" variant="outlined" />
+          )}
+
         </Stack>
 
-        {/* *** SECCIÓN DE ÚLTIMA ENTREGA COLAPSABLE *** */}
         {lastSubmissionDetails && (
           <Paper elevation={2} sx={{ mb: 4 }}>
-            {/* Encabezado clickeable para expandir/colapsar */}
             <Box 
               sx={{ 
                 p: 2, 
@@ -514,28 +496,18 @@ return (
               </IconButton>
             </Box>
 
-            {/* Contenido colapsable */}
             <Collapse in={isLastSubmissionExpanded}>
               <Box sx={{ p: 3, pt: 0 }}>
                 <Divider sx={{ mb: 2 }} />
                 
-                {/* Mostrar contenido de la última entrega según el tipo de actividad */}
                 {activityDetails.type === 'Quiz' && lastSubmissionDetails.respuesta?.quiz_answers && (
                   <Box>
                     <Typography variant="h6" gutterBottom>Reporte de Respuestas:</Typography>
-                    
                     <List dense>
-                      {/* Mapear respuestas del Quiz */}
                       {lastSubmissionDetails.respuesta.quiz_answers.map((answer, qIndex) => {
-                        // Encontrar la pregunta original usando el question_index de la respuesta
                         const originalQuestion = Array.isArray(questionsToRender) && questionsToRender[answer.question_index] ? questionsToRender[answer.question_index] : null;
-                        
-                        // Determinar si hay una respuesta para esta pregunta
-                        // HAY QUE AJUSTAR EL BACKEND PARA QUE NO MANDE LA RESPUESTA, SOLAMENTE SE MOSTRARA SI HAY RESPUESTA O NO
-                        // PARA EVITAR TRAMPAS
                         const hasAnswer = (Array.isArray(answer.student_answer) && answer.student_answer.length > 0) || 
                                           (typeof answer.student_answer === 'string' && answer.student_answer.trim() !== '');
-
                         return (
                           <ListItem key={qIndex}>
                             <ListItemText
@@ -564,7 +536,6 @@ return (
                       </Alert>
                     )}
                     <List dense>
-                      {/* Mapear respuestas del Cuestionario */}
                       {lastSubmissionDetails.respuesta.cuestionario_answers.map((answer, qIndex) => {
                         const originalQuestion = Array.isArray(questionsToRender) && questionsToRender[answer.question_index] ? questionsToRender[answer.question_index] : null;
                         return (
@@ -600,11 +571,8 @@ return (
             </Collapse>
           </Paper>
         )}
-        {/* *** FIN SECCIÓN DE ÚLTIMA ENTREGA COLAPSABLE *** */}
 
-      {/* *** MOSTRAR FORMULARIO DE INTENTO SOLO SI canTakeNewAttempt ES TRUE *** */}
       {canTakeNewAttempt ? (
-          // Renderizar el formulario interactivo según el tipo de actividad
           activityDetails.type === 'Quiz' || activityDetails.type === 'Cuestionario' ? (
               <Paper elevation={2} sx={{ p: 3 }}>
                   <Typography variant="h5" gutterBottom> Preguntas </Typography>
@@ -622,7 +590,7 @@ return (
                                                           label="Tu respuesta" fullWidth margin="normal"
                                                           value={studentAnswers[question._id] || ''}
                                                           onChange={(e) => handleAnswerChange(question._id, e.target.value)}
-                                                          disabled={hasSubmitted || !canTakeNewAttempt || isActivityClosedByTeacher}
+                                                          disabled={hasSubmitted || !canTakeNewAttempt || isActivityClosedByTeacher || (isActiveTimer && remainingTime <=0) }
                                                       />
                                                   ) : activityDetails.type === 'Quiz' && question.options && question.options.length > 0 ? (
                                                       <FormControl component="fieldset">
@@ -630,10 +598,10 @@ return (
                                                           <RadioGroup
                                                               value={studentAnswers[question._id] || ''}
                                                               onChange={(e) => handleAnswerChange(question._id, e.target.value)}
-                                                              disabled={hasSubmitted || !canTakeNewAttempt || isActivityClosedByTeacher}
+                                                              disabled={hasSubmitted || !canTakeNewAttempt || isActivityClosedByTeacher || (isActiveTimer && remainingTime <=0) }
                                                           >
                                                               {question.options.map((option, optionIndex) => (
-                                                                  <FormControlLabel key={optionIndex} value={option} control={<Radio sx={{ '&.Mui-checked': { color: '#f00c8d' }}}/>} label={option} disabled={isActivityClosedByTeacher} />
+                                                                  <FormControlLabel key={optionIndex} value={option} control={<Radio sx={{ '&.Mui-checked': { color: '#f00c8d' }}}/>} label={option} disabled={isActivityClosedByTeacher || (isActiveTimer && remainingTime <=0)} />
                                                               ))}
                                                           </RadioGroup>
                                                       </FormControl>
@@ -651,14 +619,12 @@ return (
                   ) : (
                       <Typography variant="body2" color="text.secondary"> Esta actividad no tiene preguntas definidas. </Typography>
                   )}
-
-                  {/* Botón para enviar respuestas (Solo mostrar si canTakeNewAttempt es true) */}
                   <Box sx={{ mt: 4, textAlign: 'center' }}>
                       <Button
                           variant="contained" color="primary" onClick={handleOpenConfirmDialog}
-                          disabled={isSubmitting || !questionsToRender || questionsToRender.length === 0 || !canTakeNewAttempt || isActivityClosedByTeacher}
+                          disabled={isSubmitting || !questionsToRender || questionsToRender.length === 0 || !canTakeNewAttempt || isActivityClosedByTeacher || (isActiveTimer && remainingTime <=0)}
                       >
-                          {isActivityClosedByTeacher ? "Actividad Cerrada" : "Enviar Respuestas"}
+                          {isActivityClosedByTeacher ? "Actividad Cerrada" : (isActiveTimer && remainingTime <=0 ? "Tiempo Agotado" : "Enviar Respuestas")}
                       </Button>
                   </Box>
               </Paper>
@@ -667,45 +633,37 @@ return (
                   <Typography variant="h5" gutterBottom> Trabajo: {activityDetails.title} </Typography>
                   <Typography variant="body1"> {activityDetails.description || 'Sin descripción para el trabajo.'} </Typography>
                   <Box sx={{ mt: 3 }}>
-                      {/* Campo de texto para el enlace de entrega */}
                       <TextField
                           label="Enlace de tu entrega (URL)" fullWidth margin="normal"
                           value={trabajoLink} onChange={(e) => setTrabajoLink(e.target.value)}
-                          disabled={isSubmitting || !canTakeNewAttempt || isActivityClosedByTeacher}
+                          disabled={isSubmitting || !canTakeNewAttempt || isActivityClosedByTeacher || (isActiveTimer && remainingTime <=0)}
                       />
-
-                      {/* Botón de envío */}
                       <Box sx={{ mt: 4, textAlign: 'center' }}>
                           <Button
                               variant="contained" color="primary" onClick={handleOpenConfirmDialog}
-                              disabled={isSubmitting || !trabajoLink.trim() || !canTakeNewAttempt || isActivityClosedByTeacher}
+                              disabled={isSubmitting || !trabajoLink.trim() || !canTakeNewAttempt || isActivityClosedByTeacher || (isActiveTimer && remainingTime <=0)}
                           >
-                              {isActivityClosedByTeacher ? "Actividad Cerrada" : "Enviar Trabajo"}
+                              {isActivityClosedByTeacher ? "Actividad Cerrada" : (isActiveTimer && remainingTime <=0 ? "Tiempo Agotado" : "Enviar Trabajo")}
                           </Button>
                       </Box>
                   </Box>
               </Paper>
           ) : null
       ) : (
-          // *** Este es el bloque que se muestra cuando canTakeNewAttempt es false ***
           <Box sx={{ mt: 4, textAlign: 'center' }}>
               <Alert severity="info">
-                  {activityDetails.type === 'Quiz' ? (
-                      // Para Quiz: si no puede intentar, es porque agotó intentos o ya envió en esta sesión.
-                      // Como ya se maneja hasSubmitted a nivel de canTakeNewAttempt, aquí solo queda si agotó intentos.
+                  {isActivityClosedByTeacher ? "Esta actividad ha sido cerrada por el docente." :
+                   (activityDetails.type === 'Quiz' ?
                       `Has utilizado todos tus ${assignmentDetails.intentos_permitidos} intentos permitidos para esta actividad.`
-                  ) : (
-                      // Para Cuestionario/Trabajo: puede ser por intentos agotados O porque ya está calificada.
+                  : (
                       isGraded
                           ? 'Esta actividad ya ha sido calificada. No puedes realizar más entregas.'
                           : `Has utilizado todos tus ${assignmentDetails.intentos_permitidos} intentos permitidos para esta actividad.`
-                  )}
+                  ))}
               </Alert>
           </Box>
       )}
-      {/* *** Fin MOSTRAR FORMULARIO DE INTENTO *** */}
 
-        {/* Tipo de actividad desconocido */}
         {activityDetails && activityDetails.type !== 'Quiz' &&
           activityDetails.type !== 'Cuestionario' &&
           activityDetails.type !== 'Trabajo' && (
@@ -720,13 +678,11 @@ return (
         onClose={handleCloseConfirmDialog}
         aria-labelledby="confirm-submit-dialog-title"
         aria-describedby="confirm-submit-dialog-description"
-        // Añadimos disabled={isSubmitting} a las acciones del diálogo para prevenir doble clic mientras se envía
       >
         <DialogTitle id="confirm-submit-dialog-title">{"Confirmar Envío"}</DialogTitle>
         <DialogContent>
           <DialogContentText id="confirm-submit-dialog-description">
               Una vez que envíes, no podrás cambiar tu entrega para este intento. ¿Estás seguro de enviar?
-              {/* Información adicional sobre intentos en el diálogo si es relevante */}
               {remainingAttempts !== null && (
                   <Typography variant="body2" color="text.secondary" sx={{mt: 1}}>
                       Tendrás {Math.max(0, remainingAttempts - 1)} intento{Math.max(0, remainingAttempts - 1) !== 1 ? 's' : ''} restante{Math.max(0, remainingAttempts - 1) !== 1 ? 's' : ''} después de este.
@@ -737,7 +693,6 @@ return (
                       Tienes intentos ilimitados.
                   </Typography>
               )}
-              {/* Mensaje de advertencia si la actividad es de calificación manual y ya fue calificada */}
               {(activityDetails.type === 'Cuestionario' || activityDetails.type === 'Trabajo') && isGraded && (
                   <Typography variant="body2" color="error" sx={{mt: 1}}>
                       Esta actividad ya ha sido calificada. No podrás realizar más intentos.
@@ -748,9 +703,8 @@ return (
         <DialogActions>
             <Button onClick={handleCloseConfirmDialog} color="secondary" disabled={isSubmitting}> Cancelar </Button>
             <Button
-                onClick={handleSubmitAttempt} color="primary"
-                // El botón de envío debe deshabilitarse si isSubmitting o si la acción ya no está permitida
-                disabled={isSubmitting || !canTakeNewAttempt}
+                onClick={handleSubmitAttemptFromDialog} color="primary" // Use the callback version here
+                disabled={isSubmitting || !canTakeNewAttempt || (isActiveTimer && remainingTime <=0)}
             >
                 {isSubmitting ? 'Enviando...' : 'Enviar'}
                 {isSubmitting && <CircularProgress size={15} sx={{ ml: 1 }} />}
@@ -758,7 +712,6 @@ return (
         </DialogActions>
       </Dialog>
 
-      {/* ... Código existente de Dialog para Éxito ... */}
       <Dialog
         open={isSuccessModalOpen} disableEscapeKeyDown
         // Mantenemos el onClose original de tu código que evita cierre por backdrop/escape

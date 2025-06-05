@@ -41,57 +41,43 @@ const getStudentActivityForAttempt = async (req, res, next) => {
         const assignmentDetails = await ContentAssignment.findById(assignmentId)
             .populate({
                 path: 'activity_id', // Necesitamos la Actividad base
-                // --- CAMBIO CLAVE AQUÍ ---
-                // Incluye explícitamente los campos que SÍ quieres de quiz_questions y cuestionario_questions
-                select: 'type title description ' +
-                        'quiz_questions.text quiz_questions.options quiz_questions._id ' +
-                        'cuestionario_questions.text cuestionario_questions.options cuestionario_questions._id'
+                select: 'type title description quiz_questions.text quiz_questions.options quiz_questions._id cuestionario_questions.text cuestionario_questions.options cuestionario_questions._id'
             })
-            .populate({ // Necesitamos la jerarquía para permisos/grupo
+            .populate({ // Necesitamos la jerarquía para permisos/grupo y docente_id
                 path: 'theme_id',
-                select: 'nombre', // Select only name for theme
+                select: 'nombre module_id',
                 populate: {
                     path: 'module_id',
-                    select: 'nombre', // Select only name for module
+                    select: 'nombre learning_path_id',
                     populate: {
                         path: 'learning_path_id',
-                        select: 'nombre', // Select only name for learning path
+                        select: 'nombre group_id',
                         populate: {
                             path: 'group_id',
-                            select: '_id' // Select only _id for group membership check
+                            select: '_id docente_id' // Asegurar que docente_id se popula aquí
                         }
                     }
                 }
-            });
+            })
+            .populate('docente_id', 'nombre apellidos email'); // Poblar docente_id directamente en ContentAssignment
 
         if (!assignmentDetails) {
             return res.status(404).json({ message: 'Asignación de contenido no encontrada.' });
         }
 
+        // Asegurar que tiempo_limite se recupera, incluso si es null o undefined.
+        const tiempo_limite = assignmentDetails.tiempo_limite;
+
         if (assignmentDetails.type !== 'Activity' || !assignmentDetails.activity_id) {
             return res.status(400).json({ message: 'La asignación no es de un tipo de actividad soportado.' });
         }
 
-        // *** NUEVA VERIFICACIÓN DE ESTADO: Solo permitir acceso si la asignación está 'Open' ***
         if (assignmentDetails.status !== 'Open') {
              return res.status(403).json({ message: `Esta actividad asignada no está actualmente disponible (Estado: ${assignmentDetails.status}).` });
         }
-        // *** Fin Nueva Verificación de Estado ***
 
         const activityDetails = assignmentDetails.activity_id;
 
-        // --- ESTE BLOQUE YA NO ES NECESARIO SI LA SOLUCIÓN DEL POPULATE FUNCIONA CORRECTAMENTE ---
-        // Pero no hace daño dejarlo como respaldo si prefieres la eliminación manual por alguna razón,
-        // aunque el select en populate es más eficiente.
-        /*
-        if (activityDetails && activityDetails.type === 'Quiz' && activityDetails.quiz_questions && Array.isArray(activityDetails.quiz_questions)) {
-            activityDetails.quiz_questions.forEach(question => {
-                delete question.correct_answer;
-            });
-        }
-        */
-
-        // Verificar que el estudiante es miembro aprobado del grupo (mantener)
         let group = null;
         if (assignmentDetails.theme_id?.module_id?.learning_path_id?.group_id) {
             group = assignmentDetails.theme_id.module_id.learning_path_id.group_id;
@@ -103,29 +89,90 @@ const getStudentActivityForAttempt = async (req, res, next) => {
             return res.status(500).json({ message: 'Error interno del servidor al obtener la información del grupo.' });
         }
 
-        // Contar intentos previos (mantener)
+        let submissionId = null;
+        let attempt_start_time = null;
+
+        if (tiempo_limite && tiempo_limite > 0) {
+            let inProgressSubmission = await Submission.findOne({
+                assignment_id: assignmentId,
+                student_id: studentId,
+                estado_envio: 'InProgress'
+            });
+
+            if (inProgressSubmission) {
+                submissionId = inProgressSubmission._id;
+                attempt_start_time = inProgressSubmission.attempt_start_time;
+            } else {
+                const existingSubmissionsCount = await Submission.countDocuments({
+                    assignment_id: assignmentId,
+                    student_id: studentId,
+                    estado_envio: { $ne: 'InProgress' }
+                });
+                const attempt_number = existingSubmissionsCount + 1;
+
+                // Derivar group_id y docente_id correctamente
+                const groupIdForSubmission = assignmentDetails.group_id || group?._id; // Prioritize direct assignment group_id
+                let docenteIdForSubmission = assignmentDetails.docente_id?._id; // Docente directo de la asignación
+
+                if (!docenteIdForSubmission && group) {
+                     // Si no hay docente directo en la asignación, usar el del grupo de la ruta de aprendizaje
+                    docenteIdForSubmission = group.docente_id;
+                }
+
+                // Fallback si docente_id sigue sin estar disponible
+                if (!docenteIdForSubmission && assignmentDetails.theme_id?.module_id?.learning_path_id?.group_id?.docente_id) {
+                    docenteIdForSubmission = assignmentDetails.theme_id.module_id.learning_path_id.group_id.docente_id;
+                }
+
+
+                if (!groupIdForSubmission) {
+                    console.error(`Error crítico: No se pudo determinar group_id para la nueva Submission en la asignación ${assignmentId}`);
+                    return res.status(500).json({ message: 'Error interno: No se pudo determinar el group_id para la entrega.' });
+                }
+                if (!docenteIdForSubmission) {
+                    // Considera si esto debe ser un error crítico o si puede haber un docente "sistema" o similar.
+                    // Por ahora, lo hacemos crítico si no se puede determinar.
+                    console.error(`Error crítico: No se pudo determinar docente_id para la nueva Submission en la asignación ${assignmentId}`);
+                    return res.status(500).json({ message: 'Error interno: No se pudo determinar el docente_id para la entrega.' });
+                }
+
+
+                const newSubmission = new Submission({
+                    assignment_id: assignmentDetails._id,
+                    student_id: studentId,
+                    group_id: groupIdForSubmission,
+                    docente_id: docenteIdForSubmission,
+                    attempt_start_time: new Date(),
+                    estado_envio: 'InProgress',
+                    attempt_number: attempt_number,
+                    is_late: false
+                });
+                await newSubmission.save();
+                submissionId = newSubmission._id;
+                attempt_start_time = newSubmission.attempt_start_time;
+            }
+        }
+
         const attemptsUsed = await Submission.countDocuments({
             assignment_id: assignmentId,
-            student_id: studentId
+            student_id: studentId,
+            estado_envio: { $ne: 'InProgress' } // No contar 'InProgress' como un intento usado finalizado
         });
 
-        // Buscar la última entrega (mantener tu lógica)
         const lastSubmission = await Submission.findOne({
             assignment_id: assignmentId,
-            student_id: studentId
+            student_id: studentId,
+            estado_envio: { $ne: 'InProgress' } // No considerar 'InProgress' como la última entrega finalizada
         })
         .sort({ fecha_envio: -1 })
         .limit(1);
 
-        // Verificar si la actividad es de un tipo que permite visualización (mantener)
         if (activityDetails.type !== 'Quiz' && activityDetails.type !== 'Cuestionario' && activityDetails.type !== 'Trabajo') {
             return res.status(400).json({ message: `Tipo de actividad (${activityDetails.type}) no soportado para visualización en esta página.` });
         }
 
-        // Shuffle questions if they exist
         if (activityDetails.quiz_questions && Array.isArray(activityDetails.quiz_questions) && activityDetails.quiz_questions.length > 0) {
             shuffleArray(activityDetails.quiz_questions);
-            // Now, shuffle options for each quiz question
             activityDetails.quiz_questions.forEach(question => {
                 if (question.options && Array.isArray(question.options) && question.options.length > 0) {
                     shuffleArray(question.options);
@@ -136,13 +183,20 @@ const getStudentActivityForAttempt = async (req, res, next) => {
             shuffleArray(activityDetails.cuestionario_questions);
         }
 
-        // Enviar los detalles de la asignación, la actividad base, los intentos usados y la última entrega
-        res.status(200).json({
-            assignmentDetails: assignmentDetails, // Esto incluye el estado y activity_id ya filtrado
-            activityDetails: activityDetails, // Este también tendrá quiz_questions sin correct_answer
+        let responseJson = {
+            assignmentDetails: assignmentDetails,
+            activityDetails: activityDetails,
             attemptsUsed: attemptsUsed,
             lastSubmission: lastSubmission
-        });
+        };
+
+        if (tiempo_limite && tiempo_limite > 0) {
+            responseJson.submissionId = submissionId;
+            responseJson.attempt_start_time = attempt_start_time;
+            responseJson.tiempo_limite = tiempo_limite;
+        }
+
+        res.status(200).json(responseJson);
 
     } catch (error) {
         console.error('Error fetching student activity for attempt:', error);
@@ -170,294 +224,330 @@ const submitStudentActivityAttempt = async (req, res, next) => {
         const studentId = req.user._id;
         const userType = req.user.tipo_usuario;
 
-        // MODIFIED: Extraer studentAnswers, trabajoLink, AND isAutoSaveDueToClosure del body
-        const { studentAnswers, trabajoLink, isAutoSaveDueToClosure } = req.body;
+        // MODIFIED: Extraer studentAnswers, trabajoLink, submissionId, AND isAutoSaveDueToClosure del body
+        const { studentAnswers, trabajoLink, submissionId, isAutoSaveDueToClosure } = req.body;
         // ************************************************************
 
-        // MODIFIED: Validar si se recibieron datos de entrega (answers O link)
-        // For auto-save, it's possible that neither is present if student didn't interact yet,
-        // but the frontend might send empty answers. For now, we keep this validation.
-        // If auto-save implies saving even with no interaction, this might need adjustment.
-        if (!studentAnswers && !trabajoLink && !isAutoSaveDueToClosure) { // Allow empty if auto-saving
-            return res.status(400).json({ message: 'No se recibieron datos de entrega válidos (respuestas o enlace de trabajo).' });
+        // MODIFIED: Validar si se recibieron datos de entrega (answers O link) o si es un guardado automático con submissionId
+        // For auto-save, it's possible that neither is present if student didn't interact yet, or if it's a timed auto-submit.
+        if (!studentAnswers && !trabajoLink && !isAutoSaveDueToClosure && !submissionId) {
+            return res.status(400).json({ message: 'No se recibieron datos de entrega válidos (respuestas, enlace de trabajo o ID de entrega existente).' });
         }
-        // If it's an auto-save, studentAnswers or trabajoLink might be null/empty if the student hasn't interacted.
-        // The current logic for processing Quiz/Cuestionario/Trabajo should handle null/empty studentAnswers/trabajoLink gracefully.
         // ***********************************************************
 
-        // Ahora, la verificación de tipo_usuario
+        // Ahora, la verificación de tipo_usuario (se mantiene)
         if (userType !== 'Estudiante') {
             console.error('Access denied: User is not a student.');
             return res.status(403).json({ message: 'Acceso denegado. Solo estudiantes pueden enviar entregas.' });
         }
 
-        // 2. Encontrar la asignación (mantienes la doble búsqueda)
-        const rawAssignment = await ContentAssignment.findById(assignmentId);
-
-        if (!rawAssignment) {
-            console.error(`Assignment ${assignmentId} not found before populate.`);
-            return res.status(404).json({ message: 'Asignación no encontrada antes de poblar.' });
-        }
-
-        //  Ahora poblar los detalles necesarios (Activity y jerarquía)
+        // 2. Encontrar la asignación y poblar detalles necesarios (Activity, jerarquía, y tiempo_limite)
+        // Esta búsqueda es crucial y debe incluir tiempo_limite para ambas ramas lógicas.
         const assignment = await ContentAssignment.findById(assignmentId)
             .populate({
                 path: 'activity_id',
-                select: 'type quiz_questions cuestionario_questions' // Select necessary fields for activity
+                select: 'type title quiz_questions cuestionario_questions' // Incluir title para notificaciones
             })
             .populate({
                 path: 'theme_id',
-                select: 'nombre', // Select only name for theme
+                select: 'nombre module_id', // Incluir module_id para la jerarquía
                 populate: {
                     path: 'module_id',
-                    select: 'nombre', // Select only name for module
+                    select: 'nombre learning_path_id', // Incluir learning_path_id para la jerarquía
                     populate: {
                         path: 'learning_path_id',
-                        select: 'nombre', // Select only name for learning path
+                        select: 'nombre group_id', // Incluir group_id para la jerarquía
                         populate: {
                             path: 'group_id',
-                            select: '_id docente_id nombre' // Select _id, docente_id, and nombre for group
+                            select: '_id docente_id nombre'
                         }
                     }
                 }
-            });
+            })
+            .populate('docente_id', 'nombre apellidos email'); // Poblar docente_id directamente en ContentAssignment
 
-        // *** Este check de assignment ahora se hace después de la población ***
+
         if (!assignment) {
-            console.error(`Assignment ${assignmentId} not found after populate.`);
-            return res.status(404).json({ message: 'Asignación no encontrada después de poblar.' });
+            return res.status(404).json({ message: 'Asignación no encontrada.' });
         }
 
-        // Check assignment status - MODIFIED
-        if (assignment.status === 'Closed' && !isAutoSaveDueToClosure) {
+        if (assignment.status === 'Closed' && !isAutoSaveDueToClosure && !(submissionId && assignment.tiempo_limite && assignment.tiempo_limite > 0) ) {
             return res.status(403).json({ message: 'No se pueden realizar entregas para actividades cerradas.' });
         }
-        // If isAutoSaveDueToClosure is true, proceed even if assignment.status is 'Closed'.
 
-        if (assignment.status === 'Draft') { // This check remains as is
+        if (assignment.status === 'Draft') {
             return res.status(403).json({ message: 'Esta actividad aún no está abierta para entregas.' });
         }
 
-        // *** MODIFICACIÓN: Incluir 'Trabajo' en los tipos soportados ***
         if (assignment.type !== 'Activity' || !assignment.activity_id || (assignment.activity_id.type !== 'Quiz' && assignment.activity_id.type !== 'Cuestionario' && assignment.activity_id.type !== 'Trabajo')) {
-            console.error(`Assignment ${assignmentId} is not a supported activity type for submission.`);
             return res.status(400).json({ message: `Esta asignación no es una actividad interactivable del tipo correcto (${assignment.activity_id?.type}).` });
         }
-        // *****************************************************************************
 
-        const activity = assignment.activity_id; // La actividad base
+        const activity = assignment.activity_id;
+        let savedSubmission; // Para almacenar la entrega guardada/actualizada
 
+        // ----- NÚCLEO DE LA LÓGICA CONDICIONAL -----
+        if (submissionId) {
+            // --- RAMA: ACTUALIZAR ENTREGA EN CURSO (submissionId proporcionado) ---
+            let existingSubmission = await Submission.findById(submissionId);
 
-        // 3. Verificar que el estudiante es miembro aprobado del grupo asociado a la ruta (mantienes esta lógica)
-        let groupId = null;
-        let docenteId = null;
-
-        if (assignment.theme_id?.module_id?.learning_path_id?.group_id) {
-            // Verificar más específicamente (mantienes esta lógica)
-            if (assignment.theme_id.module_id.learning_path_id.group_id._id) {
-                groupId = assignment.theme_id.module_id.learning_path_id.group_id._id;
+            if (!existingSubmission) {
+                return res.status(404).json({ message: 'Entrega en curso no encontrada.' });
+            }
+            if (existingSubmission.student_id.toString() !== studentId.toString() || existingSubmission.assignment_id.toString() !== assignmentId.toString()) {
+                return res.status(403).json({ message: 'No tienes permiso para modificar esta entrega.' });
+            }
+            if (existingSubmission.estado_envio !== 'InProgress') {
+                return res.status(400).json({ message: 'Este intento ya fue enviado o no se inició correctamente.' });
             }
 
-            if (assignment.theme_id.module_id.learning_path_id.group_id.docente_id) {
-                docenteId = assignment.theme_id.module_id.learning_path_id.group_id.docente_id;
-            }
-
-            // Solo buscar membresía si tenemos un groupId válido (mantienes esta lógica)
-            if (groupId) {
-                // Refactor: Use isApprovedGroupMember
-                const isMember = await isApprovedGroupMember(studentId, groupId);
-                if (!isMember) { // Si NO es miembro aprobado
-                    console.error(`Student ${studentId} is not an approved member of group ${groupId} for assignment ${assignmentId}.`);
-                    return res.status(403).json({ message: 'No tienes permiso para enviar esta entrega. No eres miembro aprobado del grupo.' });
+            // Calcular tiempo transcurrido si es una actividad cronometrada
+            if (assignment.tiempo_limite && assignment.tiempo_limite > 0 && existingSubmission.attempt_start_time) {
+                const elapsedTimeMinutes = (new Date() - new Date(existingSubmission.attempt_start_time)) / (1000 * 60);
+                if (elapsedTimeMinutes > assignment.tiempo_limite) {
+                    existingSubmission.is_timed_auto_submit = true;
+                    // Aquí podrías forzar un estado de 'Enviado' o 'Calificado' si el tiempo se acabó,
+                    // o permitir que el flujo normal de cálculo de calificación y estado continúe.
+                    // Por ahora, solo marcamos el flag y dejamos que el resto del flujo decida el estado.
                 }
-            } else { // Si no se pudo obtener el groupId de la asignación
-                console.error(`Could not get groupId from assignment ${assignmentId} for student ${studentId}.`);
-                return res.status(500).json({ message: 'Error interno del servidor al verificar permisos del grupo.' });
-            }
-        } else { // Si la jerarquía de la asignación no contiene la información del grupo
-            console.error(`Assignment ${assignmentId} hierarchy does not contain group information for student ${studentId}.`);
-            return res.status(500).json({ message: 'Error interno del servidor al verificar la asignación.' });
-        }
-        // *** Fin verificación y asignación ***
-
-        // 4. Contar intentos y verificar límite (HACERLO AQUI UNA VEZ)
-        const currentAttempts = await Submission.countDocuments({
-            assignment_id: assignmentId,
-            student_id: studentId
-        });
-
-        if (assignment.intentos_permitidos !== undefined && assignment.intentos_permitidos !== null && currentAttempts >= assignment.intentos_permitidos) {
-            console.warn(`Student ${studentId} exceeded attempt limit (${assignment.intentos_permitidos}) during submission for assignment ${assignmentId}.`);
-            return res.status(400).json({ message: `Has alcanzado el número máximo de intentos (${assignment.intentos_permitidos}) para esta actividad.` });
-        }
-        // *** FIN Contar intentos y verificar límite ***
-
-
-        const now = new Date();
-        const isLate = assignment.fecha_fin && now > new Date(assignment.fecha_fin);
-
-        // 5. Procesar y guardar la respuesta/entrega según el tipo de actividad
-        let submissionData = {};
-        let computedCalificacion = null; // Using computed prefix
-        let computedEstadoEnvio = 'Enviado'; // Default state
-
-        if (activity.type === 'Quiz') {
-            if (!studentAnswers && !isAutoSaveDueToClosure) { // Allow empty answers if auto-saving (student might not have answered yet)
-                console.warn(`Quiz submission for assignment ${assignmentId} received no studentAnswers.`);
-                return res.status(400).json({ message: 'Respuestas de Quiz esperadas pero no recibidas.' });
             }
 
-            let quizAnswersFormatted = [];
-            let correctAnswersCount = 0;
-            if (!activity.quiz_questions || !Array.isArray(activity.quiz_questions)) {
-                console.error(`Activity ${activity._id} of type Quiz is missing or has invalid quiz_questions array.`);
-                return res.status(500).json({ message: 'Error interno del servidor al procesar las preguntas del Quiz.' });
-            }
-            const totalQuizQuestions = activity.quiz_questions.length;
+            // Procesar respuestas y calificación (lógica similar a la creación, pero actualizando el existente)
+            let updateSubmissionData = {};
+            let computedCalificacion = existingSubmission.calificacion; // Mantener calificación si no se recalcula
+            let computedEstadoEnvio = existingSubmission.estado_envio; // Mantener estado si no cambia
 
-            // Ensure studentAnswers is an object even if null/undefined, to prevent errors in forEach
-            const currentStudentAnswers = studentAnswers || {};
+            if (activity.type === 'Quiz') {
+                // ... (lógica de procesamiento de Quiz, igual que en la rama de creación)
+                // Asegurarse de que studentAnswers esté disponible o manejar si es null (ej. auto-submit por tiempo)
+                let quizAnswersFormatted = [];
+                let correctAnswersCount = 0;
+                const totalQuizQuestions = activity.quiz_questions.length;
+                const currentStudentAnswers = studentAnswers || {};
 
-            activity.quiz_questions.forEach((q, index) => {
-                if (!q || !q._id) {
-                    console.warn(`Skipping invalid question element at index ${index} in Quiz questions for activity ${activity._id}.`);
-                    return;
-                }
-                const studentAnswerValue = currentStudentAnswers[q._id] !== undefined ? String(currentStudentAnswers[q._id]).trim() : null;
-                quizAnswersFormatted.push({
-                    question_index: index,
-                    student_answer: studentAnswerValue
-                });
-                if (studentAnswerValue !== null && q.correct_answer !== undefined && q.correct_answer !== null) {
-                    if (studentAnswerValue === String(q.correct_answer).trim()) {
+                activity.quiz_questions.forEach((q, index) => {
+                    const studentAnswerValue = currentStudentAnswers[q._id] !== undefined ? String(currentStudentAnswers[q._id]).trim() : null;
+                    quizAnswersFormatted.push({ question_index: index, student_answer: studentAnswerValue });
+                    if (studentAnswerValue !== null && q.correct_answer !== undefined && String(studentAnswerValue) === String(q.correct_answer).trim()) {
                         correctAnswersCount++;
                     }
-                }
-            });
-
-            if (totalQuizQuestions > 0 && assignment.puntos_maximos !== undefined && assignment.puntos_maximos !== null && assignment.puntos_maximos >= 0) {
-                computedCalificacion = (correctAnswersCount / totalQuizQuestions) * assignment.puntos_maximos;
-                computedEstadoEnvio = 'Calificado';
-            } else {
-                computedEstadoEnvio = 'Enviado'; // Default if not auto-graded
-            }
-            submissionData = { quiz_answers: quizAnswersFormatted };
-
-        } else if (activity.type === 'Cuestionario') {
-            if (!studentAnswers && !isAutoSaveDueToClosure) {
-                console.warn(`Cuestionario submission for assignment ${assignmentId} received no studentAnswers.`);
-                return res.status(400).json({ message: 'Respuestas de Cuestionario esperadas pero no recibidas.' });
-            }
-            let cuestionarioAnswersFormatted = [];
-            if (!activity.cuestionario_questions || !Array.isArray(activity.cuestionario_questions)) {
-                console.error(`Activity ${activity._id} of type Cuestionario is missing or has invalid cuestionario_questions array.`);
-                return res.status(500).json({ message: 'Error interno del servidor al procesar las preguntas del Cuestionario.' });
-            }
-
-            const currentStudentAnswers = studentAnswers || {};
-
-            activity.cuestionario_questions.forEach((q, index) => {
-                if (!q || !q._id) {
-                    console.warn(`Skipping invalid question element at index ${index} in Cuestionario questions for activity ${activity._id}.`);
-                    return;
-                }
-                const studentAnswerValue = currentStudentAnswers[q._id] !== undefined ? String(currentStudentAnswers[q._id]).trim() : null;
-                cuestionarioAnswersFormatted.push({
-                    question_index: index,
-                    student_answer: studentAnswerValue
                 });
-            });
-            computedEstadoEnvio = 'Enviado';
-            computedCalificacion = null;
-            submissionData = { cuestionario_answers: cuestionarioAnswersFormatted };
+                if (totalQuizQuestions > 0 && assignment.puntos_maximos >= 0) {
+                    computedCalificacion = (correctAnswersCount / totalQuizQuestions) * assignment.puntos_maximos;
+                    computedEstadoEnvio = 'Calificado';
+                } else {
+                     computedEstadoEnvio = 'Enviado';
+                }
+                updateSubmissionData = { quiz_answers: quizAnswersFormatted };
 
-        } else if (activity.type === 'Trabajo') {
-            // For Trabajo, trabajoLink is required unless it's an auto-save where the student hasn't provided it yet.
-            if ((!trabajoLink || trabajoLink.trim() === '') && !isAutoSaveDueToClosure) {
-                console.warn(`Trabajo submission for assignment ${assignmentId} received no trabajoLink.`);
-                return res.status(400).json({ message: 'El enlace de entrega del trabajo es obligatorio.' });
+            } else if (activity.type === 'Cuestionario') {
+                // ... (lógica de procesamiento de Cuestionario)
+                let cuestionarioAnswersFormatted = [];
+                const currentStudentAnswers = studentAnswers || {};
+                 activity.cuestionario_questions.forEach((q, index) => {
+                    const studentAnswerValue = currentStudentAnswers[q._id] !== undefined ? String(currentStudentAnswers[q._id]).trim() : null;
+                    cuestionarioAnswersFormatted.push({ question_index: index, student_answer: studentAnswerValue });
+                });
+                computedEstadoEnvio = 'Enviado';
+                computedCalificacion = null; // Cuestionarios se califican manualmente
+                updateSubmissionData = { cuestionario_answers: cuestionarioAnswersFormatted };
+
+            } else if (activity.type === 'Trabajo') {
+                // ... (lógica de procesamiento de Trabajo)
+                computedEstadoEnvio = 'Enviado';
+                computedCalificacion = null; // Trabajos se califican manualmente
+                updateSubmissionData = { link_entrega: trabajoLink ? trabajoLink.trim() : null };
             }
-            computedEstadoEnvio = 'Enviado';
-            computedCalificacion = null;
-            submissionData = { link_entrega: trabajoLink ? trabajoLink.trim() : null }; // Handle potentially null trabajoLink
+
+            // Si es un auto-submit por cierre del profesor Y NO es un auto-submit por tiempo excedido
+            if (isAutoSaveDueToClosure && !existingSubmission.is_timed_auto_submit) {
+                computedEstadoEnvio = 'Pendiente';
+                computedCalificacion = null;
+            }
+
+
+            existingSubmission.fecha_envio = new Date();
+            existingSubmission.respuesta = updateSubmissionData;
+            existingSubmission.is_late = assignment.fecha_fin && new Date() > new Date(assignment.fecha_fin);
+            existingSubmission.calificacion = computedCalificacion;
+            existingSubmission.estado_envio = computedEstadoEnvio;
+            // is_timed_auto_submit ya se estableció arriba si es aplicable.
+            // is_auto_save (por cierre de profesor) también se puede marcar si es necesario
+            if (isAutoSaveDueToClosure) {
+                existingSubmission.is_auto_save = true;
+            }
+
+
+            savedSubmission = await existingSubmission.save();
+            console.log(`Entrega #${savedSubmission.attempt_number} actualizada para la asignación ${assignmentId} por el estudiante ${studentId}. Estado: ${savedSubmission.estado_envio}. Tarde: ${savedSubmission.is_late}. AutoSubmit por tiempo: ${savedSubmission.is_timed_auto_submit}.`);
+
+        } else {
+            // --- RAMA: CREAR NUEVA ENTREGA (sin submissionId) ---
+            // Esta es la lógica original de creación de entrega
+            // Verificar membresía y límite de intentos (importante aquí también)
+            let groupId, docenteId;
+            if (assignment.theme_id?.module_id?.learning_path_id?.group_id) {
+                groupId = assignment.theme_id.module_id.learning_path_id.group_id._id;
+                docenteId = assignment.theme_id.module_id.learning_path_id.group_id.docente_id;
+                const isMember = await isApprovedGroupMember(studentId, groupId);
+                if (!isMember) {
+                    return res.status(403).json({ message: 'No tienes permiso para enviar esta entrega. No eres miembro aprobado del grupo.' });
+                }
+            } else if (assignment.group_id) { // Si group_id está directamente en la asignación
+                groupId = assignment.group_id._id; // Asumiendo que group_id está poblado o es solo ID
+                 // Para docenteId, priorizar el docente directo de la asignación si existe
+                docenteId = assignment.docente_id?._id || (await Group.findById(groupId))?.docente_id;
+                const isMember = await isApprovedGroupMember(studentId, groupId);
+                 if (!isMember) {
+                    return res.status(403).json({ message: 'No tienes permiso para enviar esta entrega. No eres miembro aprobado del grupo.' });
+                }
+            }
+             else {
+                return res.status(500).json({ message: 'Error interno del servidor al verificar la asignación (falta grupo).' });
+            }
+             // Si docenteId no se pudo obtener del grupo de la ruta o de la asignación directa,
+             // y hay un docente_id directamente en ContentAssignment, usar ese.
+            if (!docenteId && assignment.docente_id) {
+                docenteId = assignment.docente_id._id; // Asumiendo que está poblado o es solo ID
+            }
+            if (!docenteId) { // Fallback o error si no se encuentra docente
+                console.error(`Error crítico: No se pudo determinar docente_id para la nueva Submission en la asignación ${assignmentId} (rama nueva entrega)`);
+                return res.status(500).json({ message: 'Error interno: No se pudo determinar el docente_id para la entrega.' });
+            }
+
+
+            const currentAttempts = await Submission.countDocuments({
+                assignment_id: assignmentId,
+                student_id: studentId,
+                estado_envio: { $ne: 'InProgress' } // No contar 'InProgress' como un intento finalizado
+            });
+
+            if (assignment.intentos_permitidos !== undefined && assignment.intentos_permitidos !== null && currentAttempts >= assignment.intentos_permitidos) {
+                return res.status(400).json({ message: `Has alcanzado el número máximo de intentos (${assignment.intentos_permitidos}) para esta actividad.` });
+            }
+
+            // Procesar respuestas y calificación (lógica original)
+            let newSubmissionData = {};
+            let computedCalificacion = null;
+            let computedEstadoEnvio = 'Enviado';
+
+            if (activity.type === 'Quiz') {
+                 // ... (lógica de procesamiento de Quiz, igual que antes)
+                let quizAnswersFormatted = [];
+                let correctAnswersCount = 0;
+                const totalQuizQuestions = activity.quiz_questions.length;
+                const currentStudentAnswers = studentAnswers || {};
+                activity.quiz_questions.forEach((q, index) => {
+                    const studentAnswerValue = currentStudentAnswers[q._id] !== undefined ? String(currentStudentAnswers[q._id]).trim() : null;
+                    quizAnswersFormatted.push({ question_index: index, student_answer: studentAnswerValue });
+                    if (studentAnswerValue !== null && q.correct_answer !== undefined && String(studentAnswerValue) === String(q.correct_answer).trim()) {
+                        correctAnswersCount++;
+                    }
+                });
+                if (totalQuizQuestions > 0 && assignment.puntos_maximos >= 0) {
+                    computedCalificacion = (correctAnswersCount / totalQuizQuestions) * assignment.puntos_maximos;
+                    computedEstadoEnvio = 'Calificado';
+                } else {
+                    computedEstadoEnvio = 'Enviado';
+                }
+                newSubmissionData = { quiz_answers: quizAnswersFormatted };
+            } else if (activity.type === 'Cuestionario') {
+                // ... (lógica de procesamiento de Cuestionario, igual que antes)
+                let cuestionarioAnswersFormatted = [];
+                const currentStudentAnswers = studentAnswers || {};
+                 activity.cuestionario_questions.forEach((q, index) => {
+                    const studentAnswerValue = currentStudentAnswers[q._id] !== undefined ? String(currentStudentAnswers[q._id]).trim() : null;
+                    cuestionarioAnswersFormatted.push({ question_index: index, student_answer: studentAnswerValue });
+                });
+                computedEstadoEnvio = 'Enviado';
+                newSubmissionData = { cuestionario_answers: cuestionarioAnswersFormatted };
+            } else if (activity.type === 'Trabajo') {
+                // ... (lógica de procesamiento de Trabajo, igual que antes)
+                 if ((!trabajoLink || trabajoLink.trim() === '') && !isAutoSaveDueToClosure) {
+                    return res.status(400).json({ message: 'El enlace de entrega del trabajo es obligatorio.' });
+                }
+                computedEstadoEnvio = 'Enviado';
+                newSubmissionData = { link_entrega: trabajoLink ? trabajoLink.trim() : null };
+            }
+
+            if (isAutoSaveDueToClosure) {
+                computedEstadoEnvio = 'Pendiente';
+                computedCalificacion = null;
+            }
+
+            const newSubmissionDoc = new Submission({
+                assignment_id: assignmentId,
+                student_id: studentId,
+                group_id: groupId,
+                docente_id: docenteId,
+                fecha_envio: new Date(),
+                estado_envio: computedEstadoEnvio,
+                is_late: assignment.fecha_fin && new Date() > new Date(assignment.fecha_fin),
+                attempt_number: currentAttempts + 1,
+                calificacion: computedCalificacion,
+                respuesta: newSubmissionData,
+                is_auto_save: isAutoSaveDueToClosure || false,
+                // attempt_start_time y is_timed_auto_submit no son relevantes aquí,
+                // ya que esta rama es para actividades no cronometradas o el primer envío de una cronometrada sin submissionId (que no debería ocurrir si el flujo es correcto)
+            });
+            savedSubmission = await newSubmissionDoc.save();
+            console.log(`Nueva entrega #${savedSubmission.attempt_number} creada para la asignación ${assignmentId} por el estudiante ${studentId}. Estado: ${savedSubmission.estado_envio}.`);
         }
+        // ----- FIN LÓGICA CONDICIONAL -----
 
-        // Override for auto-save due to teacher closing
-        if (isAutoSaveDueToClosure) {
-            computedEstadoEnvio = 'Pendiente'; // Indicates it's an auto-saved, incomplete submission
-            computedCalificacion = null;      // Auto-saved progress is not graded at this point
-        }
-        // *** Fin Procesamiento de respuestas/entrega ***
 
-        // 6. Crear y guardar el documento de Submission
-        const newSubmission = new Submission({
-            assignment_id: assignmentId,
-            student_id: studentId,
-            group_id: assignment.theme_id?.module_id?.learning_path_id?.group_id?._id || null,
-            docente_id: assignment.theme_id?.module_id?.learning_path_id?.group_id?.docente_id || null,
-            fecha_envio: new Date(),
-            estado_envio: computedEstadoEnvio, // Use computed value
-            is_late: assignment.fecha_fin && new Date() > new Date(assignment.fecha_fin),
-            attempt_number: currentAttempts + 1,
-            calificacion: computedCalificacion, // Use computed value
-            respuesta: submissionData,
-            is_auto_save: isAutoSaveDueToClosure || false // Add a flag to mark auto-saved submissions
-        });
-
-        const savedSubmission = await newSubmission.save();
-
-        console.log(`Entrega #${savedSubmission.attempt_number} guardada para la asignación ${assignmentId} por el estudiante ${studentId}. Tipo: ${activity.type}. Estado: ${savedSubmission.estado_envio}. Tarde: ${savedSubmission.is_late}. AutoGuardado: ${savedSubmission.is_auto_save}`);
-
+        // Notificación (debe funcionar para ambas ramas, usando savedSubmission)
         try {
-            // The 'assignment' variable is populated at the beginning of the function.
-            // req.user contains the student details.
-            const student = req.user; // Student who is making the submission
-
-            if (assignment && 
-                assignment.activity_id && 
-                assignment.theme_id?.module_id?.learning_path_id?.group_id &&
-                assignment.theme_id.module_id.learning_path_id.group_id.docente_id) {
+            const student = req.user;
+            if (assignment && savedSubmission &&
+                assignment.activity_id && // activity_id ya está en assignment
+                (assignment.theme_id?.module_id?.learning_path_id?.group_id?.docente_id || assignment.docente_id) ) {
 
                 const activityTitle = assignment.activity_id.title || 'the assignment';
-                const groupFromAssignment = assignment.theme_id.module_id.learning_path_id.group_id;
-                const teacherId = groupFromAssignment.docente_id; // This is the recipient
-                
-                // groupName should be available as 'nombre' was added to select for group_id population
-                const groupName = groupFromAssignment.nombre || 'the group'; 
+                // Determinar el docente para la notificación
+                let teacherIdForNotification = assignment.docente_id?._id; // Priorizar docente directo de la asignación
+                let groupNameForNotification = "the group";
 
-                const studentName = `${student.nombre} ${student.apellidos || ''}`.trim();
-                
-                const message = `${studentName} submitted work for '${activityTitle}' in group '${groupName}'.`;
-                
-                // Link for the teacher to view this specific submission.
-                // assignment._id is ContentAssignment ID.
-                const link = `/teacher/assignments/${assignment._id}/submissions/student/${student._id}`; 
+                if (assignment.theme_id?.module_id?.learning_path_id?.group_id) {
+                    const groupFromPath = assignment.theme_id.module_id.learning_path_id.group_id;
+                    if (!teacherIdForNotification) teacherIdForNotification = groupFromPath.docente_id;
+                    groupNameForNotification = groupFromPath.nombre || groupNameForNotification;
+                } else if (assignment.group_id) { // Si group_id está directamente en la asignación
+                    const directGroup = await Group.findById(assignment.group_id).select('docente_id nombre');
+                    if(directGroup){
+                        if (!teacherIdForNotification) teacherIdForNotification = directGroup.docente_id;
+                        groupNameForNotification = directGroup.nombre || groupNameForNotification;
+                    }
+                }
 
-                await NotificationService.createNotification({
-                    recipient: teacherId,
-                    sender: student._id, // Student who submitted
-                    type: 'NEW_SUBMISSION',
-                    message: message,
-                    link: link
-                });
 
+                if(teacherIdForNotification){
+                    const studentName = `${student.nombre} ${student.apellidos || ''}`.trim();
+                    const message = `${studentName} submitted work for '${activityTitle}' in group '${groupNameForNotification}'.`;
+                    const link = `/teacher/assignments/${assignment._id}/submissions/student/${student._id}`;
+
+                    await NotificationService.createNotification({
+                        recipient: teacherIdForNotification,
+                        sender: student._id,
+                        type: 'NEW_SUBMISSION',
+                        message: message,
+                        link: link
+                    });
+                } else {
+                     console.error(`Could not determine teacherId for notification for assignment ${savedSubmission.assignment_id}.`);
+                }
             } else {
-                console.error(`Could not gather necessary details (teacherId, activityTitle, studentName, groupName) for assignment ${savedSubmission.assignment_id} to send new submission notification.`);
+                console.error(`Could not gather necessary details for assignment ${savedSubmission?.assignment_id} to send new submission notification.`);
             }
         } catch (notificationError) {
             console.error('Failed to send new submission notification:', notificationError);
-            // Do not let notification errors break the main response
         }
 
-        // 7. Opcional: Actualizar el progreso general (modelo Progress)
-        // ...
 
-        // 8. Responder al frontend
-        // For auto-saves, the message could be different, but for now, it's generic.
-        // The client might not even show a message for auto-saves if they are background.
-        res.status(201).json({
-            message: isAutoSaveDueToClosure ? 'Progreso guardado automáticamente.' : 'Entrega registrada con éxito.',
-            submission: savedSubmission // Use newSubmission (which is savedSubmission after .save())
+        // Responder al frontend
+        res.status(submissionId ? 200 : 201).json({ // 200 para actualización, 201 para creación
+            message: isAutoSaveDueToClosure ? 'Progreso guardado automáticamente.' : (savedSubmission.is_timed_auto_submit ? 'Entrega registrada automáticamente por tiempo límite.' : 'Entrega registrada con éxito.'),
+            submission: savedSubmission
         });
 
     } catch (error) {

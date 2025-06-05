@@ -50,10 +50,12 @@ const submissionSchema = new mongoose.Schema({
         // Este campo se llenará en el controlador cuando el estudiante envíe la entrega
         index: true
     },
+    attempt_start_time: { type: Date },
+    is_timed_auto_submit: { type: Boolean, default: false },
     estado_envio: { // Estado actual de la entrega
         type: String,
         required: [true, 'El estado de la entrega es obligatorio'],
-        enum: ['Pendiente', 'Enviado', 'Calificado'], // Estados posibles: Pendiente de envío, Ya enviado, Calificado
+        enum: ['Pendiente', 'InProgress', 'Enviado', 'Calificado'], // Estados posibles: Pendiente de envío, Ya enviado, Calificado
         default: 'Pendiente', // Estado inicial antes de que el estudiante envíe
         index: true
     },
