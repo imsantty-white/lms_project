@@ -183,6 +183,9 @@ userSchema.methods.matchPassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.contrasena_hash);
 };
 
+// Definición de Índices
+userSchema.index({ tipo_usuario: 1, aprobado: 1 });
+userSchema.index({ planId: 1 });
 
 // Creamos el modelo a partir del esquema
 const User = mongoose.model('User', userSchema);

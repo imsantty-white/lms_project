@@ -11,5 +11,9 @@ const learningPathSchema = new mongoose.Schema({
   activo: { type: Boolean, default: true }
 });
 
+// Definición de Índices
+// Nota: 'orden' no existe, se usa 'nombre'. 'docente_id' no es directo, se usa 'group_id'.
+learningPathSchema.index({ group_id: 1, nombre: 1 });
+
 const LearningPath = mongoose.model('LearningPath', learningPathSchema);
 module.exports = LearningPath;

@@ -59,6 +59,9 @@ const groupSchema = new mongoose.Schema({
   timestamps: false
 });
 
+// Definición de Índices
+groupSchema.index({ docente_id: 1, activo: 1 });
+
 const Group = mongoose.model('Group', groupSchema);
 
 module.exports = Group;

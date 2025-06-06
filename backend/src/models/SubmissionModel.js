@@ -97,6 +97,9 @@ const submissionSchema = new mongoose.Schema({
 // Si el proyecto crece, se podría refactorizar la validación de respuesta.
 // --- Fin Custom Validation ---
 
+// Definición de Índices
+submissionSchema.index({ assignment_id: 1, student_id: 1, estado_envio: 1 });
+submissionSchema.index({ assignment_id: 1, student_id: 1, fecha_envio: -1 });
 
 const Submission = mongoose.model('Submission', submissionSchema);
 module.exports = Submission;

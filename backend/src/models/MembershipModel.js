@@ -34,6 +34,10 @@ const membershipSchema = new mongoose.Schema({
 // Un índice único compuesto en usuario_id y grupo_id puede ser útil, PERO necesita manejo de estado.
 // Por ahora, lo manejaremos en la lógica del controlador para mayor flexibilidad con los estados.
 
+// Definición de Índices
+membershipSchema.index({ usuario_id: 1, grupo_id: 1, estado_solicitud: 1 });
+membershipSchema.index({ grupo_id: 1, estado_solicitud: 1 });
+
 // Creamos el modelo a partir del esquema
 const Membership = mongoose.model('Membership', membershipSchema);
 

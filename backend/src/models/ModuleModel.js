@@ -10,5 +10,8 @@ const moduleSchema = new mongoose.Schema({
     // Los Temas de este módulo referenciarán este ID
 });
 
+// Definición de Índices
+moduleSchema.index({ learning_path_id: 1, orden: 1 });
+
 const Module = mongoose.model('Module', moduleSchema);
 module.exports = Module;
