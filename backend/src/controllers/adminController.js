@@ -78,7 +78,7 @@ const getAllUsers = async (req, res) => {
     const { tipo_usuario, page, limit, sortBy, sortOrder, searchNombre, searchEmail } = req.query;
 
     // --- Configurar Filtro ---
-    const filter = {}; // Objeto para construir el filtro de la consulta a la BD
+    const filter = {};
     if (tipo_usuario) {
         filter.tipo_usuario = tipo_usuario;
     }
@@ -89,134 +89,164 @@ const getAllUsers = async (req, res) => {
         ];
     }
     if (searchEmail) {
-        // Si ya hay una condición $or por searchNombre, añadimos el email al $and implícito.
-        // Si no, simplemente añadimos la condición de email.
-        // Para asegurar que searchEmail no entre en conflicto con $or si ambos están presentes y se quiere que email sea una condición separada:
-        // Si filter.$or existe, y queremos que email sea una condición AND, mongoose lo maneja bien.
-        // Si searchNombre y searchEmail deben ser parte de un $or más grande, la estructura del filtro necesitaría cambiar.
-        // Por ahora, asumimos que son condiciones AND (o la única condición si $or no está).
         filter.email = { $regex: searchEmail, $options: 'i' };
     }
     // --- Fin Configurar Filtro ---
 
-
     // --- Parámetros de Paginación ---
-    // Convierte page y limit a números. Usa parseInt(..., 10) para asegurar base 10.
-    // Usa valores por defecto si no se proporcionan o si son inválidos.
     const pageNumber = parseInt(page, 10) || 1;
     const limitNumber = parseInt(limit, 10) || 10;
-
-    // Validar que page y limit sean números positivos válidos
     if (pageNumber <= 0 || limitNumber <= 0) {
          return res.status(400).json({ message: 'Los parámetros page y limit deben ser números positivos.' });
     }
-
-    // Calcula cuántos documentos saltar para la página solicitada
     const skip = (pageNumber - 1) * limitNumber;
     // --- Fin Parámetros de Paginación ---
 
-
-    // --- Parámetros de Ordenamiento (Opcional - Puedes expandirlo) ---
-    // Define el campo por defecto y el orden por defecto (ej: por fecha de creación, por email, por nombre)
-    const sortField = sortBy || 'createdAt'; // Puedes cambiar 'createdAt' por otro campo por defecto
-    const sortOrderValue = sortOrder === 'desc' ? -1 : 1; // -1 para descendente, 1 para ascendente
-    const sort = { [sortField]: sortOrderValue }; // Objeto de ordenamiento para Mongoose (ej: { email: 1 })
+    // --- Parámetros de Ordenamiento ---
+    const sortField = sortBy || 'createdAt';
+    const sortOrderValue = sortOrder === 'desc' ? -1 : 1;
+    const sort = { [sortField]: sortOrderValue };
     // --- Fin Parámetros de Ordenamiento ---
 
-
     try {
-        // --- Obtener el número total de usuarios que coinciden CON EL FILTRO ---
-        // Esto es crucial para calcular el total de páginas correctamente para el conjunto filtrado.
+        // Obtener el número total de usuarios que coinciden CON EL FILTRO (antes de la agregación de detalles)
         const totalUsers = await User.countDocuments(filter);
 
-        // --- Obtener los usuarios para la página actual, aplicando filtro, paginación y ordenamiento ---
-        let query = User.find(filter)
-                        .sort(sort)
-                        .skip(skip)
-                        .limit(limitNumber)
-                        .select('-contrasena_hash')
-                        .lean(); // Usar .lean() para obtener objetos planos
-
-        // Fetch users without trying to populate the removed 'grupo_id' directly from User model
-        const users = await User.find(filter)
-                        .sort(sort)
-                        .skip(skip)
-                        .limit(limitNumber)
-                        .select('-contrasena_hash') // Keep selecting other fields as needed
-                        .lean();
-
-        const usersWithDetails = await Promise.all(users.map(async (user) => {
-            const userToReturn = { ...user }; // Clone user object to avoid modifying the original from lean query directly
-
-            if (userToReturn.tipo_usuario === 'Estudiante') {
-                // Fetch student's group memberships
-                const memberships = await Membership.find({
-                    usuario_id: userToReturn._id,
-                    estado_solicitud: 'Aprobado' // Consider only approved memberships for display
-                }).populate('grupo_id', 'nombre'); // Populate group name from Membership
-
-                if (memberships.length > 0) {
-                    const groupNames = memberships
-                        .map(m => m.grupo_id ? m.grupo_id.nombre : null)
-                        .filter(name => name); // Filter out any null names if group_id wasn't populated or group has no name
-
-                    if (groupNames.length > 0) {
-                        userToReturn.nombre_grupo = groupNames.join(', ');
-                        if (userToReturn.nombre_grupo.length > 70) { // Truncate if very long
-                            userToReturn.nombre_grupo = userToReturn.nombre_grupo.substring(0, 67) + "...";
+        // Pipeline de agregación para obtener usuarios con detalles
+        const usersWithDetails = await User.aggregate([
+            { $match: filter },
+            { $sort: sort },
+            { $skip: skip },
+            { $limit: limitNumber },
+            { // Lookup para el plan de los docentes
+                $lookup: {
+                    from: 'plans', // colección de planes
+                    localField: 'planId',
+                    foreignField: '_id',
+                    as: 'planDetails'
+                }
+            },
+            { $unwind: { path: '$planDetails', preserveNullAndEmptyArrays: true } },
+            { // Lookup para el conteo de grupos de docentes
+                $lookup: {
+                    from: 'groups', // colección de grupos
+                    let: { teacherId: '$_id' },
+                    pipeline: [
+                        { $match: { $expr: { $eq: ['$docente_id', '$$teacherId'] }, activo: true } },
+                        { $count: 'count' }
+                    ],
+                    as: 'teacherGroupCount'
+                }
+            },
+            { $unwind: { path: '$teacherGroupCount', preserveNullAndEmptyArrays: true } },
+            { // Lookup para las membresías de estudiantes
+                $lookup: {
+                    from: 'memberships',
+                    let: { studentId: '$_id' },
+                    pipeline: [
+                        { $match: { $expr: { $eq: ['$usuario_id', '$$studentId'] }, estado_solicitud: 'Aprobado' } },
+                        {
+                            $lookup: {
+                                from: 'groups',
+                                localField: 'grupo_id',
+                                foreignField: '_id',
+                                as: 'groupInfo',
+                                pipeline: [{ $project: { _id: 0, nombre: 1 } }] // Solo necesitamos el nombre del grupo
+                            }
+                        },
+                        { $unwind: { path: '$groupInfo', preserveNullAndEmptyArrays: true } }
+                    ],
+                    as: 'studentMemberships'
+                }
+            },
+            { // Proyección final para dar forma a los datos y excluir la contraseña
+                $project: {
+                    contrasena_hash: 0, // Excluir contraseña
+                    nombre: 1,
+                    apellidos: 1,
+                    email: 1,
+                    tipo_usuario: 1,
+                    activo: 1,
+                    aprobado: 1,
+                    fecha_registro: 1,
+                    createdAt: 1, // Asegurarse de incluir createdAt si se usa para ordenar por defecto
+                    updatedAt: 1,
+                    planId: 1, // Mantener planId por si se necesita en el frontend
+                    // Campos condicionales
+                    plan_nombre: {
+                        $cond: {
+                            if: { $eq: ['$tipo_usuario', 'Docente'] },
+                            then: '$planDetails.name',
+                            else: null
                         }
-                    } else {
-                        userToReturn.nombre_grupo = 'En grupos sin nombre';
+                    },
+                    numero_grupos_asignados: { // Para Docentes
+                        $cond: {
+                            if: { $eq: ['$tipo_usuario', 'Docente'] },
+                            then: { $ifNull: ['$teacherGroupCount.count', 0] },
+                            else: null
+                        }
+                    },
+                    nombre_grupo: { // Para Estudiantes
+                        $cond: {
+                            if: { $eq: ['$tipo_usuario', 'Estudiante'] },
+                            then: {
+                                $reduce: { // Concatenar nombres de grupos
+                                    input: '$studentMemberships.groupInfo.nombre',
+                                    initialValue: '',
+                                    in: {
+                                        $cond: {
+                                            if: { $eq: ['$$value', ''] },
+                                            then: '$$this',
+                                            else: { $concat: ['$$value', ', ', '$$this'] }
+                                        }
+                                    }
+                                }
+                            },
+                            else: null
+                        }
+                    }
+                }
+            }
+        ]);
+
+        // Lógica de post-procesamiento para truncar nombre_grupo y mensajes por defecto
+        usersWithDetails.forEach(user => {
+            if (user.tipo_usuario === 'Estudiante') {
+                if (user.nombre_grupo && user.nombre_grupo.length > 0) {
+                    if (user.nombre_grupo.length > 70) {
+                        user.nombre_grupo = user.nombre_grupo.substring(0, 67) + "...";
                     }
                 } else {
-                    userToReturn.nombre_grupo = 'No asignado a grupos';
+                    user.nombre_grupo = 'No asignado a grupos';
                 }
             }
-
-            if (userToReturn.tipo_usuario === 'Docente') {
-                const groupCount = await Group.countDocuments({ docente_id: userToReturn._id, activo: true }); // Count only active groups for teachers
-                userToReturn.numero_grupos_asignados = groupCount;
-
-                // Populate plan name for teacher (alreadyLean means we might not need to populate user again, but this is safer if user object is from a limited query)
-                // Since 'users' is from a .lean() query, populating planId directly on userToReturn.planId won't work.
-                // We need to fetch the original Mongoose doc or handle it as is.
-                // If user object from lean() includes planId (as ObjectId), we can fetch Plan separately.
-                if (userToReturn.planId) {
-                    const plan = await Plan.findById(userToReturn.planId).select('name').lean();
-                    userToReturn.plan_nombre = plan ? plan.name : 'N/A';
-                } else {
-                    userToReturn.plan_nombre = 'N/A';
-                }
-            }
-            return userToReturn;
-        }));
+        });
 
         // --- Calcular metadatos de paginación ---
-        const totalPages = Math.ceil(totalUsers / limitNumber); // Redondea hacia arriba
-        const hasNextPage = pageNumber < totalPages; // ¿Hay una página después de la actual?
-        const hasPrevPage = pageNumber > 1; // ¿Hay una página antes de la actual?
-        const nextPage = hasNextPage ? pageNumber + 1 : null; // Número de la siguiente página o null
-        const prevPage = hasPrevPage ? pageNumber - 1 : null; // Número de la página anterior o null
-
+        const totalPages = Math.ceil(totalUsers / limitNumber);
+        const hasNextPage = pageNumber < totalPages;
+        const hasPrevPage = pageNumber > 1;
+        const nextPage = hasNextPage ? pageNumber + 1 : null;
+        const prevPage = hasPrevPage ? pageNumber - 1 : null;
 
         // --- Responder con los datos paginados y los metadatos ---
         res.status(200).json({
-            data: usersWithDetails, // El array de usuarios para la página actual
+            data: usersWithDetails,
             pagination: {
-                totalItems: totalUsers, // Número total de ítems que coinciden con el filtro
-                currentPage: pageNumber, // Número de la página que se devuelve
-                itemsPerPage: limitNumber, // Número máximo de ítems por página
-                totalPages: totalPages, // Número total de páginas para el conjunto filtrado
-                hasNextPage: hasNextPage, // Booleano
-                hasPrevPage: hasPrevPage, // Booleano
-                nextPage: nextPage, // Número o null
-                prevPage: prevPage // Número o null
+                totalItems: totalUsers,
+                currentPage: pageNumber,
+                itemsPerPage: limitNumber,
+                totalPages: totalPages,
+                hasNextPage: hasNextPage,
+                hasPrevPage: hasPrevPage,
+                nextPage: nextPage,
+                prevPage: prevPage
             }
         });
 
     } catch (error) {
-        // Manejo de errores generales
-        console.error('Error al obtener todos los usuarios (paginado):', error);
+        console.error('Error al obtener todos los usuarios (paginado con agregación):', error);
         res.status(500).json({ message: 'Error interno del servidor al obtener usuarios paginados', error: error.message });
     }
 };
@@ -333,6 +363,7 @@ const getAllGroupsForAdmin = async (req, res) => {
     }
 
     try {
+        // Lógica para filtrar por nombre de docente (modifica el 'filter' antes de la agregación)
         if (searchNombreDocente) {
             const teachers = await User.find({
                 $or: [
@@ -344,47 +375,76 @@ const getAllGroupsForAdmin = async (req, res) => {
             if (teachers.length > 0) {
                 filter.docente_id = { $in: teachers.map(t => t._id) };
             } else {
-                // Si no se encuentran docentes, ningún grupo coincidirá.
-                filter.docente_id = { $in: [] }; // Mongoose maneja esto devolviendo 0 resultados.
+                filter.docente_id = { $in: [] }; // No groups if no teachers match
             }
         }
 
+        // Contar el total de grupos que coinciden con el filtro (antes de la agregación de detalles)
         const totalGroups = await Group.countDocuments(filter);
 
+        // Configurar ordenamiento
         const sortField = sortBy || 'nombre'; // Default sort by group name
         const sortOrderValue = sortOrder === 'desc' ? -1 : 1;
         const sort = { [sortField]: sortOrderValue };
 
-        const groups = await Group.find(filter)
-            .populate('docente_id', 'nombre apellidos email')
-            .sort(sort)
-            .skip(skip)
-            .limit(limitNumber)
-            .lean();
-
-        const groupsWithDetails = await Promise.all(
-            groups.map(async (group) => {
-                const approvedMemberCount = await Membership.countDocuments({
-                    grupo_id: group._id,
-                    estado_solicitud: 'Aprobado',
-                });
-                let daysArchived = null;
-                if (group.activo === false && group.archivedAt) {
-                    const now = new Date();
-                    const archivedDate = new Date(group.archivedAt);
-                    if (!isNaN(archivedDate.getTime())) {
-                        daysArchived = Math.floor((now - archivedDate) / (1000 * 60 * 60 * 24));
-                    } else {
-                        console.warn(`Fecha 'archivedAt' inválida para el grupo ID: ${group._id}`);
-                    }
+        // Pipeline de agregación
+        const groupsWithDetails = await Group.aggregate([
+            { $match: filter },
+            { $sort: sort },
+            { $skip: skip },
+            { $limit: limitNumber },
+            { // Lookup para detalles del docente
+                $lookup: {
+                    from: 'users', // colección de usuarios
+                    localField: 'docente_id',
+                    foreignField: '_id',
+                    as: 'docenteDetails'
                 }
-                return {
-                    ...group,
-                    approvedMemberCount,
-                    daysArchived,
-                };
-            })
-        );
+            },
+            { $unwind: { path: '$docenteDetails', preserveNullAndEmptyArrays: true } },
+            { // Lookup para contar miembros aprobados
+                $lookup: {
+                    from: 'memberships', // colección de membresías
+                    let: { groupId: '$_id' },
+                    pipeline: [
+                        { $match: { $expr: { $eq: ['$grupo_id', '$$groupId'] }, estado_solicitud: 'Aprobado' } },
+                        { $count: 'count' }
+                    ],
+                    as: 'approvedMembersCountArr'
+                }
+            },
+            { $unwind: { path: '$approvedMembersCountArr', preserveNullAndEmptyArrays: true } },
+            {
+                $project: {
+                    // Campos originales del grupo
+                    nombre: 1, descripcion: 1, codigo_acceso: 1, activo: 1, limite_estudiantes: 1,
+                    fecha_creacion: 1, archivedAt: 1, learning_path_ids: 1, estudiantes_ids: 1,
+                    // Campos poblados/calculados
+                    docente_id: { // Reconstruir el objeto docente_id como se esperaba del populate
+                        _id: '$docenteDetails._id',
+                        nombre: '$docenteDetails.nombre',
+                        apellidos: '$docenteDetails.apellidos',
+                        email: '$docenteDetails.email'
+                    },
+                    approvedMemberCount: { $ifNull: ['$approvedMembersCountArr.count', 0] }
+                }
+            }
+        ]);
+
+        // Calcular daysArchived después de la agregación
+        groupsWithDetails.forEach(group => {
+            let daysArchived = null;
+            if (group.activo === false && group.archivedAt) {
+                const now = new Date();
+                const archivedDate = new Date(group.archivedAt);
+                if (!isNaN(archivedDate.getTime())) {
+                    daysArchived = Math.floor((now - archivedDate) / (1000 * 60 * 60 * 24));
+                } else {
+                    // console.warn(`Fecha 'archivedAt' inválida para el grupo ID: ${group._id}`);
+                }
+            }
+            group.daysArchived = daysArchived;
+        });
 
         const totalPages = Math.ceil(totalGroups / limitNumber);
         const hasNextPage = pageNumber < totalPages;
@@ -404,7 +464,7 @@ const getAllGroupsForAdmin = async (req, res) => {
             },
         });
     } catch (error) {
-        console.error('Error al obtener todos los grupos para admin:', error);
+        console.error('Error al obtener todos los grupos para admin (con agregación):', error);
         res.status(500).json({
             message: 'Error interno del servidor al obtener los grupos.',
             error: error.message,

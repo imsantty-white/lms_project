@@ -834,7 +834,7 @@ const getMyAssignedLearningPaths = async (req, res) => {
             estado_solicitud: 'Aprobado'
         }).populate({
             path: 'grupo_id',
-            select: 'activo'
+            select: 'activo' // Solo necesitamos saber si el grupo está activo
         });
 
         const activeGroupIds = approvedMemberships
@@ -849,50 +849,60 @@ const getMyAssignedLearningPaths = async (req, res) => {
             });
         }
 
-        // Obtener las rutas de aprendizaje asociadas a los grupos activos
-        const rawAssignedPaths = await LearningPath.find({
-            group_id: { $in: activeGroupIds }
-        })
-        .populate('group_id', 'nombre'); // Para obtener el nombre del grupo
-
-        // Calcular el estado de cada ruta de aprendizaje usando el modelo Progress
-        const formattedAssignedPaths = await Promise.all(rawAssignedPaths.map(async (lp) => {
-            if (!lp.group_id) {
-                console.warn(`Ruta de aprendizaje ${lp._id} tiene una referencia de grupo nula o el grupo no fue populado.`);
-                return null;
+        const assignedPathsWithStatus = await LearningPath.aggregate([
+            { $match: { group_id: { $in: activeGroupIds.map(id => mongoose.Types.ObjectId(id)) } } }, // Asegurar que los IDs son ObjectId
+            { // Lookup para detalles del grupo
+                $lookup: {
+                    from: 'groups', // Nombre de la colección de grupos
+                    localField: 'group_id',
+                    foreignField: '_id',
+                    as: 'groupDetails'
+                }
+            },
+            { $unwind: { path: '$groupDetails', preserveNullAndEmptyArrays: true } },
+            { // Lookup para el progreso del estudiante en esta ruta
+                $lookup: {
+                    from: 'progresses', // Nombre de la colección de progreso
+                    let: {
+                        learningPathId: '$_id',
+                        currentStudentId: mongoose.Types.ObjectId(userId) // Asegurar que userId es ObjectId
+                    },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ['$learning_path_id', '$$learningPathId'] },
+                                        { $eq: ['$student_id', '$$currentStudentId'] }
+                                    ]
+                                }
+                            }
+                        },
+                        { $project: { path_status: 1, _id: 0 } } // Solo necesitamos el estado
+                    ],
+                    as: 'studentProgress'
+                }
+            },
+            { $unwind: { path: '$studentProgress', preserveNullAndEmptyArrays: true } }, // Para rutas sin progreso, studentProgress será null
+            {
+                $project: {
+                    _id: 1,
+                    nombre: 1,
+                    group_id: '$groupDetails._id',
+                    group_name: '$groupDetails.nombre',
+                    status: { $ifNull: ['$studentProgress.path_status', 'No Iniciado'] }
+                }
             }
-
-            // Buscar el progreso del estudiante para esta ruta específica
-            const studentProgress = await Progress.findOne({
-                student_id: userId,
-                learning_path_id: lp._id
-            });
-
-            // Determinar el estado de la ruta. Si no hay documento de progreso, se asume 'No Iniciado'.
-            const status = studentProgress ? studentProgress.path_status : 'No Iniciado';
-
-            return {
-                _id: lp._id,
-                nombre: lp.nombre,
-                group_id: lp.group_id._id,
-                group_name: lp.group_id.nombre,
-                status: status, // <--- ¡Ahora usamos el 'path_status' de tu modelo Progress!
-                // Si quieres, podrías calcular un porcentaje de progreso aquí basado en completed_themes
-                // y los temas totales de la LearningPath si tu modelo LearningPath los tiene.
-                // Por ahora, solo enviamos el status directo.
-            };
-        }));
-
-        const finalPaths = formattedAssignedPaths.filter(item => item !== null);
+        ]);
 
         res.status(200).json({
             success: true,
-            count: finalPaths.length,
-            data: finalPaths
+            count: assignedPathsWithStatus.length,
+            data: assignedPathsWithStatus
         });
 
     } catch (error) {
-        console.error('Error al obtener las rutas de aprendizaje asignadas:', error);
+        console.error('Error al obtener las rutas de aprendizaje asignadas (con agregación):', error);
         res.status(500).json({
             success: false,
             message: error.message || 'Error al obtener las rutas de aprendizaje asignadas.'
