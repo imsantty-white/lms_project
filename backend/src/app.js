@@ -8,6 +8,7 @@ const cors = require('cors');
 
 // --- IMPORTAR express-mongo-sanitize ---
 const mongoSanitize = require('express-mongo-sanitize');
+const errorHandler = require('./middleware/errorHandler');
 
 // Middleware: Permite que Express entienda JSON en las peticiones
 app.use(express.json());
@@ -18,18 +19,18 @@ app.use(express.urlencoded({ extended: true }));
 // Es crucial que la URL sea exactamente el origen de tu frontend (protocolo, dominio, puerto).
 // Si tu frontend de Vite corre en http://localhost:5173, USA EXACTAMENTE ESA URL AQUÍ.
 app.use(cors({
-  origin: 'http://localhost:5173' // <-- Permite solo peticiones desde este origen específico
+  origin: 'https://SU_DOMINIO_FRONTEND_PRODUCCION.com', credentials: true // <-- Permite solo peticiones desde este origen específico
 }));
 // NOTA: Para desarrollo, a veces se usa app.use(cors()); para permitir cualquier origen,
 // pero especificar el origen es mejor práctica incluso en desarrollo si conoces la URL del frontend.
 // --- FIN USAR EL MIDDLEWARE CORS ---
 
 // --- USAR EL MIDDLEWARE express-mongo-sanitize ---
-// Solo sanitiza body y params, NO query (para evitar el error)
+// Sanitiza body, params y query.
 app.use((req, res, next) => {
   mongoSanitize.sanitize(req.body, { replaceWith: '_removed_' });
   mongoSanitize.sanitize(req.params, { replaceWith: '_removed_' });
-  // NO sanitices req.query aquí
+  mongoSanitize.sanitize(req.query, { replaceWith: '_removed_' }); // Añadido para req.query
   next();
 });
 
@@ -126,5 +127,8 @@ app.use('/api/announcements', announcementRoutes);
 app.get('/', (req, res) => {
   res.send('API del Sistema de Gestión de Aprendizaje funcionando!');
 });
+
+// Middleware de manejo de errores global (debe ser el último)
+app.use(errorHandler);
 
 module.exports = app; // Exporta la aplicación Express configurada

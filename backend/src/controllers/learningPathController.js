@@ -656,126 +656,169 @@ const getGroupLearningPathsForStudent = async (req, res) => {
 // @desc    Obtener la estructura completa de una Ruta de Aprendizaje específica
 // @route   GET /api/learning-paths/:pathId/structure
 // Acceso: Privado/Docente (dueño del grupo) O Estudiante (miembro aprobado del grupo)
-const getLearningPathStructure = async (req, res) => {
+const getLearningPathStructure = async (req, res, next) => { // Añadir next
     const { pathId } = req.params;
     const userId = req.user._id;
     const userType = req.user.tipo_usuario;
 
     try {
-        // --- Verificación de Permiso: Asegurar que el usuario tiene permiso para ver esta ruta ---
-        // Primero, buscar la ruta y poblar el grupo asociado
-        const learningPath = await LearningPath.findById(pathId).populate({ path: 'group_id', select: '_id nombre activo docente_id' }); // <<< Asegúrate de seleccionar 'activo' del grupo
-
-        if (!learningPath) {
-            return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada' });
+        if (!mongoose.Types.ObjectId.isValid(pathId)) {
+            return res.status(400).json({ message: 'ID de ruta de aprendizaje inválido.' });
         }
 
-        // *** AJUSTE CLAVE AQUI: Si el grupo asociado a la ruta NO está activo, denegar acceso. ***
-        if (learningPath.group_id && !learningPath.group_id.activo) {
+        const aggregationResult = await LearningPath.aggregate([
+            // 1. Match la ruta de aprendizaje específica
+            { $match: { _id: mongoose.Types.ObjectId(pathId) } },
+
+            // 2. Lookup para detalles del grupo (necesario para permisos y datos)
+            {
+                $lookup: {
+                    from: 'groups', // Nombre de la colección de grupos
+                    localField: 'group_id',
+                    foreignField: '_id',
+                    as: 'group_details_array' // Usar un nombre diferente para evitar confusión con el campo group_id existente
+                }
+            },
+            // Desenrollar el resultado del lookup del grupo. Preservar si no hay grupo (aunque una LP debería tenerlo)
+            { $unwind: { path: '$group_details_array', preserveNullAndEmptyArrays: true } },
+
+            // 3. Lookup para módulos
+            {
+                $lookup: {
+                    from: 'modules', // Nombre de la colección de módulos
+                    let: { learningPathId: '$_id' },
+                    pipeline: [
+                        { $match: { $expr: { $eq: ['$learning_path_id', '$$learningPathId'] } } },
+                        { $sort: { orden: 1 } },
+                        // 3.1. Lookup para temas dentro de cada módulo
+                        {
+                            $lookup: {
+                                from: 'themes', // Nombre de la colección de temas
+                                let: { moduleId: '$_id' },
+                                pipeline: [
+                                    { $match: { $expr: { $eq: ['$module_id', '$$moduleId'] } } },
+                                    { $sort: { orden: 1 } },
+                                    // 3.1.1. Lookup para asignaciones dentro de cada tema
+                                    {
+                                        $lookup: {
+                                            from: 'contentassignments', // Nombre de la colección de asignaciones
+                                            let: { themeId: '$_id' },
+                                            pipeline: [
+                                                { $match: { $expr: { $eq: ['$theme_id', '$$themeId'] } } },
+                                                { $sort: { orden: 1 } },
+                                                // Poblar resource_id
+                                                {
+                                                    $lookup: {
+                                                        from: 'resources',
+                                                        localField: 'resource_id',
+                                                        foreignField: '_id',
+                                                        as: 'resource_info'
+                                                    }
+                                                },
+                                                { $unwind: { path: '$resource_info', preserveNullAndEmptyArrays: true } },
+                                                // Poblar activity_id
+                                                {
+                                                    $lookup: {
+                                                        from: 'activities',
+                                                        localField: 'activity_id',
+                                                        foreignField: '_id',
+                                                        as: 'activity_info'
+                                                    }
+                                                },
+                                                { $unwind: { path: '$activity_info', preserveNullAndEmptyArrays: true } },
+                                                // Proyectar para dar forma a la asignación
+                                                {
+                                                    $project: {
+                                                        _id: 1, type: 1, orden: 1, status: 1, fecha_inicio: 1, fecha_fin: 1,
+                                                        puntos_maximos: 1, intentos_permitidos: 1, tiempo_limite: 1,
+                                                        // Seleccionar campos específicos para evitar enviar todo el documento
+                                                        resource_id: { $cond: { if: '$resource_info', then: { _id: '$resource_info._id', title: '$resource_info.title', type: '$resource_info.type', link_url: '$resource_info.link_url', video_url: '$resource_info.video_url', content_body: '$resource_info.content_body' }, else: null } },
+                                                        activity_id: { $cond: { if: '$activity_info', then: { _id: '$activity_info._id', title: '$activity_info.title', type: '$activity_info.type' }, else: null } }
+                                                    }
+                                                }
+                                            ],
+                                            as: 'assignments'
+                                        }
+                                    }
+                                ],
+                                as: 'themes'
+                            }
+                        }
+                    ],
+                    as: 'modules'
+                }
+            },
+            // 4. Proyección final para dar forma a la estructura de salida
+            {
+                $project: {
+                    _id: 1, nombre: 1, descripcion: 1, fecha_inicio: 1, fecha_fin: 1, activo: 1,
+                    // Usar los detalles del grupo del lookup
+                    group_id: { _id: '$group_details_array._id', nombre: '$group_details_array.nombre', activo: '$group_details_array.activo', docente_id: '$group_details_array.docente_id' },
+                    modules: {
+                        $map: {
+                            input: '$modules',
+                            as: 'module',
+                            in: {
+                                _id: '$$module._id', nombre: '$$module.nombre', descripcion: '$$module.descripcion', orden: '$$module.orden',
+                                themes: {
+                                    $map: {
+                                        input: '$$module.themes',
+                                        as: 'theme',
+                                        in: {
+                                            _id: '$$theme._id', nombre: '$$theme.nombre', descripcion: '$$theme.descripcion', orden: '$$theme.orden',
+                                            assignments: '$$theme.assignments'
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        ]);
+
+        if (!aggregationResult || aggregationResult.length === 0) {
+            return res.status(404).json({ message: 'Ruta de aprendizaje no encontrada.' });
+        }
+
+        const pathStructure = aggregationResult[0]; // El resultado de la agregación es un array
+
+        // --- Verificación de Permiso (adaptada para usar pathStructure.group_id) ---
+        if (!pathStructure.group_id) { // Si la ruta no tiene grupo (no debería pasar si los datos son consistentes)
+             return res.status(404).json({ message: 'Ruta de aprendizaje no asociada a un grupo.' });
+        }
+        if (!pathStructure.group_id.activo) {
             return res.status(403).json({ message: 'El grupo asociado a esta ruta de aprendizaje ha sido archivado y no puedes acceder a su contenido.' });
         }
 
         let canView = false;
-        // Si es Docente, verificar si es dueño del grupo de la ruta
         if (userType === 'Docente') {
-            if (learningPath.group_id && learningPath.group_id.docente_id.equals(userId)) {
+            // pathStructure.group_id.docente_id ya está disponible por la agregación
+            if (pathStructure.group_id.docente_id && pathStructure.group_id.docente_id.equals(userId)) {
                 canView = true;
             }
-        // Si es Estudiante, verificar si es miembro aprobado del grupo de la ruta
         } else if (userType === 'Estudiante') {
-            if (learningPath.group_id) {
-                const approvedMembership = await Membership.findOne({
-                    usuario_id: userId,
-                    grupo_id: learningPath.group_id._id,
-                    estado_solicitud: 'Aprobado'
-                });
-                if (approvedMembership) {
-                    canView = true;
-                }
+            const approvedMembership = await Membership.findOne({
+                usuario_id: userId,
+                grupo_id: pathStructure.group_id._id, // Usar el _id del grupo desde la estructura
+                estado_solicitud: 'Aprobado'
+            });
+            if (approvedMembership) {
+                canView = true;
             }
         }
 
-        // Si el usuario no es ni el docente dueño ni un estudiante miembro aprobado
         if (!canView) {
             return res.status(403).json({ message: 'No tienes permiso para ver esta ruta de aprendizaje o el grupo ha sido archivado.' });
         }
         // --- Fin Verificación de Permiso ---
 
-        // Si el usuario tiene permiso y el grupo está activo, obtener la estructura completa
-        const modules = await Module.find({ learning_path_id: pathId }).sort('orden');
-
-        const pathStructure = {
-            _id: learningPath._id,
-            nombre: learningPath.nombre,
-            descripcion: learningPath.descripcion,
-            fecha_inicio: learningPath.fecha_inicio,
-            fecha_fin: learningPath.fecha_fin,
-            activo: learningPath.activo,
-            // Asegúrate de enviar el estado 'activo' del grupo al frontend
-            group_id: learningPath.group_id ? {
-                _id: learningPath.group_id._id,
-                nombre: learningPath.group_id.nombre,
-                activo: learningPath.group_id.activo // <<< IMPORTANTE: Pasar el estado activo del grupo
-            } : null,
-            modules: []
-        };
-
-        // ... (el resto de tu lógica para poblar módulos, temas, asignaciones) ...
-        for (const module of modules) {
-            const themes = await Theme.find({ module_id: module._id }).sort('orden');
-            const moduleObject = {
-                _id: module._id,
-                nombre: module.nombre,
-                descripcion: module.descripcion,
-                orden: module.orden,
-                themes: []
-            };
-
-            for (const theme of themes) {
-                const assignments = await ContentAssignment.find({ theme_id: theme._id }).sort('orden')
-                    .populate({ path: 'resource_id', select: '_id title type link_url video_url content_body' })
-                    .populate({ path: 'activity_id', select: '_id title type' });
-
-                const themeObject = {
-                    _id: theme._id,
-                    nombre: theme.nombre,
-                    descripcion: theme.descripcion,
-                    orden: theme.orden,
-                    assignments: assignments.map(assign => ({
-                        _id: assign._id,
-                        type: assign.type,
-                        orden: assign.orden,
-                        status: assign.status,
-                        fecha_inicio: assign.fecha_inicio,
-                        fecha_fin: assign.fecha_fin,
-                        puntos_maximos: assign.puntos_maximos,
-                        intentos_permitidos: assign.intentos_permitidos,
-                        tiempo_limite: assign.tiempo_limite,
-                        resource_id: assign.type === 'Resource' && assign.resource_id ? {
-                            _id: assign.resource_id._id,
-                            title: assign.resource_id.title,
-                            type: assign.resource_id.type,
-                            link_url: assign.resource_id.link_url,
-                            video_url: assign.resource_id.video_url,
-                            content_body: assign.resource_id.content_body
-                        } : null,
-                        activity_id: assign.type === 'Activity' && assign.activity_id ? {
-                            _id: assign.activity_id._id,
-                            title: assign.activity_id.title,
-                            type: assign.activity_id.type
-                        } : null,
-                    }))
-                };
-                moduleObject.themes.push(themeObject);
-            }
-            pathStructure.modules.push(moduleObject);
-        }
-
         res.status(200).json(pathStructure);
 
     } catch (error) {
-        console.error('Error al obtener la estructura de la ruta de aprendizaje:', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener la estructura de la ruta de aprendizaje', error: error.message });
+        console.error('Error al obtener la estructura de la ruta de aprendizaje con agregación:', error);
+        // res.status(500).json({ message: 'Error interno del servidor al obtener la estructura de la ruta de aprendizaje', error: error.message });
+        next(error); // Pasar al manejador de errores global
     }
 };
 
