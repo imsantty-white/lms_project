@@ -668,7 +668,7 @@ const getLearningPathStructure = async (req, res, next) => { // Añadir next
 
         const aggregationResult = await LearningPath.aggregate([
             // 1. Match la ruta de aprendizaje específica
-            { $match: { _id: mongoose.Types.ObjectId(pathId) } },
+            { $match: { _id: new mongoose.Types.ObjectId(pathId) } },
 
             // 2. Lookup para detalles del grupo (necesario para permisos y datos)
             {

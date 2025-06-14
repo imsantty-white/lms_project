@@ -110,6 +110,7 @@ contentAssignmentSchema.pre('validate', function(next) {
 // Definición de Índices
 contentAssignmentSchema.index({ theme_id: 1, orden: 1 });
 contentAssignmentSchema.index({ group_id: 1, type: 1, status: 1 });
+contentAssignmentSchema.index({ status: 1, fecha_fin: 1 });
 
 const ContentAssignment = mongoose.model('ContentAssignment', contentAssignmentSchema);
 module.exports = ContentAssignment;

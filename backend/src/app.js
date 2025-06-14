@@ -19,7 +19,8 @@ app.use(express.urlencoded({ extended: true }));
 // Es crucial que la URL sea exactamente el origen de tu frontend (protocolo, dominio, puerto).
 // Si tu frontend de Vite corre en http://localhost:5173, USA EXACTAMENTE ESA URL AQUÍ.
 app.use(cors({
-  origin: 'https://SU_DOMINIO_FRONTEND_PRODUCCION.com', credentials: true // <-- Permite solo peticiones desde este origen específico
+  origin: 'http://localhost:5173' // <-- Permite solo peticiones desde este origen específico
+  //origin: 'https://SU_DOMINIO_FRONTEND_PRODUCCION.com', credentials: true // <-- Permite solo peticiones desde este origen específico
 }));
 // NOTA: Para desarrollo, a veces se usa app.use(cors()); para permitir cualquier origen,
 // pero especificar el origen es mejor práctica incluso en desarrollo si conoces la URL del frontend.
